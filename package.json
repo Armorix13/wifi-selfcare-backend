@@ -1,0 +1,37 @@
+{
+  "name": "wifi-selfcare",
+  "version": "1.0.0",
+  "main": "dist/app.js",
+ "scripts": {
+  "start": "node dist/app.js",
+  "build": "npx swc src -d dist --config-file .swcrc",
+  "watch": "npx swc src -d dist --watch --config-file .swcrc",
+  "dev": "concurrently \"npm:watch\" \"nodemon dist/app.js\"",
+  "test": "jest",
+  "type-check": "tsc --noEmit"
+},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@swc/cli": "^0.4.0",
+    "@swc/core": "^1.12.9",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/mongoose": "^5.11.96",
+    "@types/node": "^24.0.10",
+    "concurrently": "^9.2.0",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.1",
+    "express": "^4.21.2",
+    "express-async-errors": "^3.1.1",
+    "mongoose": "^8.16.2",
+    "winston": "^3.17.0"
+  }
+}

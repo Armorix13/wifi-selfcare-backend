@@ -1,0 +1,6 @@
+.env
+dist
+error.log
+combined.log
+package-lock.json
+node_modules
