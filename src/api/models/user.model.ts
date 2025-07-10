@@ -78,31 +78,28 @@ const GeoPointSchema = new Schema<IGeoPoint>({
   type: {
     type: String,
     enum: ["Point"],
-    required: true,
     default: "Point"
   },
   coordinates: {
-    type: [Number],
-    required: true
+    type: [Number]
   }
 }, { _id: false });
 
 const UserSchema = new Schema<IUser>({
-  email: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
-  countryCode: { type: String, required: true },
-  phoneNumber: { type: String, required: true },
+  email: { type: String},
+  countryCode: { type: String },
+  phoneNumber: { type: String },
   lat: { type: Number, required: true },
   long: { type: Number, required: true },
   role: { type: String, enum: Object.values(Role), default: Role.USER },
   profileImage: { type: String },
-  location: { type: GeoPointSchema, required: true },
+  location: { type: GeoPointSchema },
   language: { type: String },
   companyPreference: { type: String },
-  country: { type: String, required: true },
-  userName: { type: String, required: true, unique: true },
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
+  country: { type: String},
+  userName: { type: String },
+  firstName: { type: String },
+  lastName: { type: String},
   status: { type: String },
   group: { type: String },
   zone: { type: String },
