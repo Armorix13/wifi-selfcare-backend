@@ -5,6 +5,7 @@ import cors from 'cors';
 import errorHandler from './middleware/errorHandler';
 import { connectDB } from './config/database';
 import logger from './utils/logger';
+import parentRouter from './api/routes';
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+app.use("/api/v1", parentRouter);
 
 // Error Handling
 app.use(errorHandler);
