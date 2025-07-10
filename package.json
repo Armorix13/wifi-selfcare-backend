@@ -1,7 +1,7 @@
 {
   "name": "wifi-selfcare",
   "version": "1.0.0",
-  "main": "dist/src/app.js",
+  "main": "src/app.ts",
   "scripts": {
     "start": "NODE_ENV=production ts-node src/app.ts",
     "dev": "nodemon --watch src --ext ts,js,json --exec ts-node src/app.ts",
