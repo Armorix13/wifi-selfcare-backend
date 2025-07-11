@@ -5,10 +5,10 @@
   "scripts": {
     "watch": "tsc --watch",
     "compile": "tsc --build",
-    "pre:dev": "nodemon dist/src/app.js",
+    "pre:dev": "nodemon dist/app.js",
     "dev": "concurrently \"npm run watch\" \"npm run pre:dev\"",
     "build": "tsc",
-    "start": "node dist/src/app.js"
+    "start": "node dist/app.js"
   },
   "keywords": [],
   "author": "",
