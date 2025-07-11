@@ -23,6 +23,7 @@ const signUp = async (req: Request, res: Response):Promise<any> => {
                 existingUser.otp = otp;
                 existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
                 existingUser.otpVerified = false;
+                existingUser.otpPurpose = "signup";
                 existingUser.deviceType = deviceType;
                 existingUser.deviceToken = deviceToken;
                 await existingUser.save();
@@ -53,6 +54,7 @@ const signUp = async (req: Request, res: Response):Promise<any> => {
             otpExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
             otpVerified: false,
             otp,
+            otpPurpose:"signup",
             deviceType,
             deviceToken
         });
