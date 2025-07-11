@@ -278,11 +278,18 @@ const socialLogin = async (req: Request, res: Response):Promise<any> => {
         }
         let user = await UserModel.findOne({ email });
         if (user) {
-            // If user exists, check provider
-            if (user.provider !== provider || user.providerId !== providerId) {
-                // Optionally, you could allow linking new providerId here
-                return sendError(res, "Provider mismatch or not linked", 400);
+            // If user exists, check if they have provider info
+            if (user.provider && user.providerId) {
+                // User has provider info, check if it matches
+                if (user.provider !== provider || user.providerId !== providerId) {
+                    return sendError(res, "Provider mismatch or not linked", 400);
+                }
+            } else {
+                // User exists but doesn't have provider info, update it
+                user.provider = provider;
+                user.providerId = providerId;
             }
+            
             if (user.isDeleted) {
                 return sendError(res, "Account is deleted", 403);
             }
