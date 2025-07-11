@@ -3,9 +3,11 @@ import { Role, UserModel } from "../models/user.model";
 import { hashPassword, sendSuccess, sendError, generateOtp, sendMessage, generateAccessToken, generateRefreshToken, generateRandomJti, comparePassword } from '../../utils/helper';
 
 const signUp = async (req: Request, res: Response):Promise<any> => {
+    console.log(req.body);
+    
     try {
         const { email, password, firstName, lastName, countryCode, phoneNumber, lat, long, language, companyPreference, deviceType, deviceToken } = req.body;
-        const existingUser = await UserModel.findOne({ $or: [{ email }, { phoneNumber }] });
+        const existingUser = await UserModel.findOne({ $or: [{ email }] });
 
         if (existingUser) {
             if (existingUser.isAccountVerified) {
@@ -24,7 +26,8 @@ const signUp = async (req: Request, res: Response):Promise<any> => {
                 existingUser.deviceType = deviceType;
                 existingUser.deviceToken = deviceToken;
                 await existingUser.save();
-                return sendSuccess(res, { user: existingUser, otp }, "OTP resent to your email. Please verify your account.", 200);
+                existingUser.otp = undefined;
+                return sendSuccess(res, { user: existingUser }, "OTP resent to your email. Please verify your account.", 200);
             }
         }
 
@@ -100,7 +103,7 @@ const verifyOtp = async (req: Request, res: Response):Promise<any> => {
             };
         } else if (purpose === "forgot_password") {
             user.otpVerified = true;
-        } else if (purpose === "image_change") {
+        } else if (purpose === "email_change") {
             user.otpVerified = true;
         } else {
             user.otpVerified = true;
