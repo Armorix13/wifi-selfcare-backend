@@ -1,13 +1,13 @@
 {
   "name": "wifi-selfcare",
   "version": "1.0.0",
-  "main": "src/app.ts",
+  "main": "dist/src/app.js",
   "scripts": {
-   "watch": "swc src -d dist --watch",
-  "build": "swc src -d dist",
-  "pre:dev": "nodemon dist/app.js",
-  "dev": "concurrently \"npm run watch\" \"npm run pre:dev\"",
-  "start": "npm run build && node dist/app.js"
+    "start": "node dist/src/app.js",
+    "build": "npx swc src -d dist --config-file .swcrc",
+    "dev": "nodemon",
+    "test": "jest",
+    "type-check": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
