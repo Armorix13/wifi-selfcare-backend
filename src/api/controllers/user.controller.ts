@@ -75,8 +75,23 @@ const verifyOtp = async (req: Request, res: Response):Promise<any> => {
         const user = await UserModel.findOne({ email });
         if (!user) return sendError(res, "User not found", 404);
 
+        // console.log('=== OTP Verification Debug ===');
+        // console.log('Request OTP:', otp, 'Type:', typeof otp);
+        // console.log('Database OTP:', user.otp, 'Type:', typeof user.otp);
+        // console.log('Request Purpose:', purpose, 'Type:', typeof purpose);
+        // console.log('Database Purpose:', user.otpPurpose, 'Type:', typeof user.otpPurpose);
+        // console.log('OTP Expiry:', user.otpExpiry);
+        // console.log('Current Date:', new Date());
+        // console.log('OTP Match:', user.otp === otp);
+        // console.log('Purpose Match:', user.otpPurpose === purpose);
+        // console.log('Expiry Check:', user.otpExpiry && user.otpExpiry < new Date());
+        // console.log('================================');
+
+        const requestOtp = String(otp);
+        const databaseOtp = String(user.otp);
+
         if (
-            user.otp !== otp ||
+            databaseOtp !== requestOtp ||
             !user.otpExpiry ||
             user.otpExpiry < new Date() ||
             user.otpPurpose !== purpose
