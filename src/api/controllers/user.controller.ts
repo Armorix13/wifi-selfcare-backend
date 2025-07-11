@@ -52,7 +52,8 @@ const signUp = async (req: Request, res: Response):Promise<any> => {
             deviceType,
             deviceToken
         });
-        return sendSuccess(res, { user: newUser, otp }, "User registered successfully. OTP sent to email.", 201);
+        newUser.otp = undefined;
+        return sendSuccess(res, { user: newUser}, "User registered successfully. OTP sent to email.", 201);
     } catch (error) {
         console.error(error);
         return sendError(res, "Internal server error", 500, error);
