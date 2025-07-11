@@ -52,6 +52,7 @@ const signUp = async (req: Request, res: Response):Promise<any> => {
             companyPreference,
             otpExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
             otpVerified: false,
+            otp,
             deviceType,
             deviceToken
         });
