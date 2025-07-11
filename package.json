@@ -3,18 +3,19 @@
   "version": "1.0.0",
   "main": "src/app.ts",
   "scripts": {
-    "watch": "tsc --watch",
-    "compile": "tsc --build",
-    "pre:dev": "nodemon dist/app.js",
-    "dev": "concurrently \"npm run watch\" \"npm run pre:dev\"",
-    "build": "tsc",
-    "start": "node dist/app.js"
+   "watch": "swc src -d dist --watch",
+  "build": "swc src -d dist",
+  "pre:dev": "nodemon dist/app.js",
+  "dev": "concurrently \"npm run watch\" \"npm run pre:dev\"",
+  "start": "npm run build && node dist/app.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@swc/cli": "^0.7.8",
+    "@swc/core": "^1.12.11",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
