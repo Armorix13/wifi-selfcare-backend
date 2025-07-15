@@ -56,6 +56,39 @@ export interface IComplaint extends Document {
     createdAt?: Date;
     updatedAt?: Date;
 
+    // Customer Data
+    fatherName?: string;
+    alternativeNumber?: string;
+    address?: string;
+    landlineNumber?: string;
+
+    // Modem Data
+    modemName?: string;
+    modemType?: string;
+    macNumber?: string;
+    modemUsername?: string;
+    modemPassword?: string;
+    serialNumber?: string;
+
+    // Soft Details
+    internetAccessId?: string;
+    userIdSoft?: string;
+    plan?: string;
+    softPassword?: string;
+    oltPort?: string;
+    ponPort?: string;
+    ontDistance?: string;
+    portStatus?: string;
+    ontTxPower?: string;
+    ontRxPower?: string;
+
+    // OTP for complaint resolution
+    otp?: string;
+
+    // Re-complaint fields
+    isReComplaint?: boolean;
+    parentComplaintId?: mongoose.Types.ObjectId;
+
     // Custom methods
     assignEngineer(engineerId: mongoose.Types.ObjectId, assignedById: mongoose.Types.ObjectId): Promise<IComplaint>;
     updateStatus(newStatus: ComplaintStatus, notes?: string): Promise<IComplaint>;
@@ -136,6 +169,34 @@ const ComplaintSchema = new Schema<IComplaint>({
         type: String,
         trim: true
     },
+    // Customer Data
+    fatherName: { type: String, trim: true },
+    alternativeNumber: { type: String, trim: true },
+    address: { type: String, trim: true },
+    landlineNumber: { type: String, trim: true },
+    // Modem Data
+    modemName: { type: String, trim: true },
+    modemType: { type: String, trim: true },
+    macNumber: { type: String, trim: true },
+    modemUsername: { type: String, trim: true },
+    modemPassword: { type: String, trim: true },
+    serialNumber: { type: String, trim: true },
+    // Soft Details
+    internetAccessId: { type: String, trim: true },
+    userIdSoft: { type: String, trim: true },
+    plan: { type: String, trim: true },
+    softPassword: { type: String, trim: true },
+    oltPort: { type: String, trim: true },
+    ponPort: { type: String, trim: true },
+    ontDistance: { type: String, trim: true },
+    portStatus: { type: String, trim: true },
+    ontTxPower: { type: String, trim: true },
+    ontRxPower: { type: String, trim: true },
+    // OTP
+    otp: { type: String, trim: true },
+    // Re-complaint
+    isReComplaint: { type: Boolean, default: false },
+    parentComplaintId: { type: Schema.Types.ObjectId, ref: "Complaint" },
     attachments: [{
         type: String
     }],
@@ -166,7 +227,13 @@ ComplaintSchema.virtual('resolutionTimeInHours').get(function () {
     return null;
 });
 
+// Enforce min 1, max 4 attachments (photos) on save
 ComplaintSchema.pre('save', function (next) {
+    if (this.attachments) {
+        if (this.attachments.length < 1 || this.attachments.length > 4) {
+            return next(new Error('You must submit at least 1 and at most 4 photos.'));
+        }
+    }
     if (this.isModified('status') && this.status === ComplaintStatus.RESOLVED && !this.resolutionDate) {
         this.resolutionDate = new Date();
         this.resolved = true;

@@ -6,6 +6,39 @@ export interface CreateComplaintBody {
   complaintType: ComplaintType;
   phoneNumber: string;
   attachments?: string[];
+
+  // Customer Data
+  fatherName?: string;
+  alternativeNumber?: string;
+  address?: string;
+  landlineNumber?: string;
+
+  // Modem Data
+  modemName?: string;
+  modemType?: string;
+  macNumber?: string;
+  modemUsername?: string;
+  modemPassword?: string;
+  serialNumber?: string;
+
+  // Soft Details
+  internetAccessId?: string;
+  userIdSoft?: string;
+  plan?: string;
+  softPassword?: string;
+  oltPort?: string;
+  ponPort?: string;
+  ontDistance?: string;
+  portStatus?: string;
+  ontTxPower?: string;
+  ontRxPower?: string;
+
+  // OTP for complaint resolution
+  otp?: string;
+
+  // Re-complaint fields
+  isReComplaint?: boolean;
+  parentComplaintId?: string;
 }
 
 export interface UpdateStatusBody {

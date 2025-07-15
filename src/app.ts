@@ -16,6 +16,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files from the /view directory
+app.use('/view', express.static('view'));
+
 // Routes
 app.use("/api/v1", parentRouter);
 
