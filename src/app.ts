@@ -6,6 +6,8 @@ import errorHandler from './middleware/errorHandler';
 import { connectDB } from './config/database';
 import logger from './utils/logger';
 import parentRouter from './api/routes';
+import helmet from 'helmet';
+import morgan from 'morgan';
 
 dotenv.config();
 
@@ -15,6 +17,8 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
+app.use(morgan('dev'));
 
 // Serve static files from the /view directory
 app.use('/view', express.static('view'));
