@@ -45,8 +45,10 @@ const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb: FileFilterCallback) => {
     const mimeType = file.mimetype;
-    if (
-      mimeType.startsWith("image/") ||
+    // Accept all image/* types, including svg, gif, webp, bmp, tiff, ico, etc.
+    if (mimeType.startsWith("image/")) {
+      cb(null, true);
+    } else if (
       mimeType === "application/pdf" ||
       mimeType.startsWith("video/") ||
       mimeType.startsWith("audio/")
