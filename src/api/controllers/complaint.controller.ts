@@ -1,14 +1,11 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { ComplaintModel, ComplaintStatus, Priority, ComplaintType } from "../models/complaint.model";
+import { ComplaintModel, ComplaintStatus, Priority } from "../models/complaint.model";
 import { UserModel, Role } from "../models/user.model";
 import { sendSuccess, sendError } from "../../utils/helper";
 import { AssignEngineerBody, CreateComplaintBody, UpdateStatusBody } from "../../type/complaint.interface";
 
 
-const validateComplaintType = (type: string): boolean => {
-    return Object.values(ComplaintType).includes(type as ComplaintType);
-};
 
 const validatePriority = (priority: string): boolean => {
     return Object.values(Priority).includes(priority as Priority);
@@ -21,14 +18,10 @@ const validateStatus = (status: string): boolean => {
 const createComplaint = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
-        const { title, issueDescription, complaintType, phoneNumber, attachments }: CreateComplaintBody = req.body;
+        const { title, issueDescription, issueType, phoneNumber, attachments ,complaintType}: CreateComplaintBody = req.body;
 
-        if (!title || !issueDescription || !complaintType || !phoneNumber) {
-            return sendError(res, "Title, issue description, complaint type, and phone number are required", 400);
-        }
-
-        if (!validateComplaintType(complaintType)) {
-            return sendError(res, "Invalid complaint type", 400);
+        if (!title || !issueDescription || !issueType || !phoneNumber) {
+            return sendError(res, "Title, issue description, issue type, and phone number are required", 400);
         }
 
         // Get user to access their location
@@ -43,6 +36,7 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
             title: title.trim(),
             issueDescription: issueDescription.trim(),
             complaintType,
+            issueType,
             phoneNumber: phoneNumber.trim(),
             status: ComplaintStatus.PENDING,
             attachments: attachments || []
@@ -68,7 +62,7 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
         const {
             status,
             priority,
-            complaintType,
+            issueType,
             startDate,
             endDate,
             page = 1,
@@ -88,8 +82,8 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
             filter.priority = priority;
         }
 
-        if (complaintType && validateComplaintType(complaintType as string)) {
-            filter.complaintType = complaintType;
+        if (issueType) {
+            filter.issueType = issueType;
         }
 
         if (startDate || endDate) {
@@ -502,12 +496,12 @@ const getComplaintStats = async (req: Request, res: Response): Promise<any> => {
             { $sort: { count: -1 } }
         ]);
 
-        // Get stats by complaint type
+        // Get stats by issue type
         const typeStats = await ComplaintModel.aggregate([
             { $match: filter },
             {
                 $group: {
-                    _id: "$complaintType",
+                    _id: "$issueType",
                     count: { $sum: 1 }
                 }
             },
