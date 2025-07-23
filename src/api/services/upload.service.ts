@@ -60,6 +60,7 @@ const upload = multer({
   },
 });
 
+export { upload }; // Export Multer instance for .single, .array, .fields
 export const multerUpload = upload.single("image");
 
 export const handleMulterUpload = (
@@ -94,3 +95,4 @@ export const handleMulterUpload = (
     url: fileUrl,
   });
 };
+

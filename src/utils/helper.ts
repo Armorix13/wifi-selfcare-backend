@@ -76,16 +76,32 @@ export function generateOtp(length: number): string {
 
 /**
  * Send a standardized success response.
+ * @param res Express Response object
+ * @param data Response data (any type)
+ * @param message Optional message string
+ * @param status HTTP status code (default 200)
+ * @param meta Optional meta information (e.g., pagination)
  */
-export function sendSuccess<T>(res: Response, data: T, message = 'Success', status = 200): Response {
-  return res.status(status).json({ success: true, message, data });
+export function sendSuccess<T>(res: Response, data: T, message = 'Success', status = 200, meta?: any): Response {
+  const response: any = { success: true, message, data };
+  if (meta) response.meta = meta;
+  return res.status(status).json(response);
 }
 
 /**
  * Send a standardized error response.
+ * @param res Express Response object
+ * @param message Error message
+ * @param status HTTP status code (default 400)
+ * @param error Optional error details (never send stack in production)
  */
 export function sendError(res: Response, message = 'Error', status = 400, error?: any): Response {
-  return res.status(status).json({ success: false, message, error });
+  let errorDetail = error;
+  if (error && typeof error === 'object' && error.stack) {
+    // Only include stack in non-production
+    errorDetail = process.env.NODE_ENV === 'production' ? undefined : error.message || error.toString();
+  }
+  return res.status(status).json({ success: false, message, error: errorDetail });
 }
 
 /**
