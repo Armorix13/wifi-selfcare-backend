@@ -282,14 +282,15 @@ const socialLogin = async (req: Request, res: Response):Promise<any> => {
             if (user.provider && user.providerId) {
                 // User has provider info, check if it matches
                 if (user.provider !== provider || user.providerId !== providerId) {
-                    return sendError(res, "Provider mismatch or not linked", 400);
+                    // Instead of error, update the provider info to allow linking
+                    user.provider = provider;
+                    user.providerId = providerId;
                 }
             } else {
                 // User exists but doesn't have provider info, update it
                 user.provider = provider;
                 user.providerId = providerId;
             }
-            
             if (user.isDeleted) {
                 return sendError(res, "Account is deleted", 403);
             }
@@ -351,6 +352,38 @@ const socialLogin = async (req: Request, res: Response):Promise<any> => {
     }
 }
 
+const updateUser = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId;
+        if (!userId) {
+            return sendError(res, "User ID is required", 400);
+        }
+        // Exclude fields that should not be updated via this endpoint
+        const forbiddenFields = ["email", "role", "password", "_id", "__v"]; // add more if needed
+        const updateData: any = {};
+        for (const key in req.body) {
+            if (!forbiddenFields.includes(key)) {
+                updateData[key] = req.body[key];
+            }
+        }
+        if (Object.keys(updateData).length === 0) {
+            return sendError(res, "No valid fields to update", 400);
+        }
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            userId,
+            { $set: updateData },
+            { new: true, runValidators: true }
+        ).select('-password -otp -otpExpiry -otpPurpose -__v');
+        if (!updatedUser) {
+            return sendError(res, "User not found", 404);
+        }
+        return sendSuccess(res, updatedUser, "User updated successfully");
+    } catch (error) {
+        console.error(error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+}
+
 const getUserDetails = async (req: Request, res: Response):Promise<any> => {
     try {
         const userId = (req as any).userId;
@@ -396,5 +429,6 @@ export const userController = {
     forgotPassword,
     resetPassword,
     socialLogin,
-    getUserDetails
+    getUserDetails,
+    updateUser
 }

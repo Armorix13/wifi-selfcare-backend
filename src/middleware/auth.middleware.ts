@@ -20,7 +20,29 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
       });
     }
 
-    const decoded = verifyToken(token);
+    let decoded;
+    try {
+      decoded = verifyToken(token);
+    } catch (err: any) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: "Token expired, please login again"
+        });
+      }
+      if (err.name === 'JsonWebTokenError') {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid token"
+        });
+      }
+      return res.status(401).json({
+        success: false,
+        message: "Authentication failed",
+        error: err.message || err
+      });
+    }
+
     if (
       !decoded ||
       typeof decoded !== 'object' ||
@@ -46,11 +68,11 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
     (req as any).role = decoded.role;
 
     next();
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({
       success: false,
-      message: "Authentication failed",
-      error: error instanceof Error ? error.message : error
+      message: "Internal server error during authentication",
+      error: error.message || error
     });
   }
 };
