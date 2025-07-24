@@ -47,6 +47,7 @@ const upload = multer({
     console.log(file);
     console.log(file.mimetype);
     const mimeType = file.mimetype;
+    const allowedImageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.ico', '.svg'];
     // Accept all image/* types, including svg, gif, webp, bmp, tiff, ico, etc.
     if (mimeType.startsWith("image/")) {
       cb(null, true);
@@ -54,6 +55,11 @@ const upload = multer({
       mimeType === "application/pdf" ||
       mimeType.startsWith("video/") ||
       mimeType.startsWith("audio/")
+    ) {
+      cb(null, true);
+    } else if (
+      mimeType === "application/octet-stream" &&
+      allowedImageExtensions.some(ext => file.originalname.toLowerCase().endsWith(ext))
     ) {
       cb(null, true);
     } else {
