@@ -15,10 +15,13 @@ if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
 if (!fs.existsSync(videoDir)) fs.mkdirSync(videoDir, { recursive: true });
 if (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });
 
+const allowedImageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.ico', '.svg'];
+
 const storage: StorageEngine = multer.diskStorage({
   destination: (req, file, cb) => {
     const mimeType = file.mimetype;
-    if (mimeType.startsWith("image/")) {
+    const originalName = file.originalname.toLowerCase();
+    if (mimeType.startsWith("image/") || (mimeType === "application/octet-stream" && allowedImageExtensions.some(ext => originalName.endsWith(ext)))) {
       cb(null, imageDir);
     } else if (mimeType === "application/pdf") {
       cb(null, pdfDir);
@@ -31,7 +34,15 @@ const storage: StorageEngine = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    const fileExtension = mime.extension(file.mimetype);
+    let fileExtension = mime.extension(file.mimetype);
+    const originalName = file.originalname.toLowerCase();
+    if (file.mimetype === "application/octet-stream") {
+      // Try to get extension from original filename
+      const matchedExt = allowedImageExtensions.find(ext => originalName.endsWith(ext));
+      if (matchedExt) {
+        fileExtension = matchedExt.replace('.', '');
+      }
+    }
     if (!fileExtension) {
       cb(new Error("Unsupported file type"), "");
     } else {
