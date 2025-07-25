@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { Role, UserModel } from "../models/user.model";
 import { hashPassword, sendSuccess, sendError, generateOtp, sendMessage, generateAccessToken, generateRefreshToken, generateRandomJti, comparePassword } from '../../utils/helper';
+import { Advertisement } from '../models/advertisement.model';
+import { InstallationRequest } from '../models/installationRequest.model';
+import { Plan } from '../models/plan.model';
 
 const signUp = async (req: Request, res: Response):Promise<any> => {
     console.log(req.body);
@@ -420,6 +423,50 @@ const logout = async (req: Request, res: Response):Promise<any> => {
         return sendError(res, "Internal server error", 500, error);
     }
 }
+const dashboard = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId;
+        // 1. Get all advertisements
+        const advertisements = await Advertisement.find({}, '_id imageUrl title description').sort({ createdAt: -1 });
+
+        // 2. Get latest installation request for user
+        const installationRequest = await InstallationRequest.findOne({ userId }).sort({ createdAt: -1 });
+
+        let installationData = null;
+        if (installationRequest) {
+            if (installationRequest.status === 'approved') {
+                let plan = null;
+                if (installationRequest.planId) {
+                    plan = await Plan.findById(installationRequest.planId);
+                }
+                installationData = {
+                    status: installationRequest.status,
+                    plan: plan ? plan.toObject() : null,
+                    remarks: installationRequest.remarks,
+                    message: 'Your request is approved. An engineer will contact you soon.'
+                };
+            } else if (installationRequest.status === 'pending') {
+                installationData = {
+                    status: installationRequest.status,
+                    message: 'Your request is pending. You will be contacted by an agent soon.'
+                };
+            } else if (installationRequest.status === 'rejected') {
+                installationData = {
+                    status: installationRequest.status,
+                    remarks: installationRequest.remarks,
+                    message: 'Your request was rejected. Please check remarks and try again.'
+                };
+            }
+        }
+
+        return sendSuccess(res, {
+            advertisements,
+            ...(installationData ? { installationRequest: installationData } : {})
+        }, 'Dashboard data fetched');
+    } catch (error) {
+        return sendError(res, 'Internal server error', 500, error);
+    }
+};
 
 export const userController = {
     signUp,
@@ -430,5 +477,6 @@ export const userController = {
     resetPassword,
     socialLogin,
     getUserDetails,
-    updateUser
+    updateUser,
+    dashboard
 }

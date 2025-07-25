@@ -17,5 +17,6 @@ userRouter.post("/reset-password", userController.resetPassword);
 userRouter.get("/me", authenticate, userController.getUserDetails);
 userRouter.patch("/me", authenticate, userController.updateUser);
 userRouter.post("/logout", authenticate, userController.logout);
+userRouter.get("/dashboard", authenticate, userController.dashboard);
 
 export default userRouter;
