@@ -27,9 +27,11 @@ export interface IComplaint extends Document {
     title: string;
     issueDescription: string;
     issueType: mongoose.Types.ObjectId;
+    complaintType: string;
     phoneNumber: string;
     priority: Priority;
     status: ComplaintStatus;
+    statusColor: string; // Added for color coding
 
     visitDate?: Date;
     resolved?: boolean;
@@ -87,6 +89,17 @@ export interface IComplaint extends Document {
     clearAttachments(): Promise<IComplaint>;
 }
 
+// Color mapping for each ComplaintStatus
+const ComplaintStatusColor: Record<ComplaintStatus, string> = {
+    [ComplaintStatus.PENDING]: "#FFA500",       // Orange
+    [ComplaintStatus.ASSIGNED]: "#007BFF",      // Blue
+    [ComplaintStatus.IN_PROGRESS]: "#17A2B8",   // Teal
+    [ComplaintStatus.VISITED]: "#6F42C1",       // Purple
+    [ComplaintStatus.RESOLVED]: "#28A745",      // Green
+    [ComplaintStatus.NOT_RESOLVED]: "#DC3545",  // Red
+    [ComplaintStatus.CANCELLED]: "#6C757D",     // Gray
+    [ComplaintStatus.REOPENED]: "#FFC107"       // Yellow
+};
 
 
 const ComplaintSchema = new Schema<IComplaint>({
@@ -115,10 +128,12 @@ const ComplaintSchema = new Schema<IComplaint>({
         required: true,
         trim: true
     },
+    complaintType: {
+        type: String,
+    },
     issueType: {
         type: Schema.Types.ObjectId,
         ref: "IssueType",
-        required: true
     },
     phoneNumber: {
         type: String,
@@ -134,6 +149,10 @@ const ComplaintSchema = new Schema<IComplaint>({
         type: String,
         enum: Object.values(ComplaintStatus),
         default: ComplaintStatus.PENDING
+    },
+    statusColor: {
+        type: String,
+        default: ComplaintStatusColor[ComplaintStatus.PENDING]
     },
 
     visitDate: {
@@ -224,6 +243,10 @@ ComplaintSchema.pre('save', function (next) {
             return next(new Error('You must submit at least 1 and at most 4 photos.'));
         }
     }
+    // Set statusColor based on status
+    if (this.isModified('status')) {
+        this.statusColor = ComplaintStatusColor[this.status];
+    }
     if (this.isModified('status') && this.status === ComplaintStatus.RESOLVED && !this.resolutionDate) {
         this.resolutionDate = new Date();
         this.resolved = true;
@@ -293,5 +316,6 @@ const ComplaintModel: Model<IComplaint> = mongoose.model<IComplaint>("Complaint"
 export {
     ComplaintModel,
     ComplaintStatus,
-    Priority
+    Priority,
+    ComplaintStatusColor
 };
