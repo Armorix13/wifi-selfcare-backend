@@ -71,8 +71,8 @@ const signUp = async (req: Request, res: Response):Promise<any> => {
 
 const verifyOtp = async (req: Request, res: Response):Promise<any> => {
     try {
-        let { email, otp, purpose } = req.body;
-        otp = Number(otp);
+        const { email, otp, purpose } = req.body;
+        // otp = Number(otp);
         console.log("body", req.body);
         console.log('otp', otp);
 
