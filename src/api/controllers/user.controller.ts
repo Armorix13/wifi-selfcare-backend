@@ -72,6 +72,7 @@ const signUp = async (req: Request, res: Response):Promise<any> => {
 const verifyOtp = async (req: Request, res: Response):Promise<any> => {
     try {
         const { email, otp, purpose } = req.body;
+        console.log("body", req.body);
         if (!email || !otp || !purpose) {
             return sendError(res, "Email, OTP, and purpose are required", 400);
         }
@@ -203,6 +204,8 @@ const login = async (req: Request, res: Response):Promise<any> => {
 const forgotPassword = async (req: Request, res: Response):Promise<any> => {
     try {
         const { email } = req.body;
+        console.log("body", req.body);
+        
 
         const user = await UserModel.findOne({ email });
         if (!user) {
@@ -228,10 +231,12 @@ const forgotPassword = async (req: Request, res: Response):Promise<any> => {
             html: `<p>Your OTP code for password reset is: <b>${otp}</b></p>`
         });
         user.otp = otp;
+        console.log('otp', otp);
         user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
         user.otpPurpose = "forgot_password";
         user.otpVerified = false;
         await user.save();
+        console.log('user', user);
         return sendSuccess(res, {}, "If the email exists, an OTP has been sent.");
     } catch (error) {
         console.error(error);
@@ -242,6 +247,8 @@ const forgotPassword = async (req: Request, res: Response):Promise<any> => {
 const resetPassword = async (req: Request, res: Response):Promise<any> => {
     try {
         const { email, newPassword } = req.body;
+        console.log("body", req.body);
+
 
         const user = await UserModel.findOne({ email });
         if (!user) {
