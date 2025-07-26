@@ -74,7 +74,8 @@ const verifyOtp = async (req: Request, res: Response):Promise<any> => {
         let { email, otp, purpose } = req.body;
         otp = Number(otp);
         console.log("body", req.body);
-        
+        console.log('otp', otp);
+
         if (!email || !otp || !purpose) {
             return sendError(res, "Email, OTP, and purpose are required", 400);
         }
