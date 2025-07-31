@@ -17,7 +17,7 @@ export const applyApplication = async (req: Request, res: Response): Promise<any
         } = req.body;
 
         // Get userId from authenticated user (assuming it's set in auth middleware)
-        const userId = (req as any).user?.id;
+        const userId = (req as any).userId;
         if (!userId) {
             return sendError(res, 'User not authenticated', 401);
         }
@@ -74,7 +74,7 @@ export const getApplicationById = async (req: Request, res: Response): Promise<a
     try {
         const { id } = req.params;
         const application = await ApplicationForm.findById(id)
-            .populate('userId', 'name email')
+            .populate('userId', 'firstName lastName email phoneNumber countryCode profileImage role status country userName permanentAddress billingAddress balanceDue activationDate expirationDate staticIp macIp type fatherName area mode provider providerId isAccountVerified lastLogin deviceType deviceToken')
             .populate('planId');
 
         if (!application) {
@@ -89,7 +89,7 @@ export const getApplicationById = async (req: Request, res: Response): Promise<a
 
 export const getUserApplications = async (req: Request, res: Response): Promise<any> => {
     try {
-        const userId = (req as any).user?.id;
+        const userId = (req as any).userId;
         if (!userId) {
             return sendError(res, 'User not authenticated', 401);
         }
@@ -107,7 +107,7 @@ export const getUserApplications = async (req: Request, res: Response): Promise<
 export const getAllApplications = async (req: Request, res: Response): Promise<any> => {
     try {
         const applications = await ApplicationForm.find({})
-            .populate('userId', 'name email')
+            .populate('userId', 'firstName lastName email phoneNumber countryCode profileImage role status country userName permanentAddress billingAddress balanceDue activationDate expirationDate staticIp macIp type fatherName area mode provider providerId isAccountVerified lastLogin deviceType deviceToken')
             .populate('planId')
             .sort({ createdAt: -1 });
 
@@ -137,7 +137,7 @@ export const updateApplicationStatus = async (req: Request, res: Response): Prom
             id,
             updateData,
             { new: true }
-        ).populate('userId', 'name email').populate('planId');
+        ).populate('userId', 'firstName lastName email phoneNumber countryCode profileImage role status country userName permanentAddress billingAddress balanceDue activationDate expirationDate staticIp macIp type fatherName area mode provider providerId isAccountVerified lastLogin deviceType deviceToken').populate('planId');
 
         if (!application) {
             return sendError(res, 'Application not found', 404);

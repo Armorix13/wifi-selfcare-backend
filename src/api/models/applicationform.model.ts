@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IApplicationForm extends Document {
   userId: mongoose.Types.ObjectId;
-  applicationId: string;
+  applicationId?: string;
   phoneNumber: string;
   countryCode: string;
   alternateCountryCode?: string;
@@ -27,7 +27,6 @@ const ApplicationFormSchema: Schema = new Schema(
     },
     applicationId: {
       type: String,
-      required: true,
       unique: true
     },
     phoneNumber: {
