@@ -467,14 +467,15 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         });
 
         let rejectionMessage = null;
+        let isRejected = false;
         if (recentRejectedApplication) {
+            isRejected = true;
             const rejectionDate = recentRejectedApplication.rejectedAt!;
             const oneWeekAfterRejection = new Date(rejectionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
             const now = new Date();
             const timeDiff = oneWeekAfterRejection.getTime() - now.getTime();
             const daysRemaining = Math.ceil(timeDiff / (24 * 60 * 60 * 1000));
-            
-            rejectionMessage = `You can apply again after ${daysRemaining} days`;
+            rejectionMessage = `You can apply again after ${daysRemaining} days`; 
         }
         
         const result = {
@@ -482,7 +483,8 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             wifi: wifiAds,
             isApplicationFormApplied,
             applicationData: userApplication || null,
-            rejectionMessage
+            rejectionMessage,
+            isRejected
         };
         
         return sendSuccess(res, {

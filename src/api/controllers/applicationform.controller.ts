@@ -40,8 +40,8 @@ export const applyApplication = async (req: Request, res: Response): Promise<any
             rejectedAt: { $gte: oneWeekAgo }
         });
 
-        if (recentRejectedApplication) {
-            const rejectionDate = recentRejectedApplication.rejectedAt!;
+        if (recentRejectedApplication && recentRejectedApplication.rejectedAt) {
+            const rejectionDate = recentRejectedApplication.rejectedAt;
             const oneWeekAfterRejection = new Date(rejectionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
             const now = new Date();
             const timeDiff = oneWeekAfterRejection.getTime() - now.getTime();
