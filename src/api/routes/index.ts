@@ -10,6 +10,7 @@ import cartRouter from "./cart.route";
 import orderRouter from "./order.route";
 import installationRequestRouter from './installationRequest.route';
 import advertisementRouter from './advertisement.route';
+import applicationFormRouter from './applicationform.route';
 const parentRouter = Router();
 
 parentRouter.post("/file-upload", multerUpload,handleMulterUpload);
@@ -23,6 +24,7 @@ parentRouter.use("/cart", cartRouter);
 parentRouter.use("/orders", orderRouter);
 parentRouter.use('/installation-requests', installationRequestRouter);
 parentRouter.use('/advertisements', advertisementRouter);
+parentRouter.use('/applications', applicationFormRouter);
 
 export default parentRouter;
 

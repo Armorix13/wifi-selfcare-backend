@@ -14,8 +14,8 @@ export const addAdvertisement = async (req: Request, res: Response): Promise<any
             return sendError(res, 'Image is required', 400);
         }
         const imageUrl = extractViewUrl(req.file.path);
-        const { title, description } = req.body;
-        const ad = new Advertisement({ imageUrl, title, description });
+        const { title, description,type } = req.body;
+        const ad = new Advertisement({ imageUrl, title, description,type });
         await ad.save();
         return sendSuccess(res, ad, 'Advertisement added successfully', 201);
     } catch (error: any) {
@@ -51,8 +51,18 @@ export const deleteAdvertisement = async (req: Request, res: Response): Promise<
 
 export const getAllAdvertisements = async (req: Request, res: Response): Promise<any> => {
   try {
-    const ads = await Advertisement.find({}, '_id imageUrl title description').sort({ createdAt: -1 });
-    return sendSuccess(res, ads, 'All advertisements fetched');
+    const allAds = await Advertisement.find({}, '_id imageUrl title description type').sort({ createdAt: -1 });
+    
+    // Filter advertisements by type
+    const cctvAds = allAds.filter(ad => ad.type === 'CCTV');
+    const wifiAds = allAds.filter(ad => ad.type === 'WIFI');
+    
+    const result = {
+      cctv: cctvAds,
+      wifi: wifiAds
+    };
+    
+    return sendSuccess(res, result, 'All advertisements fetched');
   } catch (error: any) {
     return sendError(res, 'Failed to fetch advertisements', 500, error.message || error);
   }
