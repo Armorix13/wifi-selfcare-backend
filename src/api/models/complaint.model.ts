@@ -18,6 +18,11 @@ enum Priority {
     URGENT = "urgent"
 }
 
+enum ComplaintType {
+    WIFI = "WIFI",
+    CCTV = "CCTV"
+}
+
 
 export interface IComplaint extends Document {
     user: mongoose.Types.ObjectId; // Client/user who submitted the complaint
@@ -28,6 +33,7 @@ export interface IComplaint extends Document {
     issueDescription: string;
     issueType: mongoose.Types.ObjectId;
     complaintType: string;
+    type: ComplaintType; // Added type field
     phoneNumber: string;
     priority: Priority;
     status: ComplaintStatus;
@@ -130,6 +136,11 @@ const ComplaintSchema = new Schema<IComplaint>({
     },
     complaintType: {
         type: String,
+    },
+    type: {
+        type: String,
+        enum: Object.values(ComplaintType),
+        required: true
     },
     issueType: {
         type: Schema.Types.ObjectId,
@@ -317,5 +328,6 @@ export {
     ComplaintModel,
     ComplaintStatus,
     Priority,
+    ComplaintType,
     ComplaintStatusColor
 };

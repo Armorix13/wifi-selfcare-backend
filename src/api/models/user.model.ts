@@ -29,14 +29,14 @@ type CompanyPreference = string;
 
 export interface IUser extends Document {
   email: string;
-  name: string;
+  name?: string;
   countryCode: string;
   phoneNumber: string;
-  lat: number;
-  long: number;
+  lat?: number;
+  long?: number;
   role: Role;
   profileImage?: string;
-  location: IGeoPoint;
+  location?: IGeoPoint;
   language?: string;
   companyPreference?: CompanyPreference;
   country: string;
@@ -89,8 +89,8 @@ const UserSchema = new Schema<IUser>({
   email: { type: String},
   countryCode: { type: String },
   phoneNumber: { type: String },
-  lat: { type: Number, required: true },
-  long: { type: Number, required: true },
+  lat: { type: Number },
+  long: { type: Number },
   role: { type: String, enum: Object.values(Role), default: Role.USER },
   profileImage: { type: String },
   location: { type: GeoPointSchema },

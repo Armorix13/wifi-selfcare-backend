@@ -1,9 +1,11 @@
-import { ComplaintStatus, Priority } from "../api/models/complaint.model";
+import { ComplaintStatus, Priority, ComplaintType } from "../api/models/complaint.model";
 
 export interface CreateComplaintBody {
   title: string;
   issueDescription: string;
   issueType: string;
+  complaintType: string;
+  type: ComplaintType; // Added type field
   phoneNumber: string;
   attachments?: string[];
 

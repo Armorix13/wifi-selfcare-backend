@@ -286,7 +286,7 @@ const resetPassword = async (req: Request, res: Response):Promise<any> => {
 
 const socialLogin = async (req: Request, res: Response):Promise<any> => {
     try {
-        const { email, provider, providerId, firstName, lastName, profileImage, deviceType, deviceToken } = req.body;
+        const { email, provider, providerId, firstName, lastName, profileImage, deviceType, deviceToken, lat, long } = req.body;
 
         if (!['google', 'apple'].includes(provider)) {
             return sendError(res, "Unsupported provider", 400);
@@ -319,6 +319,8 @@ const socialLogin = async (req: Request, res: Response):Promise<any> => {
             if (profileImage) user.profileImage = profileImage;
             if (firstName) user.firstName = firstName;
             if (lastName) user.lastName = lastName;
+            if (lat !== undefined) user.lat = lat;
+            if (long !== undefined) user.long = long;
             user.lastLogin = new Date();
             user.deviceType = deviceType;
             user.deviceToken = deviceToken;
@@ -336,6 +338,8 @@ const socialLogin = async (req: Request, res: Response):Promise<any> => {
                 profileImage,
                 deviceType,
                 deviceToken,
+                lat,
+                long,
                 isAccountVerified: true,
                 role: Role.USER,
                 lastLogin: new Date()

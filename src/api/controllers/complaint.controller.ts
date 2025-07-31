@@ -18,10 +18,10 @@ const validateStatus = (status: string): boolean => {
 const createComplaint = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
-        const { title, issueDescription, issueType, phoneNumber, attachments ,complaintType}: CreateComplaintBody = req.body;
+        const { title, issueDescription, issueType, phoneNumber, attachments, complaintType, type }: CreateComplaintBody = req.body;
 
-        if (!title || !issueDescription || !issueType || !phoneNumber) {
-            return sendError(res, "Title, issue description, issue type, and phone number are required", 400);
+        if (!title || !issueDescription || !issueType || !phoneNumber || !type) {
+            return sendError(res, "Title, issue description, issue type, phone number, and type are required", 400);
         }
 
         // Get user to access their location
@@ -36,6 +36,7 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
             title: title.trim(),
             issueDescription: issueDescription.trim(),
             complaintType,
+            type,
             issueType,
             phoneNumber: phoneNumber.trim(),
             status: ComplaintStatus.PENDING,
@@ -63,6 +64,7 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
             status,
             priority,
             issueType,
+            type,
             startDate,
             endDate,
             page = 1,
@@ -84,6 +86,10 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
 
         if (issueType) {
             filter.issueType = issueType;
+        }
+
+        if (type) {
+            filter.type = type;
         }
 
         if (startDate || endDate) {
@@ -497,11 +503,23 @@ const getComplaintStats = async (req: Request, res: Response): Promise<any> => {
         ]);
 
         // Get stats by issue type
-        const typeStats = await ComplaintModel.aggregate([
+        const issueTypeStats = await ComplaintModel.aggregate([
             { $match: filter },
             {
                 $group: {
                     _id: "$issueType",
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } }
+        ]);
+
+        // Get stats by complaint type
+        const complaintTypeStats = await ComplaintModel.aggregate([
+            { $match: filter },
+            {
+                $group: {
+                    _id: "$type",
                     count: { $sum: 1 }
                 }
             },
@@ -543,7 +561,8 @@ const getComplaintStats = async (req: Request, res: Response): Promise<any> => {
             resolutionRate: totalComplaints > 0 ? ((resolvedComplaints / totalComplaints) * 100).toFixed(2) : 0,
             byStatus: statusStats,
             byPriority: priorityStats,
-            byType: typeStats,
+            byIssueType: issueTypeStats,
+            byComplaintType: complaintTypeStats,
             resolutionTime: resolutionTimeStats[0] || {
                 avgResolutionTime: 0,
                 minResolutionTime: 0,
