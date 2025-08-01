@@ -17,6 +17,7 @@ export interface IWifiInstallationRequest extends Document {
   remarks?: string;
   createdAt: Date;
   updatedAt: Date;
+  assignedEngineer?: mongoose.Types.ObjectId;
 }
 
 const WifiInstallationRequestSchema: Schema = new Schema(
@@ -75,6 +76,10 @@ const WifiInstallationRequestSchema: Schema = new Schema(
     },
     remarks: { 
       type: String
+    },
+    assignedEngineer: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
     }
   },
   { timestamps: true }

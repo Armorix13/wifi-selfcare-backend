@@ -2,9 +2,9 @@ import { Request, Response } from "express";
 import { Role, UserModel } from "../models/user.model";
 import { hashPassword, sendSuccess, sendError, generateOtp, sendMessage, generateAccessToken, generateRefreshToken, generateRandomJti, comparePassword } from '../../utils/helper';
 import { Advertisement } from '../models/advertisement.model';
-import { InstallationRequest } from '../models/wifiInstallationRequest.model';
 import { Plan } from '../models/plan.model';
 import { ApplicationForm } from '../models/applicationform.model';
+import { WifiInstallationRequest } from '../models/wifiInstallationRequest.model';
 
 const signUp = async (req: Request, res: Response):Promise<any> => {
     console.log(req.body);
@@ -477,6 +477,13 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             const daysRemaining = Math.ceil(timeDiff / (24 * 60 * 60 * 1000));
             rejectionMessage = `You can apply again after ${daysRemaining} days`; 
         }
+
+        // 4. Check for WiFi installation request
+        const wifiInstallationRequest = await WifiInstallationRequest.findOne({ 
+            userId 
+        }).populate('applicationId').sort({ createdAt: -1 });
+
+        const isWifiInstallationRequest = !!wifiInstallationRequest;
         
         const result = {
             cctv: cctvAds,
@@ -484,7 +491,9 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             isApplicationFormApplied,
             applicationData: userApplication || null,
             rejectionMessage,
-            isRejected
+            isRejected,
+            isWifiInstallationRequest,
+            wifiInstallationRequestData: wifiInstallationRequest || null
         };
         
         return sendSuccess(res, {
