@@ -481,7 +481,7 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         // 4. Check for WiFi installation request
         const wifiInstallationRequest = await WifiInstallationRequest.findOne({ 
             userId 
-        }).populate('applicationId').sort({ createdAt: -1 });
+        }).sort({ createdAt: -1 });
 
         const isWifiInstallationRequest = !!wifiInstallationRequest;
         
