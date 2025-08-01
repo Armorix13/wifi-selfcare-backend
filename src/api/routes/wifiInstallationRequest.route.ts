@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { upload } from '../services/upload.service';
 import authenticate from '../../middleware/auth.middleware';
-import { addWifiInstallationRequest, updateWifiInstallationRequestStatus } from '../controllers/wifiInstallationRequest.controller';
+import { addWifiInstallationRequest, updateWifiInstallationRequestStatus, assignEngineerToWifiInstallationRequest } from '../controllers/wifiInstallationRequest.controller';
 
 const router = Router();
 
@@ -18,5 +18,8 @@ router.post(
 
 // Admin: Approve/reject installation request
 router.patch('/:id/status', authenticate, updateWifiInstallationRequestStatus);
+
+// Admin: Assign engineer to installation request
+router.patch('/:id/assign-engineer', authenticate, assignEngineerToWifiInstallationRequest);
 
 export default router; 

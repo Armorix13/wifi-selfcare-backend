@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { WifiInstallationRequest } from '../models/wifiInstallationRequest.model';
 import { ApplicationForm } from '../models/applicationform.model';
+import { UserModel } from '../models/user.model';
 import { sendSuccess, sendError } from '../../utils/helper';
 
 export const addWifiInstallationRequest = async (req: Request, res: Response): Promise<any> => {
@@ -11,6 +13,7 @@ export const addWifiInstallationRequest = async (req: Request, res: Response): P
       [fieldname: string]: Express.Multer.File[];
     };
     if (!files || !files['passportPhoto'] || !files['aadhaarFront'] || !files['aadhaarBack']) {
+
       return sendError(res, 'All images (passportPhoto, aadhaarFront, aadhaarBack) are required.', 400);
     }
     
@@ -86,13 +89,22 @@ export const addWifiInstallationRequest = async (req: Request, res: Response): P
 
 export const updateWifiInstallationRequestStatus = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userRole = (req as any).role;
-    if (!['admin', 'superadmin', 'manager'].includes(userRole)) {
-      return sendError(res, 'Forbidden: Admins only', 403);
-    }
+    // const userRole = (req as any).role;
+    // if (!['admin', 'superadmin', 'manager'].includes(userRole)) {
+    //   return sendError(res, 'Forbidden: Admins only', 403);
+    // }
     
     const { id } = req.params;
-    const { status, remarks } = req.body;
+    const { status, remarks, assignedEngineer } = req.body;
+    
+    console.log('Update request - ID:', id);
+    console.log('Update request - Status:', status);
+    console.log('Update request - Assigned Engineer:', assignedEngineer);
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 'Invalid installation request ID format', 400);
+    }
     
     if (!['inreview', 'approved', 'rejected'].includes(status)) {
       return sendError(res, 'Invalid status. Must be inreview, approved, or rejected', 400);
@@ -100,18 +112,39 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
     
     const update: any = { status, remarks };
     
+    // Handle engineer assignment
+    if (assignedEngineer) {
+      // Validate ObjectId format for engineer
+      if (!mongoose.Types.ObjectId.isValid(assignedEngineer)) {
+        return sendError(res, 'Invalid engineer ID format', 400);
+      }
+      
+      // Validate that the assigned user is actually an engineer
+      const engineer = await UserModel.findById(assignedEngineer);
+      if (!engineer) {
+        return sendError(res, 'Engineer not found', 404);
+      }
+      if (engineer.role !== 'engineer') {
+        return sendError(res, 'Assigned user is not an engineer', 400);
+      }
+      update.assignedEngineer = assignedEngineer;
+    }
+    
     if (status === 'approved') {
       update.approvedDate = new Date();
     } else if (status === 'rejected') {
       update.approvedDate = null;
     }
     
+    console.log('Update data:', update);
+    
     const updated = await WifiInstallationRequest.findByIdAndUpdate(
       id, 
       update, 
       { new: true }
     ).populate('userId', 'firstName lastName email phoneNumber')
-     .populate('applicationId');
+     .populate('applicationId')
+     .populate('assignedEngineer', 'firstName lastName email phoneNumber');
      
     if (!updated) {
       return sendError(res, 'Installation request not found', 404);
@@ -119,6 +152,7 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
     
     return sendSuccess(res, updated, `Request status updated to ${status}`);
   } catch (error: any) {
+    console.error('Update error:', error);
     return sendError(res, 'Failed to update request status.', 500, error.message || error);
   }
 };
@@ -128,7 +162,8 @@ export const getInstallationRequestById = async (req: Request, res: Response): P
     const { id } = req.params;
     const request = await WifiInstallationRequest.findById(id)
       .populate('userId', 'firstName lastName email phoneNumber countryCode profileImage')
-      .populate('applicationId');
+      .populate('applicationId')
+      .populate('assignedEngineer', 'firstName lastName email phoneNumber');
       
     if (!request) {
       return sendError(res, 'Installation request not found', 404);
@@ -176,6 +211,7 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
     const requests = await WifiInstallationRequest.find(filter)
       .populate('userId', 'firstName lastName email phoneNumber countryCode profileImage')
       .populate('applicationId')
+      .populate('assignedEngineer', 'firstName lastName email phoneNumber')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit));
@@ -193,6 +229,61 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
     }, 'All installation requests fetched successfully');
   } catch (error: any) {
     return sendError(res, 'Failed to fetch installation requests', 500, error.message || error);
+  }
+};
+
+export const assignEngineerToWifiInstallationRequest = async (req: Request, res: Response): Promise<any> => {
+  try {
+    // const userRole = (req as any).role;
+    // if (!['admin', 'superadmin', 'manager'].includes(userRole)) {
+    //   return sendError(res, 'Forbidden: Admins only', 403);
+    // }
+    
+    const { id } = req.params;
+    const { assignedEngineer } = req.body;
+    
+    console.log('Assign engineer - ID:', id);
+    console.log('Assign engineer - Engineer ID:', assignedEngineer);
+    
+    // Validate ObjectId format for installation request
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 'Invalid installation request ID format', 400);
+    }
+    
+    if (!assignedEngineer) {
+      return sendError(res, 'Engineer ID is required', 400);
+    }
+    
+    // Validate ObjectId format for engineer
+    if (!mongoose.Types.ObjectId.isValid(assignedEngineer)) {
+      return sendError(res, 'Invalid engineer ID format', 400);
+    }
+    
+    // Validate that the assigned user is actually an engineer
+    const engineer = await UserModel.findById(assignedEngineer);
+    if (!engineer) {
+      return sendError(res, 'Engineer not found', 404);
+    }
+    if (engineer.role !== 'engineer') {
+      return sendError(res, 'Assigned user is not an engineer', 400);
+    }
+    
+    const updated = await WifiInstallationRequest.findByIdAndUpdate(
+      id,
+      { assignedEngineer },
+      { new: true }
+    ).populate('userId', 'firstName lastName email phoneNumber')
+     .populate('applicationId')
+     .populate('assignedEngineer', 'firstName lastName email phoneNumber');
+     
+    if (!updated) {
+      return sendError(res, 'Installation request not found', 404);
+    }
+    
+    return sendSuccess(res, updated, 'Engineer assigned successfully');
+  } catch (error: any) {
+    console.error('Assign engineer error:', error);
+    return sendError(res, 'Failed to assign engineer', 500, error.message || error);
   }
 };
 

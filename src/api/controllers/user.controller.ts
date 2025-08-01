@@ -481,7 +481,10 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         // 4. Check for WiFi installation request
         const wifiInstallationRequest = await WifiInstallationRequest.findOne({ 
             userId 
-        }).sort({ createdAt: -1 });
+        }).populate('userId', 'firstName lastName email phoneNumber')
+         .populate('applicationId')
+         .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+         .sort({ createdAt: -1 });
 
         const isWifiInstallationRequest = !!wifiInstallationRequest;
         
@@ -493,7 +496,12 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             rejectionMessage,
             isRejected,
             isWifiInstallationRequest,
-            wifiInstallationRequestData: wifiInstallationRequest || null
+            wifiInstallationRequestData: wifiInstallationRequest || null,
+            // Additional WiFi installation request info
+            wifiInstallationStatus: wifiInstallationRequest?.status || null,
+            wifiInstallationApprovedDate: wifiInstallationRequest?.approvedDate || null,
+            wifiInstallationRemarks: wifiInstallationRequest?.remarks || null,
+            assignedEngineer: wifiInstallationRequest?.assignedEngineer || null
         };
         
         return sendSuccess(res, {
