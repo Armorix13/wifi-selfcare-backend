@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { Role, UserModel } from "../models/user.model";
 import { hashPassword, sendSuccess, sendError, generateOtp, sendMessage, generateAccessToken, generateRefreshToken, generateRandomJti, comparePassword } from '../../utils/helper';
 import { Advertisement } from '../models/advertisement.model';
-import { InstallationRequest } from '../models/installationRequest.model';
+import { InstallationRequest } from '../models/wifiInstallationRequest.model';
 import { Plan } from '../models/plan.model';
 import { ApplicationForm } from '../models/applicationform.model';
 

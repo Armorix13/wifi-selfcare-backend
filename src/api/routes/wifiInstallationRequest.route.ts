@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { upload } from '../services/upload.service';
 import authenticate from '../../middleware/auth.middleware';
-import { addInstallationRequest, updateInstallationRequestStatus } from '../controllers/installationRequest.controller';
+import { addWifiInstallationRequest, updateWifiInstallationRequestStatus } from '../controllers/wifiInstallationRequest.controller';
 
 const router = Router();
 
-// User: Add installation request with multi-image upload
 router.post(
   '/',
   upload.fields([
@@ -14,10 +13,10 @@ router.post(
     { name: 'aadhaarBack', maxCount: 1 }
   ]),
   authenticate,
-  addInstallationRequest
+  addWifiInstallationRequest
 );
 
 // Admin: Approve/reject installation request
-router.patch('/:id/status', authenticate, updateInstallationRequestStatus);
+router.patch('/:id/status', authenticate, updateWifiInstallationRequestStatus);
 
 export default router; 

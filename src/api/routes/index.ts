@@ -8,7 +8,7 @@ import { handleMulterUpload, multerUpload } from "../services/upload.service";
 import productRouter from "./product.route";
 import cartRouter from "./cart.route";
 import orderRouter from "./order.route";
-import installationRequestRouter from './installationRequest.route';
+import wifiInstallationRequestRouter from './wifiInstallationRequest.route';
 import advertisementRouter from './advertisement.route';
 import applicationFormRouter from './applicationform.route';
 const parentRouter = Router();
@@ -22,7 +22,7 @@ parentRouter.use("/categories", categoryRouter);
 parentRouter.use("/products", productRouter);
 parentRouter.use("/cart", cartRouter);
 parentRouter.use("/orders", orderRouter);
-parentRouter.use('/installation-requests', installationRequestRouter);
+parentRouter.use('/installation-requests', wifiInstallationRequestRouter);
 parentRouter.use('/advertisements', advertisementRouter);
 parentRouter.use('/applications', applicationFormRouter);
 
