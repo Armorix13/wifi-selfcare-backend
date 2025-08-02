@@ -38,7 +38,7 @@ const IptvPlanSchema = new Schema<IIptvPlan>(
       enum: ['SD', 'HD', 'Mixed'],
       default: 'Mixed'
     },
-    provider: { type: String, default: 'Skypro' },
+    provider: { type: String },
     logo: { type: String, required: true },
     description: { type: String, required: true }
   },

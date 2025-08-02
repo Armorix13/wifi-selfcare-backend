@@ -5,7 +5,6 @@ import { sendSuccess, sendError } from '../../utils/helper';
 // Add a new plan
 export const addPlan = async (req: Request, res: Response): Promise<any> => {
   try {
-    // Destructure all required fields
     const { title, price, validity, speed, dataLimit, provider, logo, benefits, description, planType } = req.body;
     const plan = new Plan({ title, price, validity, speed, dataLimit, provider, logo, benefits, description, planType });
     await plan.save();

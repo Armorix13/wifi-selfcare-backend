@@ -28,7 +28,7 @@ parentRouter.use('/installation-requests', wifiInstallationRequestRouter);
 parentRouter.use('/advertisements', advertisementRouter);
 parentRouter.use('/ottplans',ottPlanRouter);
 parentRouter.use('/applications', applicationFormRouter);
- parentRouter.use('/iptv-plan', iptvPlanRoutes);
+ parentRouter.use('/iptvplan', iptvPlanRoutes);
 
 export default parentRouter;
 
