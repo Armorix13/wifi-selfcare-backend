@@ -194,18 +194,32 @@ export const getUserInstallationRequests = async (req: Request, res: Response): 
 
 export const getAllWifiInstallationRequests = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userRole = (req as any).role;
-    if (!['admin', 'superadmin', 'manager'].includes(userRole)) {
-      return sendError(res, 'Forbidden: Admins only', 403);
-    }
     
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status, page = 1, limit = 10, getAll = false } = req.query;
     
     const filter: any = {};
     if (status && ['inreview', 'approved', 'rejected'].includes(status as string)) {
       filter.status = status;
     }
     
+    // If getAll is true, return all data without pagination
+    if (getAll === 'true' || getAll === '1') {
+      const requests = await WifiInstallationRequest.find(filter)
+        .populate('userId', 'firstName lastName email phoneNumber countryCode profileImage')
+        .populate('applicationId')
+        .populate('assignedEngineer', 'firstName lastName email phoneNumber')
+        .sort({ createdAt: -1 });
+        
+      const total = await WifiInstallationRequest.countDocuments(filter);
+      
+      return sendSuccess(res, {
+        requests,
+        total,
+        message: 'All installation requests fetched successfully (no pagination)'
+      }, 'All installation requests fetched successfully');
+    }
+    
+    // Default pagination behavior
     const skip = (Number(page) - 1) * Number(limit);
     
     const requests = await WifiInstallationRequest.find(filter)
