@@ -14,14 +14,47 @@ dotenv.config();
 const app: Application = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+// Configure CORS with proper options
+app.use(cors({
+    origin: true, // Allow all origins or specify your frontend domain
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(helmet());
+
+// Configure helmet with cross-origin settings for images
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "blob:", "*"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            fontSrc: ["'self'"],
+            connectSrc: ["'self'"],
+            mediaSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            frameSrc: ["'none'"],
+        },
+    },
+}));
+
 app.use(morgan('dev'));
 
-// Serve static files from the /view directory
-app.use('/view', express.static('view'));
+// Serve static files from the /view directory with proper headers
+app.use('/view', express.static('view', {
+    setHeaders: (res, path) => {
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    }
+}));
 
 // Routes
 app.use("/api/v1", parentRouter);
