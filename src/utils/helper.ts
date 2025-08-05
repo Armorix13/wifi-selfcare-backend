@@ -42,7 +42,7 @@ export async function comparePassword(plainPassword: string, hashedPassword: str
  * Generate a JWT access token (valid for 2 days).
  */
 export function generateAccessToken(payload: JwtUserPayload): string {
-  return jwt.sign(payload, process.env.JWT_SECRET as string, { expiresIn: '2d' });
+  return jwt.sign(payload, process.env.JWT_SECRET as string, { expiresIn: '30d' });
 }
 
 /**

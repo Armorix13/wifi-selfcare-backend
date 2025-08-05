@@ -178,7 +178,7 @@ const login = async (req: Request, res: Response):Promise<any> => {
         // Check password
         const isMatch = await comparePassword(password, user.password);
         if (!isMatch) {
-            return sendError(res, "Invalid credentials", 401);
+            return sendError(res, "Invalid credentials", 400);
         }
         // Generate new jti and tokens
         const jti = generateRandomJti();
@@ -512,6 +512,29 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+const getAllEngineer = async (req: Request, res: Response): Promise<any> => {
+    try {
+        // Get all engineers with specified filters
+        const engineers = await UserModel.find({
+            role: 'engineer',
+            isDeactivated: false,
+            isSuspended: false,
+            isAccountVerified: true
+        }).select('_id firstName lastName email phoneNumber countryCode profileImage role createdAt')
+          .sort({ createdAt: -1 });
+
+        const total = engineers.length;
+
+        return sendSuccess(res, {
+            engineers,
+            total,
+            message: 'All active engineers fetched successfully'
+        }, 'Engineers fetched successfully');
+    } catch (error: any) {
+        return sendError(res, 'Failed to fetch engineers', 500, error.message || error);
+    }
+};
+
 export const userController = {
     signUp,
     verifyOtp,
@@ -522,5 +545,6 @@ export const userController = {
     socialLogin,
     getUserDetails,
     updateUser,
-    dashboard
+    dashboard,
+    getAllEngineer
 }
