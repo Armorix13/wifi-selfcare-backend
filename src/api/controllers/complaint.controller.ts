@@ -53,12 +53,12 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
 // 2. Get All Complaints (Admin / Manager)
 const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
     try {
-        const userRole = (req as any).role;
+        // const userRole = (req as any).role;
 
         // Check if user has permission
-        if (![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
-            return sendError(res, "Access denied. Admin/Manager access required", 403);
-        }
+        // if (![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
+        //     return sendError(res, "Access denied. Admin/Manager access required", 403);
+        // }
 
         const {
             status,
