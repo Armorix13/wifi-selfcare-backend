@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import Order from '../models/order.model';
 import Cart from '../models/cart.model';
 import Product from '../models/product.model';
+import { UserModel } from '../models/user.model';
 import { sendSuccess, sendError } from '../../utils/helper';
 import { Types } from 'mongoose';
 
@@ -121,5 +122,232 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
     return sendSuccess(res, order, `Order status updated to ${status}`);
   } catch (err) {
     return sendError(res, 'Failed to update order status', 500, err);
+  }
+};
+
+// Get comprehensive order analytics
+export const getOrderAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { 
+      status, 
+      productType, 
+      userType, 
+      dateRange,
+      page = 1, 
+      limit = 10,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build filter object
+    const filter: any = {};
+    
+    if (status) {
+      filter.orderStatus = status;
+    }
+    
+    if (dateRange) {
+      const [startDate, endDate] = (dateRange as string).split(',');
+      if (startDate && endDate) {
+        filter.createdAt = {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate)
+        };
+      }
+    }
+
+    // Get all orders for analytics
+    const allOrders = await Order.find(filter)
+      .populate('products.product')
+      .populate('user', 'firstName lastName role')
+      .sort({ [sortBy as string]: sortOrder === 'desc' ? -1 : 1 });
+
+    // Filter by product type if specified
+    let filteredOrders = allOrders;
+    if (productType) {
+      filteredOrders = allOrders.filter(order => 
+        order.products.some(item => 
+          (item.product as any).productType === productType
+        )
+      );
+    }
+
+    // Filter by user type if specified
+    if (userType) {
+      filteredOrders = filteredOrders.filter(order => 
+        (order.user as any).role === userType
+      );
+    }
+
+    // Get paginated orders for table display
+    const skip = (Number(page) - 1) * Number(limit);
+    const orders = filteredOrders.slice(skip, skip + Number(limit));
+
+    const total = filteredOrders.length;
+
+    // Calculate analytics metrics
+    const totalOrders = filteredOrders.length;
+    const completedOrders = filteredOrders.filter(o => o.orderStatus === 'delivered').length;
+    const pendingOrders = filteredOrders.filter(o => o.orderStatus === 'pending').length;
+    const confirmedOrders = filteredOrders.filter(o => o.orderStatus === 'confirmed').length;
+    const shippedOrders = filteredOrders.filter(o => o.orderStatus === 'shipped').length;
+    const cancelledOrders = filteredOrders.filter(o => o.orderStatus === 'cancelled').length;
+
+    // Calculate total revenue
+    const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const completedRevenue = filteredOrders
+      .filter(o => o.orderStatus === 'delivered')
+      .reduce((sum, order) => sum + order.totalAmount, 0);
+
+    // Calculate average order value
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    // Status distribution
+    const statusDistribution = [
+      { status: 'pending', count: pendingOrders, percentage: totalOrders > 0 ? (pendingOrders / totalOrders) * 100 : 0 },
+      { status: 'confirmed', count: confirmedOrders, percentage: totalOrders > 0 ? (confirmedOrders / totalOrders) * 100 : 0 },
+      { status: 'shipped', count: shippedOrders, percentage: totalOrders > 0 ? (shippedOrders / totalOrders) * 100 : 0 },
+      { status: 'delivered', count: completedOrders, percentage: totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0 },
+      { status: 'cancelled', count: cancelledOrders, percentage: totalOrders > 0 ? (cancelledOrders / totalOrders) * 100 : 0 }
+    ];
+
+    // User type distribution
+    const userTypeDistribution = await Order.aggregate([
+      { $match: filter },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'userData'
+        }
+      },
+      {
+        $group: {
+          _id: { $arrayElemAt: ['$userData.role', 0] },
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$totalAmount' }
+        }
+      }
+    ]);
+
+    // Product type distribution in orders
+    const productTypeDistribution = await Order.aggregate([
+      { $match: filter },
+      { $unwind: '$products' },
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'products.product',
+          foreignField: '_id',
+          as: 'productData'
+        }
+      },
+      {
+        $group: {
+          _id: { $arrayElemAt: ['$productData.productType', 0] },
+          count: { $sum: 1 },
+          totalQuantity: { $sum: '$products.quantity' },
+          totalAmount: { $sum: { $multiply: ['$products.price', '$products.quantity'] } }
+        }
+      }
+    ]);
+
+    // Recent orders (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentOrders = filteredOrders.filter(o => o.createdAt >= thirtyDaysAgo).length;
+
+    // Format orders for table display
+    const formattedOrders = orders.map(order => {
+      const user = order.user as any;
+      const isEngineer = user?.role === 'engineer';
+      
+      return {
+        _id: order._id,
+        orderNumber: `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
+        products: order.products.map(item => ({
+          product: item.product,
+          quantity: item.quantity,
+          amount: item.price * item.quantity
+        })),
+        customer: {
+          name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+          role: user?.role || 'user',
+          isEngineer
+        },
+        totalAmount: order.totalAmount,
+        orderStatus: order.orderStatus,
+        paymentMethod: order.paymentMethod,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt
+      };
+    });
+
+    // Priority analysis (based on order value)
+    const priorityAnalysis = {
+      low: filteredOrders.filter(o => o.totalAmount < 1000).length,
+      medium: filteredOrders.filter(o => o.totalAmount >= 1000 && o.totalAmount < 5000).length,
+      high: filteredOrders.filter(o => o.totalAmount >= 5000 && o.totalAmount < 15000).length,
+      urgent: filteredOrders.filter(o => o.totalAmount >= 15000).length
+    };
+
+    const response = {
+      // Analytics Overview
+      analytics: {
+        totalOrders,
+        completedOrders,
+        pendingOrders,
+        totalRevenue,
+        completedRevenue,
+        averageOrderValue: Math.round(averageOrderValue * 100) / 100,
+        recentOrders,
+        priorityAnalysis
+      },
+      
+      // Status Distribution
+      statusDistribution,
+      
+      // User Type Distribution
+      userTypeDistribution,
+      
+      // Product Type Distribution
+      productTypeDistribution,
+      
+      // Orders Table Data
+      orders: {
+        data: formattedOrders,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          totalPages: Math.ceil(total / Number(limit))
+        }
+      },
+      
+      // Filter Options
+      filters: {
+        statusOptions: [
+          { value: 'pending', label: 'Pending' },
+          { value: 'confirmed', label: 'Confirmed' },
+          { value: 'shipped', label: 'Shipped' },
+          { value: 'delivered', label: 'Delivered' },
+          { value: 'cancelled', label: 'Cancelled' }
+        ],
+        productTypes: [
+          { value: 'user_sale', label: 'User Sale' },
+          { value: 'engineer_only', label: 'Engineer Only' }
+        ],
+        userTypes: [
+          { value: 'user', label: 'Customer' },
+          { value: 'engineer', label: 'Engineer' }
+        ]
+      }
+    };
+
+    return sendSuccess(res, response, 'Order analytics data fetched successfully');
+  } catch (error: any) {
+    return sendError(res, 'Failed to fetch order analytics', 500, error);
   }
 }; 

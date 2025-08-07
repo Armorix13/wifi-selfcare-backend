@@ -15,6 +15,7 @@ export interface IProduct extends Document {
     tags?: string[];
     attributes?: Record<string, any>;
     averageRating?: number;
+    productType: 'user_sale' | 'engineer_only';
     createdAt: Date;
     updatedAt: Date;
 }
@@ -34,6 +35,7 @@ const ProductSchema = new Schema<IProduct>({
     tags: { type: [String], default: [], index: true },
     attributes: { type: Schema.Types.Mixed },
     averageRating: { type: Number, min: 0, max: 5, default: 0 },
+    productType: { type: String, enum: ['user_sale', 'engineer_only'], default: 'user_sale', index: true },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
