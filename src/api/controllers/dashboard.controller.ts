@@ -6,7 +6,7 @@ import { UserModel } from '../models/user.model';
 import { sendSuccess, sendError } from '../../utils/helper';
 
 // Get comprehensive dashboard analytics
-export const getDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const { 
       dateRange,
