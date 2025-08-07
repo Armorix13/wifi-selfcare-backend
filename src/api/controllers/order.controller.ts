@@ -260,14 +260,14 @@ export const getOrderAnalytics = async (req: Request, res: Response, next: NextF
     const recentOrders = filteredOrders.filter(o => o.createdAt >= thirtyDaysAgo).length;
 
     // Format orders for table display
-    const formattedOrders = orders.map(order => {
+    const formattedOrders = orders.map((order:any) => {
       const user = order.user as any;
       const isEngineer = user?.role === 'engineer';
       
       return {
         _id: order._id,
         orderNumber: `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
-        products: order.products.map(item => ({
+        products: order.products.map((item:any) => ({
           product: item.product,
           quantity: item.quantity,
           amount: item.price * item.quantity

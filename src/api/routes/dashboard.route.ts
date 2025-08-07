@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { Express, Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
-import { getProductDashboardAnalytics } from '../controllers/dashboard.controller';
+// import { getProductDashboardAnalytics } from '../controllers/product.controller';
+// import {getProductDashboardAnalytics } from '../controllers/dashboard.controller';
 
-const router = Router();
+const dashboardRoute = Router();
 
-router.get('/product-analytics', authenticate, getProductDashboardAnalytics);
+// dashboardRoute.get('/product-analytics', authenticate, getProductDashboardAnalytics);
 
-export default router; 
+export default dashboardRoute; 

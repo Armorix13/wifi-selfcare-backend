@@ -13,7 +13,7 @@ import advertisementRouter from './advertisement.route';
 import applicationFormRouter from './applicationform.route';
 import ottPlanRouter from './ottPlan.route';
 import iptvPlanRoutes from "./iptvPlan.route";
-import dashboardRouter from "./dashboard.route";
+import dashboardRoute from "./dashboard.route";
 const parentRouter = Router();
 
 parentRouter.post("/file-upload", multerUpload,handleMulterUpload);
@@ -30,7 +30,7 @@ parentRouter.use('/advertisements', advertisementRouter);
 parentRouter.use('/ottplans',ottPlanRouter);
 parentRouter.use('/applications', applicationFormRouter);
 parentRouter.use('/iptvplan', iptvPlanRoutes);
-parentRouter.use('/dashboard', dashboardRouter);
+parentRouter.use('/dashboard', dashboardRoute);
 
 export default parentRouter;
 
