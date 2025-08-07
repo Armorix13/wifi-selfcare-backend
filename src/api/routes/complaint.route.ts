@@ -9,7 +9,8 @@ import {
     updateComplaintStatus,
     deleteComplaint,
     getAssignedComplaints,
-    getComplaintStats
+    getComplaintStats,
+    getDashboardData
 } from "../controllers/complaint.controller";
 
 const router = Router();
@@ -21,6 +22,8 @@ router.get("/", authenticate, getAllComplaints);
 router.get("/my", authenticate, getMyComplaints);
 
 router.get("/stats", authenticate, getComplaintStats);
+
+router.get("/complaint-dashboard", authenticate, getDashboardData);
 
 router.get("/my/:id", authenticate, getComplaintById);
 
