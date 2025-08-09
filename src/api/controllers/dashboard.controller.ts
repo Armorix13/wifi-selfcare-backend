@@ -202,6 +202,9 @@ export const getProductDashboardAnalytics = async (req: Request, res: Response, 
       productTypeDistribution,
       userTypeDistribution,
       orderStatusDistribution,
+
+      allOrders,
+      allProducts,
       
       // Top Performers
       topSellingProducts,
