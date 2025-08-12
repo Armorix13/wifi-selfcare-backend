@@ -327,6 +327,8 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
       .limit(Number(limit));
 
     // Get Fibre Plans (using Plan model)
+    // Since Plan model contains fibre plans, we need to identify them by their characteristics
+    // Fibre plans typically have speed, dataLimit, and validity fields
     const fibreFilters = { ...filters };
     if (fibreFilters.$or) {
       fibreFilters.$or = fibreFilters.$or.map((or: any) => {
@@ -335,13 +337,25 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
       });
     }
     delete fibreFilters.name;
-    fibreFilters.planType = { $regex: /fibre|broadband|internet/i };
+    
+    // Remove the restrictive planType filter since fibre plans can have various planType values
+    // Instead, we'll identify them by the presence of fibre-related fields
+    delete fibreFilters.planType;
     
     const fibrePlans = await Plan.find(fibreFilters)
       .select('title price validity speed dataLimit provider logo benefits description planType')
       .sort({ price: 1 })
       .skip(skip)
       .limit(Number(limit));
+    
+    // Debug logging
+    console.log('Fibre filters:', JSON.stringify(fibreFilters, null, 2));
+    console.log('Fibre plans found:', fibrePlans.length);
+    console.log('Fibre plans:', fibrePlans.map(p => ({ title: p.title, planType: p.planType, provider: p.provider })));
+    
+    // Test: Get all plans without filters to see if the model is working
+    const allPlansTest = await Plan.find({}).limit(5);
+    console.log('All plans test (first 5):', allPlansTest.map(p => ({ title: p.title, planType: p.planType, provider: p.provider })));
 
     // Get total counts for each plan type
     const totalIptvPlans = await IptvPlan.countDocuments(iptvFilters);
@@ -364,6 +378,8 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
       { value: 'Standard', label: 'Standard' },
       { value: 'Premium', label: 'Premium' },
       { value: 'Lite', label: 'Lite' },
+      { value: 'Entertainment', label: 'Entertainment' },
+      { value: 'Midrange', label: 'Midrange' },
       { value: 'OTT', label: 'OTT' }
     ];
 
