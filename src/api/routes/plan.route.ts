@@ -6,14 +6,15 @@ import {
   getAllPlans,
   getPlanById
 } from '../controllers/plan.controller';
+import { upload } from '../services/upload.service';
 
 const router = Router();
 
 // Add a new plan
-router.post('/', addPlan);
+router.post('/', upload.single('logo'), addPlan);
 
 // Update a plan by ID
-router.put('/:id', updatePlan);
+router.put('/:id', upload.single('logo'), updatePlan);
 
 // Delete a plan by ID
 router.delete('/:id', deletePlan);

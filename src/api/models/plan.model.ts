@@ -8,7 +8,7 @@ export interface IPlan extends Document {
   dataLimit: string;
   provider: string;
   logo: string;
-  benefits: string;
+  benefits: string[];
   description: string;
   planType: string;
   createdAt: Date;
@@ -24,7 +24,7 @@ const PlanSchema: Schema = new Schema(
     dataLimit: { type: String, required: true },
     provider: { type: String, required: true },
     logo: { type: String, required: true },
-    benefits: { type: String, required: true },
+    benefits: [{ type: String }],
     description: { type: String, required: true },
     planType: { type: String, required: true },
   },
@@ -34,3 +34,5 @@ const PlanSchema: Schema = new Schema(
 const Plan = mongoose.model<IPlan>('Plan', PlanSchema);
 
 export { Plan }; 
+
+//fibre plan model above  is this
