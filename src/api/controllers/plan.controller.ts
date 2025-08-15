@@ -69,9 +69,9 @@ export const updatePlan = async (req: Request, res: Response): Promise<any> => {
     // Update other fields
     if (data.title) updateData.title = data.title;
     if (data.price) updateData.price = Number(data.price);
-    if (data.validity) updateData.validity = Number(data.validity);
-    if (data.speed) updateData.speed = Number(data.speed);
-    if (data.dataLimit) updateData.dataLimit = Number(data.dataLimit);
+    if (data.validity) updateData.validity = data.validity;
+    if (data.speed) updateData.speed = data.speed;
+    if (data.dataLimit) updateData.dataLimit = data.dataLimit;
     if (data.provider) updateData.provider = data.provider;
     if (data.description) updateData.description = data.description;
     if (data.planType) updateData.planType = data.planType;
