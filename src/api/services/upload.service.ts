@@ -115,3 +115,117 @@ export const handleMulterUpload = (
   });
 };
 
+// NEW ADDITIONS FOR BILL UPLOAD SYSTEM - KEEPING EXISTING CODE INTACT
+
+// Bill upload configuration
+const billUpload = multer({
+  storage: storage, // Use the same storage as existing upload
+  fileFilter: (req, file, cb: FileFilterCallback) => {
+    const mimeType = file.mimetype;
+    const originalName = file.originalname.toLowerCase();
+    
+    // Allow PDF, images, and common document formats for bills
+    if (mimeType === "application/pdf") {
+      cb(null, true);
+    } else if (mimeType.startsWith("image/")) {
+      cb(null, true);
+    } else if (mimeType.includes("document") || mimeType.includes("word") || 
+               originalName.endsWith('.doc') || originalName.endsWith('.docx') || 
+               originalName.endsWith('.txt') || originalName.endsWith('.rtf')) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type for bill. Only PDF, images, and documents are allowed."));
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit for bills
+  }
+});
+
+// Payment proof upload configuration
+const paymentProofUpload = multer({
+  storage: storage, // Use the same storage as existing upload
+  fileFilter: (req, file, cb: FileFilterCallback) => {
+    const mimeType = file.mimetype;
+    
+    // Allow images and PDFs for payment proofs
+    if (mimeType.startsWith("image/")) {
+      cb(null, true);
+    } else if (mimeType === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type for payment proof. Only images and PDFs are allowed."));
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit for payment proofs
+  }
+});
+
+// Export new upload instances alongside existing ones
+export { billUpload, paymentProofUpload };
+
+// Bill upload handler
+export const handleBillUpload = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.file) {
+    return next(new Error("Bill file is required"));
+  }
+  
+  const absolutePath = req.file.path.replace(/\\/g, "/");
+  const viewIndex = absolutePath.lastIndexOf("/view/");
+  let fileUrl = absolutePath;
+  
+  if (viewIndex !== -1) {
+    fileUrl = absolutePath.substring(viewIndex);
+  }
+  
+  if (!fileUrl.startsWith("/view/")) {
+    fileUrl = `/view/${fileUrl.split("/view/")[1]}`;
+  }
+  
+  res.status(200).json({
+    message: "Bill uploaded successfully",
+    url: fileUrl,
+    filename: req.file.filename,
+    originalName: req.file.originalname,
+    size: req.file.size,
+    mimetype: req.file.mimetype
+  });
+};
+
+// Payment proof upload handler
+export const handlePaymentProofUpload = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.file) {
+    return next(new Error("Payment proof file is required"));
+  }
+  
+  const absolutePath = req.file.path.replace(/\\/g, "/");
+  const viewIndex = absolutePath.lastIndexOf("/view/");
+  let fileUrl = absolutePath;
+  
+  if (viewIndex !== -1) {
+    fileUrl = absolutePath.substring(viewIndex);
+  }
+  
+  if (!fileUrl.startsWith("/view/")) {
+    fileUrl = `/view/${fileUrl.split("/view/")[1]}`;
+  }
+  
+  res.status(200).json({
+    message: "Payment proof uploaded successfully",
+    url: fileUrl,
+    filename: req.file.filename,
+    originalName: req.file.originalname,
+    size: req.file.size,
+    mimetype: req.file.mimetype
+  });
+};
+
