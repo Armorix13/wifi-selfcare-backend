@@ -25,6 +25,7 @@ enum ComplaintType {
 
 
 export interface IComplaint extends Document {
+    id: string; // Custom complaint ID (WIFI-XXXXX or CCTV-XXXXX)
     user: mongoose.Types.ObjectId; // Client/user who submitted the complaint
     engineer?: mongoose.Types.ObjectId; // Engineer assigned to handle the complaint
     assignedBy?: mongoose.Types.ObjectId; // Admin who assigned the engineer
@@ -109,6 +110,12 @@ const ComplaintStatusColor: Record<ComplaintStatus, string> = {
 
 
 const ComplaintSchema = new Schema<IComplaint>({
+    id: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true
+    },
     user: {
         type: Schema.Types.ObjectId,
         ref: "User",
@@ -238,6 +245,7 @@ ComplaintSchema.index({ engineer: 1 });
 ComplaintSchema.index({ status: 1 });
 ComplaintSchema.index({ priority: 1 });
 ComplaintSchema.index({ createdAt: -1 });
+ComplaintSchema.index({ id: 1 }, { unique: true });
 
 
 ComplaintSchema.virtual('resolutionTimeInHours').get(function () {
@@ -248,7 +256,26 @@ ComplaintSchema.virtual('resolutionTimeInHours').get(function () {
 });
 
 // Enforce min 1, max 4 attachments (photos) on save
-ComplaintSchema.pre('save', function (next) {
+ComplaintSchema.pre('save', async function (next) {
+    // Generate custom complaint ID only for new documents
+    if (this.isNew && !this.id) {
+        let generatedId: string;
+        let isUnique = false;
+        
+        while (!isUnique) {
+            const randomNumber = Math.floor(10000 + Math.random() * 90000); // Generate 5-digit random number
+            generatedId = `${this.type}-${randomNumber}`;
+            
+            // Check if this ID already exists
+            const existingComplaint = await mongoose.model('Complaint').findOne({ id: generatedId });
+            if (!existingComplaint) {
+                isUnique = true;
+            }
+        }
+        
+        this.id = generatedId!;
+    }
+    
     if (this.attachments) {
         if (this.attachments.length < 1 || this.attachments.length > 4) {
             return next(new Error('You must submit at least 1 and at most 4 photos.'));
