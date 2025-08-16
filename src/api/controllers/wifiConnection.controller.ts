@@ -14,7 +14,45 @@ export const createWifiConnection = async (req: Request, res: Response): Promise
             connectionType,
             package: packageName,
             installationAddress,
-            remarks
+            remarks,
+            // Additional comprehensive fields
+            email,
+            alternativePhone,
+            pincode,
+            state,
+            district,
+            city,
+            landmark,
+            houseNumber,
+            street,
+            area,
+            // Technical specifications
+            preferredSpeed,
+            preferredPlan,
+            installationDate,
+            preferredTimeSlot,
+            // Additional requirements
+            specialRequirements,
+            hasExistingConnection,
+            existingProvider,
+            reasonForChange,
+            // Emergency contact
+            emergencyContactName,
+            emergencyContactPhone,
+            emergencyContactRelation,
+            // Business details (if applicable)
+            isBusinessConnection,
+            businessName,
+            businessType,
+            gstNumber,
+            // Installation preferences
+            installationType,
+            routerRequired,
+            additionalEquipment,
+            // Payment preferences
+            paymentMethod,
+            billingCycle,
+            autoRenewal
         } = req.body;
 
         const userId = (req as any).userId;
@@ -25,17 +63,25 @@ export const createWifiConnection = async (req: Request, res: Response): Promise
             return sendError(res, "Missing required fields", 400);
         }
 
+        // Validate additional required fields if business connection
+        if (isBusinessConnection && (!businessName || !businessType)) {
+            return sendError(res, "Business name and type are required for business connections", 400);
+        }
+
         // Check if user exists
         const userExists = await UserModel.findById(userId);
         if (!userExists) {
             return sendError(res, "User not found", 404);
         }
 
-        // Check if user already has a WiFi connection
-        const existingConnection = await WifiConnection.findOne({ userId });
-        if (existingConnection) {
-            return sendError(res, "User already has a WiFi connection", 400);
-        }
+        // Check if user already has a pending WiFi connection request
+        // const existingPendingRequest = await WifiConnection.findOne({ 
+        //     userId, 
+        //     status: { $in: ['inreview', 'accepted'] } 
+        // });
+        // if (existingPendingRequest) {
+        //     return sendError(res, "You already have a pending WiFi connection request. Please wait for the current request to be processed.", 400);
+        // }
 
         const wifiConnection = new WifiConnection({
             userId,
@@ -47,7 +93,45 @@ export const createWifiConnection = async (req: Request, res: Response): Promise
             package: packageName,
             installationAddress,
             remarks,
-            status: 'inreview'
+            status: 'inreview',
+            // Additional comprehensive fields
+            email,
+            alternativePhone,
+            pincode,
+            state,
+            district,
+            city,
+            landmark,
+            houseNumber,
+            street,
+            area,
+            // Technical specifications
+            preferredSpeed,
+            preferredPlan,
+            installationDate,
+            preferredTimeSlot,
+            // Additional requirements
+            specialRequirements,
+            hasExistingConnection,
+            existingProvider,
+            reasonForChange,
+            // Emergency contact
+            emergencyContactName,
+            emergencyContactPhone,
+            emergencyContactRelation,
+            // Business details
+            isBusinessConnection,
+            businessName,
+            businessType,
+            gstNumber,
+            // Installation preferences
+            installationType,
+            routerRequired,
+            additionalEquipment,
+            // Payment preferences
+            paymentMethod,
+            billingCycle,
+            autoRenewal
         });
 
         const savedConnection = await wifiConnection.save();
@@ -55,6 +139,43 @@ export const createWifiConnection = async (req: Request, res: Response): Promise
         return sendSuccess(res, savedConnection, "WiFi connection request created successfully", 201);
     } catch (error) {
         console.error('Error creating WiFi connection:', error);
+        return sendError(res, 'Internal server error', 500, error instanceof Error ? error.message : 'Unknown error');
+    }
+};
+
+// Get user's WiFi connection history
+export const getUserWifiConnections = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId;
+        
+        if (!userId) {
+            return sendError(res, 'User ID is required', 400);
+        }
+
+        const wifiConnections = await WifiConnection.find({ 
+            userId, 
+            isDeleted: { $ne: true } 
+        })
+        .populate('assignedEngineer', 'firstName lastName email phoneNumber')
+        .sort({ createdAt: -1 });
+
+        // Group connections by status for better organization
+        const connectionsByStatus = {
+            active: wifiConnections.filter(conn => conn.status === 'accepted' && conn.isActive),
+            pending: wifiConnections.filter(conn => conn.status === 'inreview'),
+            rejected: wifiConnections.filter(conn => conn.status === 'rejected'),
+            completed: wifiConnections.filter(conn => conn.status === 'accepted' && !conn.isActive)
+        };
+
+        const result = {
+            totalConnections: wifiConnections.length,
+            connectionsByStatus,
+            allConnections: wifiConnections
+        };
+
+        return sendSuccess(res, result, 'User WiFi connections retrieved successfully');
+    } catch (error) {
+        console.error('Error getting user WiFi connections:', error);
         return sendError(res, 'Internal server error', 500, error instanceof Error ? error.message : 'Unknown error');
     }
 };
@@ -111,7 +232,11 @@ export const getAllWifiConnections = async (req: Request, res: Response): Promis
                 { firstName: { $regex: search, $options: 'i' } },
                 { lastName: { $regex: search, $options: 'i' } },
                 { phoneNumber: { $regex: search, $options: 'i' } },
-                { installationAddress: { $regex: search, $options: 'i' } }
+                { email: { $regex: search, $options: 'i' } },
+                { installationAddress: { $regex: search, $options: 'i' } },
+                { city: { $regex: search, $options: 'i' } },
+                { area: { $regex: search, $options: 'i' } },
+                { businessName: { $regex: search, $options: 'i' } }
             ];
         }
 
