@@ -112,7 +112,7 @@ const ComplaintStatusColor: Record<ComplaintStatus, string> = {
 const ComplaintSchema = new Schema<IComplaint>({
     id: {
         type: String,
-        required: true,
+        // required: true,
         unique: true,
         trim: true
     },
