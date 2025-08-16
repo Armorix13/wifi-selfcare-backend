@@ -13,13 +13,15 @@ export const addRequest = async (req: Request, res: Response): Promise<any> => {
       countryCode,
       pincode,
       area,
-      userId,
       priority,
       remarks
     } = req.body;
+    const userId = (req as any).userId;
+
+
 
     // Validate required fields
-    if (!firstName || !lastName || !phoneNumber || !countryCode || !pincode || !area || !userId) {
+    if (!firstName || !lastName || !phoneNumber || !countryCode || !pincode || !area) {
       return sendError(res, "Missing required fields", 400);
     }
 
@@ -131,7 +133,7 @@ export const editRequest = async (req: Request, res: Response): Promise<any> => 
       updateData,
       { new: true, runValidators: true }
     ).populate('userId', 'firstName lastName email phoneNumber')
-     .populate('assignId', 'firstName lastName email phoneNumber');
+      .populate('assignId', 'firstName lastName email phoneNumber');
 
     if (!updatedRequest) {
       return sendError(res, "CCTV request not found", 404);
@@ -176,7 +178,7 @@ export const assignEngineer = async (req: Request, res: Response): Promise<any> 
       },
       { new: true, runValidators: true }
     ).populate('userId', 'firstName lastName email phoneNumber')
-     .populate('assignId', 'firstName lastName email phoneNumber');
+      .populate('assignId', 'firstName lastName email phoneNumber');
 
     return sendSuccess(res, updatedRequest, "Engineer assigned successfully");
   } catch (error) {
@@ -211,7 +213,7 @@ export const updateStatus = async (req: Request, res: Response): Promise<any> =>
       updateData,
       { new: true, runValidators: true }
     ).populate('userId', 'firstName lastName email phoneNumber')
-     .populate('assignId', 'firstName lastName email phoneNumber');
+      .populate('assignId', 'firstName lastName email phoneNumber');
 
     if (!updatedRequest) {
       return sendError(res, "CCTV request not found", 404);
