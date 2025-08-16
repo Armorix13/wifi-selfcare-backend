@@ -6,12 +6,12 @@ import path from 'path';
 // User requests a bill from admin
 export const requestBill = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { 
-      billType, 
-      planId, 
-      planName, 
-      userRemarks 
-    } = req.body;
+    // const { 
+    //   billType, 
+    //   planId, 
+    //   planName, 
+    //   userRemarks 
+    // } = req.body;
     const userId = (req as any).userId;
 
     // Get user details
@@ -26,7 +26,6 @@ export const requestBill = async (req: Request, res: Response): Promise<any> => 
     // Check if user already has a pending bill request of the same type
     const existingRequest = await RequestBill.findOne({
       userId,
-      billType,
       status: { $in: ['pending', 'bill_uploaded', 'payment_pending'] }
     });
 
@@ -43,10 +42,6 @@ export const requestBill = async (req: Request, res: Response): Promise<any> => 
       email: user.email,
       phoneNumber: user.phoneNumber,
       countryCode: user.countryCode,
-      billType,
-      planId,
-      planName,
-      userRemarks,
       status: 'pending'
     });
 
