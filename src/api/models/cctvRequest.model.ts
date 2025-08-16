@@ -80,6 +80,13 @@ const CctvRequestSchema = new Schema<ICctvRequest>({
   },
   remarks: {
     type: String
+  },
+  approvedDate: {
+    type: Date
+  },
+  assignedEngineer: {
+    type: Schema.Types.ObjectId,
+    ref: "User"
   }
 }, {
   timestamps: true
