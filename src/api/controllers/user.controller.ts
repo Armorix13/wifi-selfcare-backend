@@ -206,6 +206,67 @@ const login = async (req: Request, res: Response):Promise<any> => {
     }
 }
 
+const adminLogin = async (req: Request, res: Response):Promise<any> => {
+    try {
+        const { email, password, deviceType, deviceToken } = req.body;
+
+        const user = await UserModel.findOne({ email });
+        if (!user) {
+            return sendError(res, "User not found", 404);
+        }
+        
+        if(user.role !== Role.ADMIN && user.role !== Role.SUPERADMIN && user.role !== Role.MANAGER && user.role !== Role.AGENT) {
+            return sendError(res, "Access denied. Admin privileges required.", 403);
+        }
+        if (user.isDeleted) {
+            return sendError(res, "Account is deleted", 403);
+        }
+        if (user.isDeactivated) {
+            return sendError(res, "Account is deactivated", 403);
+        }
+        if (user.isSuspended) {
+            return sendError(res, "Account is suspended", 403);
+        }
+
+        if (!user.isAccountVerified) {
+            return sendError(res, "Account is not verified. Please verify your account.", 403);
+        }
+
+        // Check if password exists (social login)
+        if (!user.password) {
+            return sendError(res, "Password not set. Please login using your social account.", 400);
+        }
+        // Check password
+        const isMatch = await comparePassword(password, user.password);
+        if (!isMatch) {
+            return sendError(res, "Invalid credentials", 400);
+        }
+        // Generate new jti and tokens
+        const jti = generateRandomJti();
+        user.jti = jti;
+        user.lastLogin = new Date();
+        user.deviceType = deviceType;
+        user.deviceToken = deviceToken;
+        await user.save();
+        const accessToken = generateAccessToken({ userId: String(user._id), role: user.role, jti });
+        const refreshToken = generateRefreshToken({ userId: String(user._id), role: user.role, jti });
+        const userInfo = {
+            _id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            phoneNumber: user.phoneNumber,
+            role: user.role,
+            accessToken,
+            refreshToken
+        };
+        return sendSuccess(res, userInfo, "Login successful");
+    } catch (error) {
+        console.error(error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+}
+
 const forgotPassword = async (req: Request, res: Response):Promise<any> => {
     try {
         const { email } = req.body;
@@ -539,6 +600,7 @@ export const userController = {
     signUp,
     verifyOtp,
     login,
+    adminLogin,
     logout,
     forgotPassword,
     resetPassword,

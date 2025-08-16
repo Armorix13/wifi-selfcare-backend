@@ -8,6 +8,7 @@ const userRouter = Router();
 // Public routes
 userRouter.post("/signup", userController.signUp);
 userRouter.post("/login", userController.login);
+userRouter.post("/admin-login", userController.adminLogin);
 userRouter.post("/social-login", userController.socialLogin);
 userRouter.post("/verify-otp", userController.verifyOtp);
 userRouter.post("/forgot-password", userController.forgotPassword);

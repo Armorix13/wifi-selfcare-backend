@@ -54,7 +54,6 @@ const RequestBillSchema: Schema = new Schema(
     },
     planId: {
       type: Schema.Types.ObjectId,
-      ref: 'Plan'
     },
     planName: {
       type: String
