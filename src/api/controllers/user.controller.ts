@@ -6,6 +6,8 @@ import { Plan } from '../models/plan.model';
 import { ApplicationForm } from '../models/applicationform.model';
 import { WifiInstallationRequest } from '../models/wifiInstallationRequest.model';
 import { OttInstallationRequest } from "../models/ottInstallationRequest.model";
+import { IptvInstallationRequest } from "../models/iptvInstallationRequest.model";
+import { FibreInstallationRequest } from "../models/fibreInstallationRequest.model";
 
 const signUp = async (req: Request, res: Response): Promise<any> => {
     console.log(req.body);
@@ -550,6 +552,8 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
 
         const isWifiInstallationRequest = !!wifiInstallationRequest;
 
+
+        //Ott Installation Request
         let ottStatus = 1; //Not requested for ott installation
         const ottInstallationRequest = await OttInstallationRequest.findOne({ userId })
         .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
@@ -563,6 +567,36 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             ottStatus = 2; //In review for ott installation
         } else if (ottInstallationRequest && ottInstallationRequest.status === 'rejected') {
             ottStatus = 4; //Rejected for ott installation
+        }
+
+        //Iptv installation request
+        let iptvStatus = 1; //Not requested for iptv installation
+        const iptvInstallationRequest = await IptvInstallationRequest.findOne({ userId })
+        .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+        .populate('iptvPlanId', 'name price description')
+        .sort({ createdAt: -1 });
+        ;
+        if (iptvInstallationRequest && iptvInstallationRequest.status === 'approved') {
+            iptvStatus = 3; //Approved for iptv installation
+        } else if (iptvInstallationRequest && iptvInstallationRequest.status === 'inreview') {
+            iptvStatus = 2; //In review for iptv installation
+        } else if (iptvInstallationRequest && iptvInstallationRequest.status === 'rejected') {
+            iptvStatus = 4; //Rejected for iptv installation
+        }
+
+        //Fibre installation request
+        let fibreStatus = 1; //Not requested for fibre installation
+        const fibreInstallationRequest = await FibreInstallationRequest.findOne({ userId })
+        .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+        .populate('fibrePlanId', 'name price description')
+        .sort({ createdAt: -1 });
+        ;
+        if (fibreInstallationRequest && fibreInstallationRequest.status === 'approved') {
+            fibreStatus = 3; //Approved for fibre installation
+        } else if (fibreInstallationRequest && fibreInstallationRequest.status === 'inreview') {
+            fibreStatus = 2; //In review for fibre installation
+        } else if (fibreInstallationRequest && fibreInstallationRequest.status === 'rejected') {
+            fibreStatus = 4; //Rejected for fibre installation
         }
 
 
@@ -588,6 +622,22 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
                 ottInstallationRemarks: ottInstallationRequest?.remarks || null,
                 assignedEngineer: ottInstallationRequest?.assignedEngineer || null,
             },
+            iptvInstallation:{
+                iptvStatus,
+                iptvInstallationRequestData: iptvInstallationRequest || null,
+                iptvInstallationStatus: iptvInstallationRequest?.status || null,
+                iptvInstallationApprovedDate: iptvInstallationRequest?.approvedDate || null,
+                iptvInstallationRemarks: iptvInstallationRequest?.remarks || null,
+                assignedEngineer: iptvInstallationRequest?.assignedEngineer || null,
+            },
+            fibreInstallation:{
+                fibreStatus,
+                fibreInstallationRequestData: fibreInstallationRequest || null,
+                fibreInstallationStatus: fibreInstallationRequest?.status || null,
+                fibreInstallationApprovedDate: fibreInstallationRequest?.approvedDate || null,
+                fibreInstallationRemarks: fibreInstallationRequest?.remarks || null,
+                assignedEngineer: fibreInstallationRequest?.assignedEngineer || null,
+            }
         };
 
         return sendSuccess(res, {
