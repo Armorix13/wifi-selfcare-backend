@@ -59,7 +59,11 @@ export const getOrder = async (req: Request, res: Response, next: NextFunction):
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
-    const order = await Order.findOne({ _id: id, user: userId }).populate('products.product');
+    // Try to find by orderId first, then by _id
+    let order = await Order.findOne({ orderId: id, user: userId }).populate('products.product');
+    if (!order) {
+      order = await Order.findOne({ _id: id, user: userId }).populate('products.product');
+    }
     if (!order) return sendError(res, 'Order not found', 404);
     return sendSuccess(res, order, 'Order fetched successfully');
   } catch (err) {
@@ -82,7 +86,11 @@ export const cancelOrder = async (req: Request, res: Response, next: NextFunctio
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
-    const order = await Order.findOne({ _id: id, user: userId });
+    // Try to find by orderId first, then by _id
+    let order = await Order.findOne({ orderId: id, user: userId });
+    if (!order) {
+      order = await Order.findOne({ _id: id, user: userId });
+    }
     if (!order) return sendError(res, 'Order not found', 404);
     if (order.orderStatus === 'delivered') return sendError(res, 'Cannot cancel a delivered order', 400);
     if (order.orderStatus === 'cancelled') return sendError(res, 'Order already cancelled', 400);
@@ -107,7 +115,12 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
     const { status } = req.body;
     const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'returned'];
     if (!validStatuses.includes(status)) return sendError(res, 'Invalid status', 400);
-    const order = await Order.findById(id);
+    
+    // Try to find by orderId first, then by _id
+    let order = await Order.findOne({ orderId: id });
+    if (!order) {
+      order = await Order.findById(id);
+    }
     if (!order) return sendError(res, 'Order not found', 404);
     if (order.orderStatus === 'delivered') return sendError(res, 'Cannot update a delivered order', 400);
     if (order.orderStatus === 'cancelled' && status === 'cancelled') return sendError(res, 'Order already cancelled', 400);
@@ -266,7 +279,8 @@ export const getOrderAnalytics = async (req: Request, res: Response, next: NextF
       
       return {
         _id: order._id,
-        orderNumber: `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
+        orderId: order.orderId || `ORD-${order._id.toString().slice(-6).toUpperCase()}`, // Use orderId if exists, fallback to generated
+        orderNumber: order.orderId || `ORD-${order._id.toString().slice(-6).toUpperCase()}`, // Use orderId if exists, fallback to generated
         products: order.products.map((item:any) => ({
           product: item.product,
           quantity: item.quantity,
