@@ -5,10 +5,11 @@ import { Advertisement } from '../models/advertisement.model';
 import { Plan } from '../models/plan.model';
 import { ApplicationForm } from '../models/applicationform.model';
 import { WifiInstallationRequest } from '../models/wifiInstallationRequest.model';
+import { OttInstallationRequest } from "../models/ottInstallationRequest.model";
 
-const signUp = async (req: Request, res: Response):Promise<any> => {
+const signUp = async (req: Request, res: Response): Promise<any> => {
     console.log(req.body);
-    
+
     try {
         const { email, password, firstName, lastName, countryCode, phoneNumber, lat, long, language, companyPreference, deviceType, deviceToken } = req.body;
         const existingUser = await UserModel.findOne({ $or: [{ email }] });
@@ -58,19 +59,19 @@ const signUp = async (req: Request, res: Response):Promise<any> => {
             otpExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
             otpVerified: false,
             otp,
-            otpPurpose:"signup",
+            otpPurpose: "signup",
             deviceType,
             deviceToken
         });
         newUser.otp = undefined;
-        return sendSuccess(res, { user: newUser}, "User registered successfully. OTP sent to email.", 201);
+        return sendSuccess(res, { user: newUser }, "User registered successfully. OTP sent to email.", 201);
     } catch (error) {
         console.error(error);
         return sendError(res, "Internal server error", 500, error);
     }
 }
 
-const verifyOtp = async (req: Request, res: Response):Promise<any> => {
+const verifyOtp = async (req: Request, res: Response): Promise<any> => {
     try {
         const { email, otp, purpose } = req.body;
         // otp = Number(otp);
@@ -97,7 +98,7 @@ const verifyOtp = async (req: Request, res: Response):Promise<any> => {
 
         const requestOtp = String(otp);
         const databaseOtp = String(user.otp);
-        
+
 
         if (
             databaseOtp !== requestOtp ||
@@ -149,7 +150,7 @@ const verifyOtp = async (req: Request, res: Response):Promise<any> => {
     }
 }
 
-const login = async (req: Request, res: Response):Promise<any> => {
+const login = async (req: Request, res: Response): Promise<any> => {
     try {
         const { email, password, deviceType, deviceToken } = req.body;
 
@@ -206,7 +207,7 @@ const login = async (req: Request, res: Response):Promise<any> => {
     }
 }
 
-const adminLogin = async (req: Request, res: Response):Promise<any> => {
+const adminLogin = async (req: Request, res: Response): Promise<any> => {
     try {
         const { email, password, deviceType, deviceToken } = req.body;
 
@@ -214,8 +215,8 @@ const adminLogin = async (req: Request, res: Response):Promise<any> => {
         if (!user) {
             return sendError(res, "User not found", 404);
         }
-        
-        if(user.role !== Role.ADMIN && user.role !== Role.SUPERADMIN && user.role !== Role.MANAGER && user.role !== Role.AGENT) {
+
+        if (user.role !== Role.ADMIN && user.role !== Role.SUPERADMIN && user.role !== Role.MANAGER && user.role !== Role.AGENT) {
             return sendError(res, "Access denied. Admin privileges required.", 403);
         }
         if (user.isDeleted) {
@@ -267,11 +268,11 @@ const adminLogin = async (req: Request, res: Response):Promise<any> => {
     }
 }
 
-const forgotPassword = async (req: Request, res: Response):Promise<any> => {
+const forgotPassword = async (req: Request, res: Response): Promise<any> => {
     try {
         const { email } = req.body;
         console.log("body", req.body);
-        
+
 
         const user = await UserModel.findOne({ email });
         if (!user) {
@@ -310,7 +311,7 @@ const forgotPassword = async (req: Request, res: Response):Promise<any> => {
     }
 }
 
-const resetPassword = async (req: Request, res: Response):Promise<any> => {
+const resetPassword = async (req: Request, res: Response): Promise<any> => {
     try {
         const { email, newPassword } = req.body;
         console.log("body", req.body);
@@ -345,7 +346,7 @@ const resetPassword = async (req: Request, res: Response):Promise<any> => {
     }
 }
 
-const socialLogin = async (req: Request, res: Response):Promise<any> => {
+const socialLogin = async (req: Request, res: Response): Promise<any> => {
     try {
         const { email, provider, providerId, firstName, lastName, profileImage, deviceType, deviceToken, lat, long } = req.body;
 
@@ -464,7 +465,7 @@ const updateUser = async (req: Request, res: Response): Promise<any> => {
     }
 }
 
-const getUserDetails = async (req: Request, res: Response):Promise<any> => {
+const getUserDetails = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
 
@@ -480,7 +481,7 @@ const getUserDetails = async (req: Request, res: Response):Promise<any> => {
     }
 }
 
-const logout = async (req: Request, res: Response):Promise<any> => {
+const logout = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
         if (!userId) {
@@ -506,19 +507,19 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         const userId = (req as any).userId;
         // 1. Get all advertisements
         const allAds = await Advertisement.find({}, '_id imageUrl title description type').sort({ createdAt: -1 });
-    
+
         // Filter advertisements by type
         const cctvAds = allAds.filter(ad => ad.type === 'CCTV');
         const wifiAds = allAds.filter(ad => ad.type === 'WIFI');
-        
+
         // 2. Check if user has applied for application form
-        const userApplication = await ApplicationForm.findOne({ 
-            userId, 
-            status: { $in: ['inreview', 'accept'] } 
+        const userApplication = await ApplicationForm.findOne({
+            userId,
+            status: { $in: ['inreview', 'accept'] }
         }).populate('planId');
 
         const isApplicationFormApplied = !!userApplication;
-        
+
         // 3. Check for recently rejected application
         const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         const recentRejectedApplication = await ApplicationForm.findOne({
@@ -536,19 +537,35 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             const now = new Date();
             const timeDiff = oneWeekAfterRejection.getTime() - now.getTime();
             const daysRemaining = Math.ceil(timeDiff / (24 * 60 * 60 * 1000));
-            rejectionMessage = `You can apply again after ${daysRemaining} days`; 
+            rejectionMessage = `You can apply again after ${daysRemaining} days`;
         }
 
         // 4. Check for WiFi installation request
-        const wifiInstallationRequest = await WifiInstallationRequest.findOne({ 
-            userId 
+        const wifiInstallationRequest = await WifiInstallationRequest.findOne({
+            userId
         }).populate('userId', 'firstName lastName email phoneNumber')
-         .populate('applicationId')
-         .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
-         .sort({ createdAt: -1 });
+            .populate('applicationId')
+            .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+            .sort({ createdAt: -1 });
 
         const isWifiInstallationRequest = !!wifiInstallationRequest;
-        
+
+        let ottStatus = 1; //Not requested for ott installation
+        const ottInstallationRequest = await OttInstallationRequest.findOne({ userId })
+        .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+        .populate('ottPlanId', 'name price description')
+        .sort({ createdAt: -1 });
+        ;
+        if (ottInstallationRequest && ottInstallationRequest.status === 'approved') {
+
+            ottStatus = 3; //Approved for ott installation
+        } else if (ottInstallationRequest && ottInstallationRequest.status === 'inreview') {
+            ottStatus = 2; //In review for ott installation
+        } else if (ottInstallationRequest && ottInstallationRequest.status === 'rejected') {
+            ottStatus = 4; //Rejected for ott installation
+        }
+
+
         const result = {
             cctv: cctvAds,
             wifi: wifiAds,
@@ -562,9 +579,17 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             wifiInstallationStatus: wifiInstallationRequest?.status || null,
             wifiInstallationApprovedDate: wifiInstallationRequest?.approvedDate || null,
             wifiInstallationRemarks: wifiInstallationRequest?.remarks || null,
-            assignedEngineer: wifiInstallationRequest?.assignedEngineer || null
+            assignedEngineer: wifiInstallationRequest?.assignedEngineer || null,
+            ottInstallation:{
+                ottStatus,
+                ottInstallationRequestData: ottInstallationRequest || null,
+                ottInstallationStatus: ottInstallationRequest?.status || null,
+                ottInstallationApprovedDate: ottInstallationRequest?.approvedDate || null,
+                ottInstallationRemarks: ottInstallationRequest?.remarks || null,
+                assignedEngineer: ottInstallationRequest?.assignedEngineer || null,
+            },
         };
-        
+
         return sendSuccess(res, {
             result,
         }, 'Dashboard data fetched');
@@ -582,7 +607,7 @@ const getAllEngineer = async (req: Request, res: Response): Promise<any> => {
             isSuspended: false,
             isAccountVerified: true
         }).select('_id firstName lastName email phoneNumber countryCode profileImage role createdAt')
-          .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 });
 
         const total = engineers.length;
 
