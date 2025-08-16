@@ -64,7 +64,7 @@ OrderSchema.pre('save', async function (next) {
     
     while (!isUnique) {
       const randomNumber = Math.floor(10000 + Math.random() * 90000); // Generate 5-digit random number
-      generatedId = `ORDER-${randomNumber}`;
+      generatedId = `ORD-${randomNumber}`;
       
       // Check if this ID already exists
       const existingOrder = await mongoose.model('Order').findOne({ orderId: generatedId });
