@@ -9,6 +9,7 @@ import { OttInstallationRequest } from "../models/ottInstallationRequest.model";
 import { IptvInstallationRequest } from "../models/iptvInstallationRequest.model";
 import { FibreInstallationRequest } from "../models/fibreInstallationRequest.model";
 import { CctvRequestModel, CctvStatus } from "../models/cctvRequest.model";
+import { RequestBill } from "../models/requestBill.model";
 
 const signUp = async (req: Request, res: Response): Promise<any> => {
     console.log(req.body);
@@ -614,6 +615,14 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             cctvInsttalationRequestStatus = 4; //Rejected for cctv installation
         }
 
+        //Is bill request send or not
+        let isBillRequestSend = false;
+        const billRequest = await RequestBill.findOne({ userId })
+        .sort({ createdAt: -1 });
+        if (billRequest) {
+            isBillRequestSend = true;
+        }
+
 
         const result = {
             cctv: cctvAds,
@@ -660,7 +669,8 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
                 cctvInstallationApprovedDate: cctvRequest?.approvedDate || null,
                 cctvInstallationRemarks: cctvRequest?.remarks || null,
                 assignedEngineer: cctvRequest?.assignedEngineer || null,
-            }
+            },
+            isBillRequestSend
         };
 
         return sendSuccess(res, {
