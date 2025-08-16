@@ -8,6 +8,7 @@ import { WifiInstallationRequest } from '../models/wifiInstallationRequest.model
 import { OttInstallationRequest } from "../models/ottInstallationRequest.model";
 import { IptvInstallationRequest } from "../models/iptvInstallationRequest.model";
 import { FibreInstallationRequest } from "../models/fibreInstallationRequest.model";
+import { CctvRequestModel, CctvStatus } from "../models/cctvRequest.model";
 
 const signUp = async (req: Request, res: Response): Promise<any> => {
     console.log(req.body);
@@ -599,6 +600,20 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             fibreStatus = 4; //Rejected for fibre installation
         }
 
+        //Cctv request releted info
+        let cctvInsttalationRequestStatus = 1; //Not requested for cctv installation
+        const cctvRequest = await CctvRequestModel.findOne({ userId })
+        .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+        .sort({ createdAt: -1 });
+        ;
+        if (cctvRequest && cctvRequest.status === CctvStatus.APPLICATION_ACCEPTED) {
+            cctvInsttalationRequestStatus = 3; //Approved for cctv installation
+        } else if (cctvRequest && cctvRequest.status === CctvStatus.APPLICATION_SUBMITTED) {
+            cctvInsttalationRequestStatus = 2; //In review for cctv installation
+        } else if (cctvRequest && cctvRequest.status === CctvStatus.APPLICATION_REJECTED) {
+            cctvInsttalationRequestStatus = 4; //Rejected for cctv installation
+        }
+
 
         const result = {
             cctv: cctvAds,
@@ -637,6 +652,14 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
                 fibreInstallationApprovedDate: fibreInstallationRequest?.approvedDate || null,
                 fibreInstallationRemarks: fibreInstallationRequest?.remarks || null,
                 assignedEngineer: fibreInstallationRequest?.assignedEngineer || null,
+            },
+            cctvInstallation:{
+                cctvInsttalationRequestStatus,
+                cctvInstallationRequestData: cctvRequest || null,
+                cctvInstallationStatus: cctvRequest?.status || null,
+                cctvInstallationApprovedDate: cctvRequest?.approvedDate || null,
+                cctvInstallationRemarks: cctvRequest?.remarks || null,
+                assignedEngineer: cctvRequest?.assignedEngineer || null,
             }
         };
 

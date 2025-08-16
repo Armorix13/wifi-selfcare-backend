@@ -36,7 +36,6 @@ const OrderProductSchema = new Schema<IOrderProduct>({
 const OrderSchema = new Schema<IOrder>({
   orderId: {
     type: String,
-    unique: true,
     trim: true
   },
   user: { type: Schema.Types.ObjectId, ref: 'User', required: true },

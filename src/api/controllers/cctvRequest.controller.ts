@@ -40,8 +40,7 @@ export const addRequest = async (req: Request, res: Response): Promise<any> => {
       area,
       userId,
       priority: priority || "medium",
-      remarks,
-      status: CctvStatus.NOT_REQUESTED
+      remarks
     });
 
     const savedRequest = await newRequest.save();

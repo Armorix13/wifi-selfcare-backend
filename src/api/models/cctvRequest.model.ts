@@ -28,52 +28,39 @@ export interface ICctvRequest extends Document {
   assignDate: Date;
   priority: Priority;
   remarks?: string;
+  approvedDate?: Date;
+  assignedEngineer?: mongoose.Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 const CctvRequestSchema = new Schema<ICctvRequest>({
   firstName: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 50
+    type: String
   },
   lastName: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 50
+    type: String
   },
   phoneNumber: {
-    type: String,
-    required: true,
-    trim: true
+    type: String
   },
   countryCode: {
-    type: String,
-    required: true,
-    trim: true
+    type: String
   },
   pincode: {
-    type: String,
-    required: true,
-    trim: true
+    type: String
   },
   area: {
-    type: String,
-    required: true,
-    trim: true
+    type: String
   },
   status: {
     type: Number,
-    enum: Object.values(CctvStatus),
-    default: CctvStatus.NOT_REQUESTED
+    enum: [1, 2, 3, 4], // Explicitly define the valid status values
+    default: CctvStatus.APPLICATION_SUBMITTED
   },
   userId: {
     type: Schema.Types.ObjectId,
-    ref: "User",
-    required: true
+    ref: "User"
   },
   isActive: {
     type: Boolean,
@@ -92,8 +79,7 @@ const CctvRequestSchema = new Schema<ICctvRequest>({
     default: Priority.MEDIUM
   },
   remarks: {
-    type: String,
-    trim: true
+    type: String
   }
 }, {
   timestamps: true

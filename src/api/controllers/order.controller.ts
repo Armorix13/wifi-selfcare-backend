@@ -364,4 +364,38 @@ export const getOrderAnalytics = async (req: Request, res: Response, next: NextF
   } catch (error: any) {
     return sendError(res, 'Failed to fetch order analytics', 500, error);
   }
+};
+
+// Migrate existing orders to have orderId (admin only)
+export const migrateOrderIds = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    // Assume req.isAdmin is set by middleware
+    // if (!(req as any).isAdmin) return sendError(res, 'Unauthorized', 403);
+    
+    const ordersWithoutId = await Order.find({ orderId: { $exists: false } });
+    let migratedCount = 0;
+    
+    for (const order of ordersWithoutId) {
+      let generatedId: string;
+      let isUnique = false;
+      
+      while (!isUnique) {
+        const randomNumber = Math.floor(10000 + Math.random() * 90000);
+        generatedId = `ORD-${randomNumber}`;
+        
+        const existingOrder = await Order.findOne({ orderId: generatedId });
+        if (!existingOrder) {
+          isUnique = true;
+        }
+      }
+      
+      order.orderId = generatedId!;
+      await order.save();
+      migratedCount++;
+    }
+    
+    return sendSuccess(res, { migratedCount }, `Successfully migrated ${migratedCount} orders`);
+  } catch (err) {
+    return sendError(res, 'Failed to migrate order IDs', 500, err);
+  }
 }; 
