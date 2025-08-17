@@ -6,7 +6,7 @@ import { UserModel } from '../models/user.model';
 import { IptvPlan } from '../models/iptvPlan.model';
 import { OttPlan } from '../models/ottPlan.model';
 import { Plan } from '../models/plan.model';
-import { sendSuccess, sendError } from '../../utils/helper';
+import { sendSuccess, sendError, generateOtp, hashPassword, generateRandomPassword, sendMessage, generateEngineerCredentialsEmail } from '../../utils/helper';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -785,5 +785,134 @@ export const getEngineerById = async (req: Request, res: Response, next: NextFun
   } catch (error: any) {
     console.error('Get engineer by ID error:', error);
     return sendError(res, 'Failed to fetch engineer details', 500, error);
+  }
+};
+
+export const addEngineer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { 
+      firstName, 
+      lastName, 
+      email, 
+      phoneNumber, 
+      countryCode, 
+      status, 
+      group, 
+      zone, 
+      area, 
+      mode, 
+      permanentAddress, 
+      billingAddress, 
+      country, 
+      language, 
+      companyPreference,
+      userName,
+      fatherName,
+      provider,
+      providerId
+    } = req.body;
+
+    // Handle uploaded profile image
+    let profileImage = null;
+    if (req.file) {
+      try {
+        // Validate file type
+        if (!req.file.mimetype.startsWith('image/')) {
+          return sendError(res, 'Profile image must be an image file', 400);
+        }
+        
+        // Extract file URL from the uploaded file path
+        const absolutePath = req.file.path.replace(/\\/g, "/");
+        const viewIndex = absolutePath.lastIndexOf("/view/");
+        if (viewIndex !== -1) {
+          profileImage = absolutePath.substring(viewIndex);
+        } else {
+          profileImage = req.file.path;
+        }
+        console.log('Profile image uploaded:', profileImage);
+      } catch (fileError) {
+        console.error('Error processing uploaded file:', fileError);
+        return sendError(res, 'Error processing uploaded profile image', 400);
+      }
+    }
+
+    // Validate required fields
+    if (!email || !firstName || !lastName || !countryCode || !phoneNumber) {
+      return sendError(res, 'Email, firstName, lastName, countryCode, and phoneNumber are required', 400);
+    }
+
+    // Check if engineer already exists
+    const existingEngineer = await UserModel.findOne({ 
+      $or: [
+        { email }, 
+        { phoneNumber: `${countryCode}${phoneNumber}` }
+      ] 
+    });
+
+    if (existingEngineer) {
+      return sendError(res, 'Engineer with this email or phone number already exists', 400);
+    }
+
+    // Generate random password only (no OTP needed for admin-created accounts)
+    const randomPassword = generateRandomPassword();
+    const hashedPassword = await hashPassword(randomPassword);
+
+    // Create new engineer with verified account
+    const engineer = await UserModel.create({
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      countryCode,
+      profileImage: profileImage || undefined,
+      status: status || 'active',
+      group,
+      zone,
+      area,
+      mode,
+      permanentAddress,
+      billingAddress,
+      country,
+      language,
+      companyPreference,
+      userName: userName || `${firstName.toLowerCase()}${lastName.toLowerCase()}${Date.now()}`,
+      fatherName,
+      provider,
+      providerId,
+      role: 'engineer',
+      password: hashedPassword,
+      isAccountVerified: true, // Already verified since admin is creating
+      isDeactivated: false,
+      isSuspended: false
+    });
+
+    // Send email with credentials only (no OTP)
+    await sendMessage.sendEmail({
+      userEmail: email,
+      subject: 'Your WiFi SelfCare Engineer Account Credentials',
+      text: `Your engineer account credentials:\nEmail: ${email}\nPassword: ${randomPassword}\n\nYour account is already verified and ready to use.`,
+      html: generateEngineerCredentialsEmail(email, randomPassword, firstName)
+    });
+
+    // Return success without sensitive data
+    const engineerResponse = {
+      _id: engineer._id,
+      email: engineer.email,
+      firstName: engineer.firstName,
+      lastName: engineer.lastName,
+      phoneNumber: engineer.phoneNumber,
+      countryCode: engineer.countryCode,
+      status: engineer.status,
+      group: engineer.group,
+      zone: engineer.zone,
+      area: engineer.area,
+      mode: engineer.mode,
+      message: 'Engineer account created successfully. Credentials sent to email.'
+    };
+
+    return sendSuccess(res, engineerResponse, 'Engineer added successfully. Credentials sent to email.');
+  } catch (error: any) {
+    console.error('Add engineer error:', error);
+    return sendError(res, 'Failed to add engineer', 500, error);
   }
 };
