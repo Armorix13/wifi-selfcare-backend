@@ -21,6 +21,7 @@ import dashboardRoute from "./dashboard.route";
 import cctvRequestRouter from "./cctvRequest.route";
 import wifiConnectionRouter from "./wifiConnection.route";
 import faqRouter from "./faq.route";
+import engineerRouter from "./engineer.route";
 const parentRouter = Router();
 
 parentRouter.post("/file-upload", multerUpload,handleMulterUpload);
@@ -45,6 +46,7 @@ parentRouter.use('/dashboard', dashboardRoute);
 parentRouter.use('/cctv-requests', cctvRequestRouter);
 parentRouter.use('/wifi-connections', wifiConnectionRouter);
 parentRouter.use('/faqs', faqRouter);
+parentRouter.use('/engineers', engineerRouter);
 
 export default parentRouter;
 

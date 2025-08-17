@@ -507,3 +507,283 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
     return sendError(res, 'Failed to fetch service plans', 500, error);
   }
 };
+
+// Get comprehensive engineer analytics with filtering and pagination
+export const getEngineerAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { 
+      page = 1, 
+      limit = 6, 
+      status, 
+      group, 
+      zone, 
+      area, 
+      mode,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build filter conditions
+    const filterConditions: any = {
+      role: 'engineer',
+      isDeleted: false
+    };
+
+    // Status filter (active/inactive)
+    if (status === 'active') {
+      filterConditions.isDeactivated = false;
+      filterConditions.isSuspended = false;
+      filterConditions.isAccountVerified = true;
+    } else if (status === 'inactive') {
+      filterConditions.$or = [
+        { isDeactivated: true },
+        { isSuspended: true },
+        { isAccountVerified: false }
+      ];
+    }
+
+    // Additional filters
+    if (group) filterConditions.group = group;
+    if (zone) filterConditions.zone = zone;
+    if (area) filterConditions.area = area;
+    if (mode) filterConditions.mode = mode;
+
+    // Search filter
+    if (search) {
+      filterConditions.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Build sort conditions
+    const sortConditions: any = {};
+    sortConditions[sortBy as string] = sortOrder === 'desc' ? -1 : 1;
+
+    // Calculate skip value for pagination
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Get total count for pagination
+    const totalEngineers = await UserModel.countDocuments(filterConditions);
+
+    // Get engineers with pagination and population
+    const engineers = await UserModel.find(filterConditions)
+      .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt isDeactivated isSuspended isAccountVerified')
+      .populate('profileImage', 'url')
+      .sort(sortConditions)
+      .skip(skip)
+      .limit(Number(limit));
+
+    // Calculate analytics
+    const totalEngineersCount = await UserModel.countDocuments({ role: 'engineer', isDeleted: false });
+    const activeEngineersCount = await UserModel.countDocuments({ 
+      role: 'engineer', 
+      isDeleted: false, 
+      isDeactivated: false, 
+      isSuspended: false, 
+      isAccountVerified: true 
+    });
+    const inactiveEngineersCount = totalEngineersCount - activeEngineersCount;
+
+    // Calculate average rating (if you have rating system)
+    // For now, we'll use a placeholder - you can implement actual rating logic
+    const avgRating = 89.4; // This should come from your rating system
+
+    // Get status distribution
+    const statusDistribution = await UserModel.aggregate([
+      { $match: { role: 'engineer', isDeleted: false } },
+      {
+        $group: {
+          _id: {
+            isDeactivated: '$isDeactivated',
+            isSuspended: '$isSuspended',
+            isAccountVerified: '$isAccountVerified'
+          },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get group distribution
+    const groupDistribution = await UserModel.aggregate([
+      { $match: { role: 'engineer', isDeleted: false, group: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: '$group',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    // Get zone distribution
+    const zoneDistribution = await UserModel.aggregate([
+      { $match: { role: 'engineer', isDeleted: false, zone: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: '$zone',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    // Get area distribution
+    const areaDistribution = await UserModel.aggregate([
+      { $match: { role: 'engineer', isDeleted: false, area: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: '$area',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get mode distribution
+    const modeDistribution = await UserModel.aggregate([
+      { $match: { role: 'engineer', isDeleted: false, mode: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: '$mode',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get recent activity (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentActivity = await UserModel.countDocuments({
+      role: 'engineer',
+      isDeleted: false,
+      lastLogin: { $gte: sevenDaysAgo }
+    });
+
+    const response = {
+      // Summary Cards (like in your image)
+      summary: {
+        totalEngineers: totalEngineersCount,
+        activeEngineers: activeEngineersCount,
+        inactive: inactiveEngineersCount,
+        avgRating: avgRating
+      },
+
+      // Engineer List with pagination
+      engineers: engineers.map(engineer => ({
+        _id: engineer._id,
+        firstName: engineer.firstName,
+        lastName: engineer.lastName,
+        fullName: `${engineer.firstName} ${engineer.lastName}`,
+        email: engineer.email,
+        phoneNumber: engineer.phoneNumber,
+        countryCode: engineer.countryCode,
+        profileImage: engineer.profileImage,
+        status: engineer.status,
+        group: engineer.group,
+        zone: engineer.zone,
+        area: engineer.area,
+        mode: engineer.mode,
+        lastLogin: engineer.lastLogin,
+        createdAt: engineer.createdAt,
+        isActive: !engineer.isDeactivated && !engineer.isSuspended && engineer.isAccountVerified,
+        accountStatus: {
+          isDeactivated: engineer.isDeactivated,
+          isSuspended: engineer.isSuspended,
+          isAccountVerified: engineer.isAccountVerified
+        }
+      })),
+
+      // Analytics and Distributions
+      analytics: {
+        statusDistribution,
+        groupDistribution,
+        zoneDistribution,
+        areaDistribution,
+        modeDistribution,
+        recentActivity
+      },
+
+      // Filter Options
+      filters: {
+        availableGroups: groupDistribution.map(g => g._id),
+        availableZones: zoneDistribution.map(z => z._id),
+        availableAreas: areaDistribution.map(a => a._id),
+        availableModes: modeDistribution.map(m => m._id)
+      },
+
+      // Pagination Info
+      pagination: {
+        currentPage: Number(page),
+        totalPages: Math.ceil(totalEngineers / Number(limit)),
+        totalItems: totalEngineers,
+        itemsPerPage: Number(limit),
+        hasNextPage: Number(page) < Math.ceil(totalEngineers / Number(limit)),
+        hasPrevPage: Number(page) > 1
+      }
+    };
+
+    return sendSuccess(res, response, 'Engineer analytics fetched successfully');
+  } catch (error: any) {
+    console.error('Engineer analytics error:', error);
+    return sendError(res, 'Failed to fetch engineer analytics', 500, error);
+  }
+};
+
+// Get engineer details by ID
+export const getEngineerById = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    const engineer = await UserModel.findOne({ 
+      _id: id, 
+      role: 'engineer', 
+      isDeleted: false 
+    })
+    .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference')
+    .populate('profileImage', 'url');
+
+    if (!engineer) {
+      return sendError(res, 'Engineer not found', 404);
+    }
+
+    const engineerData = {
+      _id: engineer._id,
+      firstName: engineer.firstName,
+      lastName: engineer.lastName,
+      fullName: `${engineer.firstName} ${engineer.lastName}`,
+      email: engineer.email,
+      phoneNumber: engineer.phoneNumber,
+      countryCode: engineer.countryCode,
+      profileImage: engineer.profileImage,
+      status: engineer.status,
+      group: engineer.group,
+      zone: engineer.zone,
+      area: engineer.area,
+      mode: engineer.mode,
+      lastLogin: engineer.lastLogin,
+      createdAt: engineer.createdAt,
+      isActive: !engineer.isDeactivated && !engineer.isSuspended && engineer.isAccountVerified,
+      accountStatus: {
+        isDeactivated: engineer.isDeactivated,
+        isSuspended: engineer.isSuspended,
+        isAccountVerified: engineer.isAccountVerified
+      },
+      // Additional details
+      permanentAddress: engineer.permanentAddress,
+      billingAddress: engineer.billingAddress,
+      country: engineer.country,
+      language: engineer.language,
+      companyPreference: engineer.companyPreference
+    };
+
+    return sendSuccess(res, engineerData, 'Engineer details fetched successfully');
+  } catch (error: any) {
+    console.error('Get engineer by ID error:', error);
+    return sendError(res, 'Failed to fetch engineer details', 500, error);
+  }
+};

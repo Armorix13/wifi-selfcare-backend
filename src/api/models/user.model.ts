@@ -72,6 +72,8 @@ export interface IUser extends Document {
   deviceToken?: string;
   otpPurpose?: string;
   password?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const GeoPointSchema = new Schema<IGeoPoint>({
