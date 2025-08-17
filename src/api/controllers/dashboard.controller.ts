@@ -916,3 +916,165 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
     return sendError(res, 'Failed to add engineer', 500, error);
   }
 };
+
+// Update engineer details
+export const updateEngineer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { 
+      engineerId,
+      firstName, 
+      lastName, 
+      email, 
+      phoneNumber, 
+      countryCode, 
+      status, 
+      group, 
+      zone, 
+      area, 
+      mode, 
+      permanentAddress, 
+      billingAddress, 
+      country, 
+      language, 
+      companyPreference,
+      userName,
+      fatherName,
+      provider,
+      providerId
+    } = req.body;
+
+    // Validate required fields
+    if (!engineerId) {
+      return sendError(res, 'Engineer ID is required', 400);
+    }
+
+    // Check if engineer exists
+    const existingEngineer = await UserModel.findOne({ 
+      _id: engineerId, 
+      role: 'engineer', 
+      isDeleted: false 
+    });
+
+    if (!existingEngineer) {
+      return sendError(res, 'Engineer not found', 404);
+    }
+
+    // Handle uploaded profile image
+    let profileImage = existingEngineer.profileImage; // Keep existing image by default
+    if (req.file) {
+      try {
+        // Validate file type
+        if (!req.file.mimetype.startsWith('image/')) {
+          return sendError(res, 'Profile image must be an image file', 400);
+        }
+        
+        // Extract file URL from the uploaded file path
+        const absolutePath = req.file.path.replace(/\\/g, "/");
+        const viewIndex = absolutePath.lastIndexOf("/view/");
+        if (viewIndex !== -1) {
+          profileImage = absolutePath.substring(viewIndex);
+        } else {
+          profileImage = req.file.path;
+        }
+        console.log('New profile image uploaded:', profileImage);
+      } catch (fileError) {
+        console.error('Error processing uploaded file:', fileError);
+        return sendError(res, 'Error processing uploaded profile image', 400);
+      }
+    }
+
+    // Check if email or phone number conflicts with other engineers (excluding current engineer)
+    if (email || phoneNumber) {
+      const conflictQuery: any = {
+        _id: { $ne: engineerId },
+        role: 'engineer',
+        isDeleted: false
+      };
+
+      if (email) {
+        conflictQuery.email = email;
+      }
+      
+      if (phoneNumber && countryCode) {
+        conflictQuery.phoneNumber = `${countryCode}${phoneNumber}`;
+      }
+
+      const conflictingEngineer = await UserModel.findOne(conflictQuery);
+      if (conflictingEngineer) {
+        return sendError(res, 'Another engineer with this email or phone number already exists', 400);
+      }
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+    
+    // Only update fields that are provided
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
+    if (email !== undefined) updateData.email = email;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+    if (countryCode !== undefined) updateData.countryCode = countryCode;
+    if (status !== undefined) updateData.status = status;
+    if (group !== undefined) updateData.group = group;
+    if (zone !== undefined) updateData.zone = zone;
+    if (area !== undefined) updateData.area = area;
+    if (mode !== undefined) updateData.mode = mode;
+    if (permanentAddress !== undefined) updateData.permanentAddress = permanentAddress;
+    if (billingAddress !== undefined) updateData.billingAddress = billingAddress;
+    if (country !== undefined) updateData.country = country;
+    if (language !== undefined) updateData.language = language;
+    if (companyPreference !== undefined) updateData.companyPreference = companyPreference;
+    if (userName !== undefined) updateData.userName = userName;
+    if (fatherName !== undefined) updateData.fatherName = fatherName;
+    if (provider !== undefined) updateData.provider = provider;
+    if (providerId !== undefined) updateData.providerId = providerId;
+    
+    // Update profile image if new one was uploaded
+    if (req.file) {
+      updateData.profileImage = profileImage;
+    }
+
+    // Update engineer
+    const updatedEngineer = await UserModel.findByIdAndUpdate(
+      engineerId,
+      updateData,
+      { new: true, runValidators: true }
+    ).select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode permanentAddress billingAddress country language companyPreference userName fatherName provider providerId updatedAt');
+
+    if (!updatedEngineer) {
+      return sendError(res, 'Failed to update engineer', 500);
+    }
+
+    // Return success response
+    const engineerResponse = {
+      _id: updatedEngineer._id,
+      email: updatedEngineer.email,
+      firstName: updatedEngineer.firstName,
+      lastName: updatedEngineer.lastName,
+      phoneNumber: updatedEngineer.phoneNumber,
+      countryCode: updatedEngineer.countryCode,
+      profileImage: updatedEngineer.profileImage,
+      status: updatedEngineer.status,
+      group: updatedEngineer.group,
+      zone: updatedEngineer.zone,
+      area: updatedEngineer.area,
+      mode: updatedEngineer.mode,
+      permanentAddress: updatedEngineer.permanentAddress,
+      billingAddress: updatedEngineer.billingAddress,
+      country: updatedEngineer.country,
+      language: updatedEngineer.language,
+      companyPreference: updatedEngineer.companyPreference,
+      userName: updatedEngineer.userName,
+      fatherName: updatedEngineer.fatherName,
+      provider: updatedEngineer.provider,
+      providerId: updatedEngineer.providerId,
+      updatedAt: updatedEngineer.updatedAt,
+      message: 'Engineer updated successfully.'
+    };
+
+    return sendSuccess(res, engineerResponse, 'Engineer updated successfully');
+  } catch (error: any) {
+    console.error('Update engineer error:', error);
+    return sendError(res, 'Failed to update engineer', 500, error);
+  }
+};
