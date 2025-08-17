@@ -572,7 +572,7 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
 
     // Get engineers with pagination and population
     const engineers = await UserModel.find(filterConditions)
-      .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt isDeactivated isSuspended isAccountVerified')
+      .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName')
       .populate('profileImage', 'url')
       .sort(sortConditions)
       .skip(skip)
@@ -690,12 +690,27 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
         mode: engineer.mode,
         lastLogin: engineer.lastLogin,
         createdAt: engineer.createdAt,
+        updatedAt: engineer.updatedAt,
         isActive: !engineer.isDeactivated && !engineer.isSuspended && engineer.isAccountVerified,
         accountStatus: {
           isDeactivated: engineer.isDeactivated,
           isSuspended: engineer.isSuspended,
-          isAccountVerified: engineer.isAccountVerified
-        }
+          isAccountVerified: engineer.isAccountVerified,
+          otpVerified: engineer.otpVerified
+        },
+        // Additional details
+        permanentAddress: engineer.permanentAddress,
+        billingAddress: engineer.billingAddress,
+        country: engineer.country,
+        language: engineer.language,
+        companyPreference: engineer.companyPreference,
+        userName: engineer.userName,
+        fatherName: engineer.fatherName,
+        balanceDue: engineer.balanceDue,
+        // Device and session info
+        deviceToken: engineer.deviceToken,
+        deviceType: engineer.deviceType,
+        jti: engineer.jti
       })),
 
       // Analytics and Distributions
@@ -744,7 +759,7 @@ export const getEngineerById = async (req: Request, res: Response, next: NextFun
       role: 'engineer', 
       isDeleted: false 
     })
-    .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference')
+    .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName balanceDue otpVerified deviceToken deviceType jti')
     .populate('profileImage', 'url');
 
     if (!engineer) {
@@ -767,18 +782,27 @@ export const getEngineerById = async (req: Request, res: Response, next: NextFun
       mode: engineer.mode,
       lastLogin: engineer.lastLogin,
       createdAt: engineer.createdAt,
+      updatedAt: engineer.updatedAt,
       isActive: !engineer.isDeactivated && !engineer.isSuspended && engineer.isAccountVerified,
       accountStatus: {
         isDeactivated: engineer.isDeactivated,
         isSuspended: engineer.isSuspended,
-        isAccountVerified: engineer.isAccountVerified
+        isAccountVerified: engineer.isAccountVerified,
+        otpVerified: engineer.otpVerified
       },
       // Additional details
       permanentAddress: engineer.permanentAddress,
       billingAddress: engineer.billingAddress,
       country: engineer.country,
       language: engineer.language,
-      companyPreference: engineer.companyPreference
+      companyPreference: engineer.companyPreference,
+      userName: engineer.userName,
+      fatherName: engineer.fatherName,
+      balanceDue: engineer.balanceDue,
+      // Device and session info
+      deviceToken: engineer.deviceToken,
+      deviceType: engineer.deviceType,
+      jti: engineer.jti
     };
 
     return sendSuccess(res, engineerData, 'Engineer details fetched successfully');
@@ -1076,5 +1100,67 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
   } catch (error: any) {
     console.error('Update engineer error:', error);
     return sendError(res, 'Failed to update engineer', 500, error);
+  }
+};
+
+// Soft delete engineer
+export const deleteEngineer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    // Validate required fields
+    if (!id) {
+      return sendError(res, 'Engineer ID is required', 400);
+    }
+
+    // Check if engineer exists and is not already deleted
+    const existingEngineer = await UserModel.findOne({ 
+      _id: id, 
+      role: 'engineer', 
+      isDeleted: false 
+    });
+
+    if (!existingEngineer) {
+      return sendError(res, 'Engineer not found or already deleted', 404);
+    }
+
+    // Soft delete the engineer by setting isDeleted to true
+    const deletedEngineer = await UserModel.findByIdAndUpdate(
+      id,
+      { 
+        isDeleted: true,
+        deletedAt: new Date(),
+        // Optionally, you can also deactivate the account
+        isDeactivated: true,
+        status: 'inactive'
+      },
+      { new: true, runValidators: true }
+    ).select('_id firstName lastName email phoneNumber countryCode role status group zone area mode deletedAt');
+
+    if (!deletedEngineer) {
+      return sendError(res, 'Failed to delete engineer', 500);
+    }
+
+    // Return success response
+    const engineerResponse = {
+      _id: deletedEngineer._id,
+      email: deletedEngineer.email,
+      firstName: deletedEngineer.firstName,
+      lastName: deletedEngineer.lastName,
+      phoneNumber: deletedEngineer.phoneNumber,
+      countryCode: deletedEngineer.countryCode,
+      status: deletedEngineer.status,
+      group: deletedEngineer.group,
+      zone: deletedEngineer.zone,
+      area: deletedEngineer.area,
+      mode: deletedEngineer.mode,
+      deletedAt: new Date(),
+      message: 'Engineer deleted successfully.'
+    };
+
+    return sendSuccess(res, engineerResponse, 'Engineer deleted successfully');
+  } catch (error: any) {
+    console.error('Delete engineer error:', error);
+    return sendError(res, 'Failed to delete engineer', 500, error);
   }
 };
