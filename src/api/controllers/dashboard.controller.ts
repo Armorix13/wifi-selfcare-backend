@@ -7,6 +7,7 @@ import { IptvPlan } from '../models/iptvPlan.model';
 import { OttPlan } from '../models/ottPlan.model';
 import { Plan } from '../models/plan.model';
 import { sendSuccess, sendError, generateOtp, hashPassword, generateRandomPassword, sendMessage, generateEngineerCredentialsEmail } from '../../utils/helper';
+import { ComplaintModel } from '../models/complaint.model';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -1164,3 +1165,183 @@ export const deleteEngineer = async (req: Request, res: Response, next: NextFunc
     return sendError(res, 'Failed to delete engineer', 500, error);
   }
 };
+
+export const getEngineerDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const userId = (req as any).userId;
+    const engineer = await UserModel.findById(userId).select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName');
+    
+    if (!engineer) {
+      return sendError(res, 'Engineer not found', 404);
+    }
+
+    // Get all complaints for engineer
+    const complaints = await ComplaintModel.find({ engineer: userId }).select('_id id title status priority createdAt');
+    
+    // Calculate complaint statistics for all statuses
+    const totalComplaints = complaints.length;
+    
+    // Count complaints by each status
+    const statusCounts = {
+      pending: complaints.filter(c => c.status === 'pending').length,
+      assigned: complaints.filter(c => c.status === 'assigned').length,
+      in_progress: complaints.filter(c => c.status === 'in_progress').length,
+      visited: complaints.filter(c => c.status === 'visited').length,
+      resolved: complaints.filter(c => c.status === 'resolved').length,
+      not_resolved: complaints.filter(c => c.status === 'not_resolved').length,
+      cancelled: complaints.filter(c => c.status === 'cancelled').length,
+      reopened: complaints.filter(c => c.status === 'reopened').length
+    };
+    
+    // Calculate pending complaints (all non-final statuses)
+    const pendingComplaints = complaints.filter(c => 
+      ['pending', 'assigned', 'in_progress', 'visited'].includes(c.status)
+    ).length;
+    
+    // Calculate resolved complaints (final resolved status)
+    const resolvedComplaints = statusCounts.resolved;
+    
+    // Calculate this week complaints
+    const thisWeekComplaints = complaints.filter(c => {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return c.createdAt && c.createdAt >= weekAgo;
+    }).length;
+
+    // Get repeated complaints (complaints with same user)
+    const userComplaintCounts = await ComplaintModel.aggregate([
+      { $match: { engineer: engineer._id } },
+      { $group: { _id: '$user', count: { $sum: 1 } } },
+      { $match: { count: { $gt: 1 } } }
+    ]);
+    const repeatedComplaints = userComplaintCounts.length;
+
+    const dashboardData = {
+      engineer: {
+        _id: engineer._id,
+        name: `${engineer.firstName} ${engineer.lastName}`,
+        email: engineer.email,
+        phoneNumber: engineer.phoneNumber,
+        countryCode: engineer.countryCode,
+        role: engineer.role,
+        status: engineer.status,
+        group: engineer.group,
+        zone: engineer.zone,
+        area: engineer.area,
+        mode: engineer.mode,
+        lastLogin: engineer.lastLogin,
+        profileImage: engineer.profileImage
+      },
+      complaints: {
+        total: totalComplaints,
+        pending: pendingComplaints,
+        resolved: resolvedComplaints,
+        thisWeek: thisWeekComplaints,
+        repeated: repeatedComplaints,
+        // Detailed status breakdown for all statuses
+        statusBreakdown: statusCounts
+      },
+      recentComplaints: complaints.slice(0, 5) // Last 5 complaints
+    };
+
+    return sendSuccess(res, dashboardData, 'Engineer dashboard analytics retrieved successfully');
+  } catch (error: any) {
+    console.error('Get engineer dashboard analytics error:', error);
+    return sendError(res, 'Failed to get engineer dashboard analytics', 500, error);
+  }
+};
+
+// Get all complaints for a specific engineer with pagination, populated data, and status filtering
+export const getAllComplaintForEnginer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const userId = (req as any).userId; // engineerId
+    
+    // Get pagination parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+    
+    // Get status filter parameter
+    const statusFilter = req.query.status as string;
+
+    // Build query filters
+    const queryFilters: any = { engineer: userId };
+    if (statusFilter && statusFilter !== 'all') {
+      queryFilters.status = statusFilter;
+    }
+
+    // Get total count of complaints for this engineer (with status filter if applied)
+    const totalComplaints = await ComplaintModel.countDocuments(queryFilters);
+    
+    // Get complaints with pagination, sorted by latest assigned first
+    const complaints = await ComplaintModel.find(queryFilters)
+      .populate('user', 'firstName lastName phoneNumber countryCode email address')
+      .populate('issueType', 'name description')
+      .populate('assignedBy', 'firstName lastName')
+      .select('_id id title issueDescription complaintType type issueType phoneNumber priority status statusColor visitDate resolved resolutionDate notResolvedReason resolutionNotes remark attachments estimatedResolutionTime actualResolutionTime createdAt updatedAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Get comprehensive counts by status for this engineer
+    const statusCounts = await ComplaintModel.aggregate([
+      { $match: { engineer: userId } },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    // Convert to object format for easier access
+    const statusBreakdown: any = {};
+    statusCounts.forEach((item: any) => {
+      statusBreakdown[item._id] = item.count;
+    });
+    
+    // Ensure all statuses are represented (even if count is 0)
+    const allStatuses = ['pending', 'assigned', 'in_progress', 'visited', 'resolved', 'not_resolved', 'cancelled', 'reopened'];
+    allStatuses.forEach(status => {
+      if (!statusBreakdown[status]) {
+        statusBreakdown[status] = 0;
+      }
+    });
+    
+    const totalPages = Math.ceil(totalComplaints / limit);
+
+    const response = {
+      complaints,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalComplaints,
+        complaintsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      },
+      summary: {
+        totalComplaints,
+        // Status breakdown for all statuses
+        statusBreakdown,
+        // Quick summary counts
+        pendingCount: (statusBreakdown.pending || 0) + (statusBreakdown.assigned || 0) + (statusBreakdown.in_progress || 0) + (statusBreakdown.visited || 0),
+        resolvedCount: statusBreakdown.resolved || 0,
+        activeCount: (statusBreakdown.assigned || 0) + (statusBreakdown.in_progress || 0) + (statusBreakdown.visited || 0),
+        closedCount: (statusBreakdown.resolved || 0) + (statusBreakdown.not_resolved || 0) + (statusBreakdown.cancelled || 0)
+      },
+      filters: {
+        currentStatus: statusFilter || 'all',
+        availableStatuses: allStatuses.map(status => ({
+          value: status,
+          label: status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          count: statusBreakdown[status] || 0
+        }))
+      }
+    };
+
+    return sendSuccess(res, response, 'Complaints retrieved successfully');
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
