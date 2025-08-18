@@ -19,4 +19,12 @@ router.post("/attendance/checkout", authenticate, engineerController.markCheckOu
 router.get("/attendance/monthly", authenticate, engineerController.getMonthlyAttendance);
 router.put("/attendance/update", authenticate, engineerController.updateAttendance);
 
+// Leave Request routes
+router.post("/leave/apply", authenticate, engineerController.applyLeave);
+router.get("/leave/all", authenticate, engineerController.getAllMyLeaves);
+
+// Leave Approval routes (for managers, agents, admins)
+router.post("/leave/approve", authenticate, engineerController.approveLeaveRequest);
+router.get("/leave/pending", authenticate, engineerController.getAllPendingLeaveRequests);
+
 export default router;
