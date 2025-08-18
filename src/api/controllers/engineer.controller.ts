@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Role, UserModel } from "../models/user.model";
+import { EngineerAttendanceModel, AttendanceStatus } from "../models/engineerAttendance.model";
 import { sendSuccess, sendError, generateAccessToken, generateRefreshToken, generateRandomJti, comparePassword } from '../../utils/helper';
 
 const engineerLogin = async (req: Request, res: Response): Promise<any> => {
@@ -179,9 +180,336 @@ const engineerLogout = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+// Mark attendance for the current day
+const markAttendance = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId; // Logged in engineer ID
+        
+        if (!userId) {
+            return sendError(res, "User ID is required", 400);
+        }
+
+        // Get current date (start of day)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Check if attendance already marked for today
+        const existingAttendance = await EngineerAttendanceModel.findOne({
+            engineer: userId,
+            date: today
+        });
+
+        if (existingAttendance) {
+            return sendError(res, "Attendance already marked for today", 400);
+        }
+
+        // Automatically mark as present with current time as check-in
+        const attendanceData = {
+            engineer: userId,
+            date: today,
+            status: 'present', // Default to present
+            checkInTime: new Date(), // Current time as check-in
+            markedBy: userId
+        };
+
+        const attendance = await EngineerAttendanceModel.create(attendanceData);
+
+        // Populate engineer details
+        await attendance.populate('engineer', 'firstName lastName email phoneNumber');
+
+        return sendSuccess(res, attendance, "Attendance marked as present successfully");
+    } catch (error: any) {
+        console.error("Mark attendance error:", error);
+        
+        // Handle duplicate key error (if somehow attendance was marked twice)
+        if (error.code === 11000) {
+            return sendError(res, "Attendance already marked for today", 400);
+        }
+        
+        return sendError(res, "Failed to mark attendance", 500, error);
+    }
+};
+
+// Mark attendance with specific status
+const markAttendanceWithStatus = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId; // Logged in engineer ID
+        const { status, remark } = req.body;
+
+        if (!status) {
+            return sendError(res, "Attendance status is required", 400);
+        }
+
+        // Validate status
+        if (!Object.values(AttendanceStatus).includes(status)) {
+            return sendError(res, "Invalid attendance status", 400);
+        }
+
+        // Get current date (start of day)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Check if attendance already marked for today
+        const existingAttendance = await EngineerAttendanceModel.findOne({
+            engineer: userId,
+            date: today
+        });
+
+        if (existingAttendance) {
+            return sendError(res, "Attendance already marked for today", 400);
+        }
+
+        // Create attendance record with specified status
+        const attendanceData: any = {
+            engineer: userId,
+            date: today,
+            status: status,
+            markedBy: userId
+        };
+
+        // Add check-in time for present status
+        if (status === 'present') {
+            attendanceData.checkInTime = new Date();
+        }
+
+        // Add remark if provided
+        if (remark) {
+            attendanceData.remark = remark;
+        }
+
+        const attendance = await EngineerAttendanceModel.create(attendanceData);
+
+        // Populate engineer details
+        await attendance.populate('engineer', 'firstName lastName email phoneNumber');
+
+        return sendSuccess(res, attendance, `Attendance marked as ${status} successfully`);
+    } catch (error: any) {
+        console.error("Mark attendance with status error:", error);
+        
+        if (error.code === 11000) {
+            return sendError(res, "Attendance already marked for today", 400);
+        }
+        
+        return sendError(res, "Failed to mark attendance", 500, error);
+    }
+};
+
+// Mark check-out time for today
+const markCheckOut = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId; // Logged in engineer ID
+        
+        if (!userId) {
+            return sendError(res, "User ID is required", 400);
+        }
+
+        // Get current date (start of day)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Find today's attendance record
+        const attendance = await EngineerAttendanceModel.findOne({
+            engineer: userId,
+            date: today
+        });
+
+        if (!attendance) {
+            return sendError(res, "No attendance record found for today. Please mark attendance first.", 400);
+        }
+
+        if (attendance.checkOutTime) {
+            return sendError(res, "Check-out time already marked for today", 400);
+        }
+
+        // Mark check-out time
+        attendance.checkOutTime = new Date();
+        await attendance.save();
+
+        // Populate engineer details
+        await attendance.populate('engineer', 'firstName lastName email phoneNumber');
+
+        return sendSuccess(res, attendance, "Check-out time marked successfully");
+    } catch (error: any) {
+        console.error("Mark check-out error:", error);
+        return sendError(res, "Failed to mark check-out time", 500, error);
+    }
+};
+
+// Get monthly attendance for the current month
+const getMonthlyAttendance = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId; // Logged in engineer ID
+        
+        if (!userId) {
+            return sendError(res, "User ID is required", 400);
+        }
+
+        // Get year and month from query params, default to current month
+        const year = parseInt(req.query.year as string) || new Date().getFullYear();
+        const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+
+        // Validate year and month
+        if (year < 2020 || year > 2030) {
+            return sendError(res, "Invalid year", 400);
+        }
+        if (month < 1 || month > 12) {
+            return sendError(res, "Invalid month", 400);
+        }
+
+        // Get start and end dates for the month
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+        const daysInMonth = endDate.getDate();
+
+        // Get attendance records for the month
+        const attendanceRecords = await EngineerAttendanceModel.find({
+            engineer: userId,
+            date: { $gte: startDate, $lte: endDate }
+        }).sort({ date: 1 });
+
+        // Get monthly statistics
+        const monthlyStats = await EngineerAttendanceModel.getMonthlyStats(userId, year, month);
+
+        // Create calendar data for all days in the month (1 to 31)
+        const calendarData = [];
+        
+        for (let day = 1; day <= daysInMonth; day++) {
+            const currentDate = new Date(year, month - 1, day);
+            const attendanceRecord = attendanceRecords.find(record => 
+                record.date.getDate() === day
+            );
+
+            // If no attendance record exists, default to 'absent'
+            const status = attendanceRecord ? attendanceRecord.status : 'absent';
+
+            calendarData.push({
+                date: currentDate,
+                day: day,
+                dayName: currentDate.toLocaleDateString('en-US', { weekday: 'short' }),
+                status: status,
+                checkInTime: attendanceRecord?.checkInTime || null,
+                checkOutTime: attendanceRecord?.checkOutTime || null,
+                totalHours: attendanceRecord?.totalHours || 0,
+                location: attendanceRecord?.location || null,
+                remark: attendanceRecord?.remark || null,
+                isMarked: !!attendanceRecord // Whether attendance was manually marked
+            });
+        }
+
+        // Calculate summary including absent days (unmarked days)
+        const totalDays = daysInMonth;
+        const presentDays = calendarData.filter(day => day.status === 'present').length;
+        const absentDays = calendarData.filter(day => day.status === 'absent').length;
+        const halfDayDays = calendarData.filter(day => day.status === 'half_day').length;
+        const leaveDays = calendarData.filter(day => day.status === 'leave').length;
+        const holidayDays = calendarData.filter(day => day.status === 'holiday').length;
+        const workingDays = presentDays + halfDayDays;
+
+        // Update monthly stats to include absent days
+        const updatedStats = {
+            ...monthlyStats,
+            absent: absentDays // Include unmarked days as absent
+        };
+
+        const response = {
+            month: month,
+            year: year,
+            monthName: startDate.toLocaleDateString('en-US', { month: 'long' }),
+            summary: {
+                totalDays,
+                workingDays,
+                presentDays,
+                absentDays,
+                halfDayDays,
+                leaveDays,
+                holidayDays,
+                attendancePercentage: totalDays > 0 ? Math.round((workingDays / totalDays) * 100) : 0
+            },
+            statistics: updatedStats,
+            calendar: calendarData,
+            attendanceRecords: attendanceRecords.map(record => ({
+                _id: record._id,
+                date: record.date,
+                status: record.status,
+                checkInTime: record.checkInTime,
+                checkOutTime: record.checkOutTime,
+                totalHours: record.totalHours,
+                location: record.location,
+                remark: record.remark,
+                createdAt: record.createdAt
+            }))
+        };
+
+        return sendSuccess(res, response, "Monthly attendance retrieved successfully");
+    } catch (error: any) {
+        console.error("Get monthly attendance error:", error);
+        return sendError(res, "Failed to get monthly attendance", 500, error);
+    }
+};
+
+// Update attendance for a specific date (if needed)
+const updateAttendance = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId; // Logged in engineer ID
+        const { date, status, checkInTime, checkOutTime, location, deviceInfo, remark } = req.body;
+
+        if (!date || !status) {
+            return sendError(res, "Date and status are required", 400);
+        }
+
+        // Validate status
+        if (!Object.values(AttendanceStatus).includes(status)) {
+            return sendError(res, "Invalid attendance status", 400);
+        }
+
+        // Parse and validate date
+        const attendanceDate = new Date(date);
+        attendanceDate.setHours(0, 0, 0, 0);
+        
+        if (isNaN(attendanceDate.getTime())) {
+            return sendError(res, "Invalid date format", 400);
+        }
+
+        // Check if attendance record exists
+        const existingAttendance = await EngineerAttendanceModel.findOne({
+            engineer: userId,
+            date: attendanceDate
+        });
+
+        if (!existingAttendance) {
+            return sendError(res, "No attendance record found for this date", 404);
+        }
+
+        // Update attendance record
+        const updateData: any = { status };
+        
+        if (checkInTime !== undefined) updateData.checkInTime = checkInTime ? new Date(checkInTime) : null;
+        if (checkOutTime !== undefined) updateData.checkOutTime = checkOutTime ? new Date(checkOutTime) : null;
+        if (location !== undefined) updateData.location = location;
+        if (deviceInfo !== undefined) updateData.deviceInfo = deviceInfo;
+        if (remark !== undefined) updateData.remark = remark;
+
+        const updatedAttendance = await EngineerAttendanceModel.findByIdAndUpdate(
+            existingAttendance._id,
+            updateData,
+            { new: true, runValidators: true }
+        ).populate('engineer', 'firstName lastName email phoneNumber');
+
+        return sendSuccess(res, updatedAttendance, "Attendance updated successfully");
+    } catch (error: any) {
+        console.error("Update attendance error:", error);
+        return sendError(res, "Failed to update attendance", 500, error);
+    }
+};
+
 export const engineerController = {
     engineerLogin,
     getEngineerProfile,
     updateEngineerProfile,
-    engineerLogout
+    engineerLogout,
+    markAttendance,
+    markAttendanceWithStatus,
+    markCheckOut,
+    getMonthlyAttendance,
+    updateAttendance
 };
