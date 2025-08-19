@@ -4,7 +4,8 @@
   "main": "dist/src/app.js",
   "scripts": {
     "start": "node dist/src/app.js",
-    "build": "npx swc src -d dist --config-file .swcrc",
+    "build": "npx swc src -d dist --config-file .swcrc && npm run copy-json",
+    "copy-json": "cp src/api/utils/chatbotData.json dist/src/api/utils/",
     "dev": "nodemon",
     "test": "jest",
     "type-check": "tsc --noEmit"

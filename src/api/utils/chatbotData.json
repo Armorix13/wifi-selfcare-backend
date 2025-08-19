@@ -1,0 +1,336 @@
+{
+  "greeting": {
+    "message": "Hi! I'm your WiFi Selfcare Assistant. What's your name?",
+    "nextState": "waiting_for_name"
+  },
+  "personalized_greeting": {
+    "message": "Hello {name}! Nice to meet you. How can I help you today?",
+    "options": [
+      "Products",
+      "Wifi Complaints", 
+      "CCTV Complaints",
+      "How can we apply for wifi"
+    ],
+    "nextState": "main_menu"
+  },
+  "main_menu": {
+    "1": {
+      "state": "products",
+      "message": "What do you know about products?",
+      "options": [
+        "How to buy?",
+        "How it's delivery to me?",
+        "How can I get more info about this?"
+      ],
+      "nextState": "products_submenu"
+    },
+    "2": {
+      "state": "wifi_complaints",
+      "message": "I can help you with WiFi complaints. What's the issue?",
+      "options": [
+        "Slow internet speed",
+        "Connection drops frequently",
+        "Can't connect to WiFi",
+        "Other WiFi issues"
+      ],
+      "nextState": "wifi_complaints_submenu"
+    },
+    "3": {
+      "state": "cctv_complaints",
+      "message": "I can help you with CCTV complaints. What's the problem?",
+      "options": [
+        "Camera not working",
+        "Poor video quality",
+        "Recording issues",
+        "Other CCTV issues"
+      ],
+      "nextState": "cctv_complaints_submenu"
+    },
+    "4": {
+      "state": "wifi_application",
+      "message": "Great! Let me guide you through the WiFi application process.",
+      "options": [
+        "Requirements & Documents",
+        "Application Process",
+        "Installation Timeline",
+        "Pricing & Plans"
+      ],
+      "nextState": "wifi_application_submenu"
+    }
+  },
+  "products_submenu": {
+    "1": {
+      "state": "how_to_buy",
+      "message": "Here's how to buy our products:",
+      "details": [
+        "1. Browse our product catalog",
+        "2. Select your desired product",
+        "3. Add to cart",
+        "4. Choose your plan",
+        "5. Complete payment",
+        "6. Receive confirmation"
+      ],
+      "options": [
+        "View Product Catalog",
+        "Back to Products",
+        "Main Menu"
+      ],
+      "nextState": "how_to_buy_response"
+    },
+    "2": {
+      "state": "delivery_info",
+      "message": "Product delivery information:",
+      "details": [
+        "• Standard delivery: 3-5 business days",
+        "• Express delivery: 1-2 business days",
+        "• Free delivery for orders above $50",
+        "• Real-time tracking available",
+        "• Professional installation included"
+      ],
+      "options": [
+        "Track My Order",
+        "Back to Products",
+        "Main Menu"
+      ],
+      "nextState": "delivery_info_response"
+    },
+    "3": {
+      "state": "product_info",
+      "message": "Get more information about our products:",
+      "details": [
+        "• Visit our website: www.wifi-selfcare.com",
+        "• Call our support: 1-800-WIFI-HELP",
+        "• Email: support@wifi-selfcare.com",
+        "• Live chat available 24/7",
+        "• Product brochures available"
+      ],
+      "options": [
+        "Contact Support",
+        "Back to Products",
+        "Main Menu"
+      ],
+      "nextState": "product_info_response"
+    }
+  },
+  "wifi_complaints_submenu": {
+    "1": {
+      "state": "slow_internet",
+      "message": "For slow internet speed issues:",
+      "details": [
+        "• Check your device's WiFi signal strength",
+        "• Restart your router",
+        "• Check for background downloads",
+        "• Contact our technical support",
+        "• We can schedule a technician visit"
+      ],
+      "options": [
+        "Schedule Technician",
+        "Contact Support",
+        "Back to WiFi Complaints",
+        "Main Menu"
+      ],
+      "nextState": "slow_internet_response"
+    },
+    "2": {
+      "state": "connection_drops",
+      "message": "For frequent connection drops:",
+      "details": [
+        "• Check router placement",
+        "• Update router firmware",
+        "• Check for interference",
+        "• Reset router to factory settings",
+        "• Contact technical support"
+      ],
+      "options": [
+        "Get Technical Help",
+        "Schedule Visit",
+        "Back to WiFi Complaints",
+        "Main Menu"
+      ],
+      "nextState": "connection_drops_response"
+    },
+    "3": {
+      "state": "cant_connect",
+      "message": "If you can't connect to WiFi:",
+      "details": [
+        "• Verify WiFi password",
+        "• Check if WiFi is enabled",
+        "• Forget and reconnect to network",
+        "• Restart your device",
+        "• Contact support for assistance"
+      ],
+      "options": [
+        "Get Help",
+        "Back to WiFi Complaints",
+        "Main Menu"
+      ],
+      "nextState": "cant_connect_response"
+    },
+    "4": {
+      "state": "other_wifi_issues",
+      "message": "For other WiFi issues:",
+      "details": [
+        "• Please describe your specific problem",
+        "• We'll connect you to a specialist",
+        "• Remote troubleshooting available",
+        "• On-site support if needed"
+      ],
+      "options": [
+        "Describe Issue",
+        "Contact Specialist",
+        "Back to WiFi Complaints",
+        "Main Menu"
+      ],
+      "nextState": "other_wifi_issues_response"
+    }
+  },
+  "cctv_complaints_submenu": {
+    "1": {
+      "state": "camera_not_working",
+      "message": "For camera not working issues:",
+      "details": [
+        "• Check power connection",
+        "• Verify network connection",
+        "• Restart the camera",
+        "• Check app permissions",
+        "• Contact technical support"
+      ],
+      "options": [
+        "Get Technical Help",
+        "Schedule Visit",
+        "Back to CCTV Complaints",
+        "Main Menu"
+      ],
+      "nextState": "camera_not_working_response"
+    },
+    "2": {
+      "state": "poor_video_quality",
+      "message": "For poor video quality issues:",
+      "details": [
+        "• Check camera resolution settings",
+        "• Verify internet bandwidth",
+        "• Clean camera lens",
+        "• Check lighting conditions",
+        "• Update camera firmware"
+      ],
+      "options": [
+        "Get Technical Help",
+        "Back to CCTV Complaints",
+        "Main Menu"
+      ],
+      "nextState": "poor_video_quality_response"
+    },
+    "3": {
+      "state": "recording_issues",
+      "message": "For recording issues:",
+      "details": [
+        "• Check storage space",
+        "• Verify recording schedule",
+        "• Check motion detection settings",
+        "• Restart recording service",
+        "• Contact technical support"
+      ],
+      "options": [
+        "Get Technical Help",
+        "Back to CCTV Complaints",
+        "Main Menu"
+      ],
+      "nextState": "recording_issues_response"
+    },
+    "4": {
+      "state": "other_cctv_issues",
+      "message": "For other CCTV issues:",
+      "details": [
+        "• Please describe your specific problem",
+        "• We'll connect you to a CCTV specialist",
+        "• Remote troubleshooting available",
+        "• On-site support if needed"
+      ],
+      "options": [
+        "Describe Issue",
+        "Contact Specialist",
+        "Back to CCTV Complaints",
+        "Main Menu"
+      ],
+      "nextState": "other_cctv_issues_response"
+    }
+  },
+  "wifi_application_submenu": {
+    "1": {
+      "state": "requirements_documents",
+      "message": "Requirements & Documents needed:",
+      "details": [
+        "• Valid government ID (Passport/Driver's License)",
+        "• Proof of address (Utility bill/Rental agreement)",
+        "• Contact information",
+        "• Preferred installation date",
+        "• Payment method details"
+      ],
+      "options": [
+        "Start Application",
+        "Back to WiFi Application",
+        "Main Menu"
+      ],
+      "nextState": "requirements_response"
+    },
+    "2": {
+      "state": "application_process",
+      "message": "WiFi Application Process:",
+      "details": [
+        "1. Fill out online application form",
+        "2. Upload required documents",
+        "3. Choose your plan and package",
+        "4. Pay application fee",
+        "5. Schedule installation date",
+        "6. Receive confirmation email"
+      ],
+      "options": [
+        "Start Application",
+        "Back to WiFi Application",
+        "Main Menu"
+      ],
+      "nextState": "application_process_response"
+    },
+    "3": {
+      "state": "installation_timeline",
+      "message": "Installation Timeline:",
+      "details": [
+        "• Application review: 1-2 business days",
+        "• Document verification: 1 business day",
+        "• Installation scheduling: 2-3 business days",
+        "• Actual installation: 2-4 hours",
+        "• Total time: 5-7 business days"
+      ],
+      "options": [
+        "Schedule Installation",
+        "Back to WiFi Application",
+        "Main Menu"
+      ],
+      "nextState": "installation_timeline_response"
+    },
+    "4": {
+      "state": "pricing_plans",
+      "message": "Pricing & Plans:",
+      "details": [
+        "• Basic Plan: $29.99/month (50 Mbps)",
+        "• Standard Plan: $49.99/month (100 Mbps)",
+        "• Premium Plan: $79.99/month (200 Mbps)",
+        "• Installation fee: $99 (one-time)",
+        "• Equipment rental: $15/month (optional)"
+      ],
+      "options": [
+        "Choose Plan",
+        "Back to WiFi Application",
+        "Main Menu"
+      ],
+      "nextState": "pricing_plans_response"
+    }
+  },
+  "general_responses": {
+    "invalid_option": "I didn't understand that. Please select from the available options.",
+    "back_to_main": "Taking you back to the main menu.",
+    "thank_you": "Thank you for using our chatbot! Is there anything else I can help you with?",
+    "goodbye": "Goodbye! Have a great day!",
+    "help": "I'm here to help! You can ask me about products, complaints, or how to apply for WiFi services."
+  }
+}

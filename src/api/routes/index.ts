@@ -22,6 +22,7 @@ import cctvRequestRouter from "./cctvRequest.route";
 import wifiConnectionRouter from "./wifiConnection.route";
 import faqRouter from "./faq.route";
 import engineerRouter from "./engineer.route";
+import chatbotRouter from "./chatbot.route";
 const parentRouter = Router();
 
 parentRouter.post("/file-upload", multerUpload,handleMulterUpload);
@@ -47,6 +48,7 @@ parentRouter.use('/cctv-requests', cctvRequestRouter);
 parentRouter.use('/wifi-connections', wifiConnectionRouter);
 parentRouter.use('/faqs', faqRouter);
 parentRouter.use('/engineers', engineerRouter);
+parentRouter.use('/chatbot', chatbotRouter);
 
 export default parentRouter;
 
