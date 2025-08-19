@@ -184,18 +184,42 @@ const paymentProofUpload = multer({
   storage: storage, // Use the same storage as existing upload
   fileFilter: (req, file, cb: FileFilterCallback) => {
     const mimeType = file.mimetype;
+    const originalName = file.originalname.toLowerCase();
     
-    // Allow images and PDFs for payment proofs
+    // Allow all image types for payment proofs
     if (mimeType.startsWith("image/")) {
       cb(null, true);
-    } else if (mimeType === "application/pdf") {
+    } 
+    // Allow all PDF types and variations
+    else if (mimeType === "application/pdf" || 
+             mimeType === "application/x-pdf" ||
+             mimeType === "application/acrobat" ||
+             mimeType === "application/vnd.pdf" ||
+             mimeType === "text/pdf" ||
+             mimeType === "application/octet-stream" ||
+             originalName.endsWith('.pdf')) {
+      cb(null, true);
+    } 
+    // Allow common document types that might be used as payment proofs
+    else if (mimeType.includes("document") || 
+             mimeType.includes("word") || 
+             mimeType.includes("excel") ||
+             mimeType.includes("powerpoint") ||
+             originalName.endsWith('.doc') || 
+             originalName.endsWith('.docx') || 
+             originalName.endsWith('.xls') || 
+             originalName.endsWith('.xlsx') || 
+             originalName.endsWith('.ppt') || 
+             originalName.endsWith('.pptx') ||
+             originalName.endsWith('.txt') || 
+             originalName.endsWith('.rtf')) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type for payment proof. Only images and PDFs are allowed."));
+      cb(new Error("Invalid file type for payment proof. Only images, PDFs, and common document formats are allowed."));
     }
   },
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit for payment proofs
+    fileSize: 10 * 1024 * 1024 // 10MB limit for payment proofs (increased for larger documents)
   }
 });
 
