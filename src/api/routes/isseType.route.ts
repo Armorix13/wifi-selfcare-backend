@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
     createIssueType,
+    createBulkIssueTypes,
     getAllIssueTypes,
     getIssueTypeById,
     updateIssueType,
@@ -10,6 +11,7 @@ import {
 const issueTypeRouter = Router();
 
 issueTypeRouter.post('/', createIssueType);
+issueTypeRouter.post('/bulk', createBulkIssueTypes);
 issueTypeRouter.get('/', getAllIssueTypes);
 issueTypeRouter.get('/:id', getIssueTypeById);
 issueTypeRouter.put('/:id', updateIssueType);

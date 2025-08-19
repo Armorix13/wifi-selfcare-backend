@@ -7,7 +7,9 @@ import { IptvPlan } from '../models/iptvPlan.model';
 import { OttPlan } from '../models/ottPlan.model';
 import { Plan } from '../models/plan.model';
 import { sendSuccess, sendError, generateOtp, hashPassword, generateRandomPassword, sendMessage, generateEngineerCredentialsEmail } from '../../utils/helper';
-import { ComplaintModel } from '../models/complaint.model';
+import { ComplaintModel, ComplaintStatus } from '../models/complaint.model';
+import { EngineerAttendanceModel } from '../models/engineerAttendance.model';
+import * as XLSX from 'xlsx';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -1341,6 +1343,230 @@ export const getAllComplaintForEnginer = async (req: Request, res: Response, nex
   } catch (error) {
     next(error);
   }
+};
+
+export const addUserFromExcel = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { files } = req;
+    const addedBy = (req as any).userId; // Logged in user ID who is uploading
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return sendError(res, 'No files uploaded', 400);
+    }
+
+    if (!addedBy) {
+      return sendError(res, 'User authentication required', 401);
+    }
+
+    const results: {
+      totalFiles: number;
+      processedFiles: number;
+      totalUsers: number;
+      newUsers: number;
+      updatedUsers: number;
+      errors: string[];
+      fileResults: Array<{
+        fileName: string;
+        totalUsers: number;
+        newUsers: number;
+        updatedUsers: number;
+        errors: string[];
+      }>;
+    } = {
+      totalFiles: files.length,
+      processedFiles: 0,
+      totalUsers: 0,
+      newUsers: 0,
+      updatedUsers: 0,
+      errors: [],
+      fileResults: []
+    };
+
+    // Process each uploaded file
+    for (const file of files) {
+      try {
+        const fileResult = await processExcelFile(file, addedBy);
+        results.fileResults.push(fileResult);
+        results.processedFiles++;
+        results.totalUsers += fileResult.totalUsers;
+        results.newUsers += fileResult.newUsers;
+        results.updatedUsers += fileResult.updatedUsers;
+        results.errors.push(...fileResult.errors);
+      } catch (fileError: any) {
+        results.errors.push(`File ${file.originalname}: ${fileError.message}`);
+      }
+    }
+
+    // Prepare response message
+    let message = `Processed ${results.processedFiles} files. `;
+    if (results.newUsers > 0) message += `Added ${results.newUsers} new users. `;
+    if (results.updatedUsers > 0) message += `Updated ${results.updatedUsers} existing users. `;
+    if (results.errors.length > 0) message += `${results.errors.length} errors occurred.`;
+
+    return sendSuccess(res, results, message);
+  } catch (error: any) {
+    console.error('Excel upload error:', error);
+    return sendError(res, 'Failed to process Excel files', 500, error);
+  }
+};
+
+// Helper function to process individual Excel file
+const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
+  const fileResult = {
+    fileName: file.originalname,
+    totalUsers: 0,
+    newUsers: 0,
+    updatedUsers: 0,
+    errors: [] as string[]
+  };
+
+  try {
+    // Parse Excel file
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+    if (data.length < 2) {
+      throw new Error('Excel file must have at least header row and one data row');
+    }
+
+    // Extract headers and data
+    const headers = data[0] as string[];
+    const rows = data.slice(1) as any[][];
+
+    // Validate required headers
+    const requiredHeaders = ['PHONE_N', 'CUSTOMER NAME', 'EMAIL_ID'];
+    const missingHeaders = requiredHeaders.filter(header => 
+      !headers.some(h => h && h.toString().toUpperCase().includes(header.replace('_', '')))
+    );
+
+    if (missingHeaders.length > 0) {
+      throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+    }
+
+    // Map Excel headers to User model fields
+    const headerMapping: { [key: string]: string } = {
+      'PHONE_N': 'phoneNumber',
+      'OLT_IP': 'oltIp',
+      'MTCE_FRANCHISE': 'mtceFranchise',
+      'CATEG': 'category',
+      'CUSTOMER NAME': 'customerName',
+      'MOBILE': 'mobile',
+      'EMAIL_ID': 'email',
+      'BB_USER_ID': 'bbUserId',
+      'FTTH_EXCH_PLAN': 'ftthExchangePlan',
+      'BB_PLAN': 'bbPlan',
+      'LL_INSTALL': 'llInstallDate',
+      'WKG_ST': 'workingStatus',
+      'ASSIGNED': 'assigned',
+      'RURAL_UR': 'ruralUrban',
+      'ACQUISITION_TYPE': 'acquisitionType'
+    };
+
+    // Process each row
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex];
+      try {
+        if (!row || row.every(cell => !cell)) continue; // Skip empty rows
+
+        // Map row data to user object
+        const userData: any = {
+          addedBy: addedBy,
+          isActivated: false
+        };
+
+        headers.forEach((header, colIndex) => {
+          if (header && row[colIndex] !== undefined && row[colIndex] !== null) {
+            const fieldName = headerMapping[header];
+            if (fieldName) {
+              let value = row[colIndex];
+
+              // Handle special field mappings
+              if (fieldName === 'customerName') {
+                // Split customer name into firstName and lastName
+                const nameParts = value.toString().trim().split(' ');
+                userData.firstName = nameParts[0] || '';
+                userData.lastName = nameParts.slice(1).join(' ') || '';
+              } else if (fieldName === 'llInstallDate') {
+                // Convert date string to Date object
+                try {
+                  userData[fieldName] = new Date(value);
+                } catch {
+                  userData[fieldName] = null;
+                }
+              } else if (fieldName === 'phoneNumber') {
+                // Clean phone number
+                userData[fieldName] = value.toString().replace(/[^0-9-]/g, '');
+                userData.countryCode = '+91'; // Default to India
+              } else {
+                userData[fieldName] = value.toString().trim();
+              }
+            }
+          }
+        });
+
+        // Validate required fields
+        if (!userData.phoneNumber || !userData.email || !userData.firstName) {
+          fileResult.errors.push(`Row ${rowIndex + 2}: Missing required fields (phone, email, or name)`);
+          continue;
+        }
+
+        // Check if user already exists by email
+        const existingUser = await UserModel.findOne({ 
+          email: userData.email.toLowerCase() 
+        });
+
+        if (existingUser) {
+          // Update existing user
+          const updateData = { ...userData };
+          delete updateData.email; // Don't update email
+          delete updateData.phoneNumber; // Don't update phone number
+          delete updateData.firstName; // Don't update firstName
+          delete updateData.lastName; // Don't update lastName
+
+          // Update only the new fields from Excel
+          const updatedUser = await UserModel.findByIdAndUpdate(
+            existingUser._id,
+            {
+              ...updateData,
+              updatedAt: new Date()
+            },
+            { new: true, runValidators: true }
+          );
+
+          if (updatedUser) {
+            fileResult.updatedUsers++;
+            fileResult.totalUsers++;
+          }
+        } else {
+          // Create new user
+          const newUser = new UserModel({
+            ...userData,
+            email: userData.email.toLowerCase(),
+            role: 'user', // Default role
+            userName: userData.email.split('@')[0], // Generate username from email
+            country: 'India', // Default country
+            status: 'active'
+          });
+
+          const savedUser = await newUser.save();
+          if (savedUser) {
+            fileResult.newUsers++;
+            fileResult.totalUsers++;
+          }
+        }
+
+      } catch (rowError: any) {
+        fileResult.errors.push(`Row ${rowIndex + 2}: ${rowError.message}`);
+      }
+    }
+
+  } catch (error: any) {
+    fileResult.errors.push(`File processing error: ${error.message}`);
+  }
+
+  return fileResult;
 };
 
 

@@ -48,9 +48,8 @@ const RequestBillSchema: Schema = new Schema(
       required: true
     },
     billType: { 
-      type: String, 
-      enum: ['wifi', 'iptv', 'ott', 'fibre', 'other'],
-      required: true
+      type: String,
+      enum: ['wifi', 'iptv', 'ott', 'fibre', 'other']
     },
     planId: {
       type: Schema.Types.ObjectId,

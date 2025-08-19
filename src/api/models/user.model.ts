@@ -74,6 +74,22 @@ export interface IUser extends Document {
   password?: string;
   createdAt?: Date;
   updatedAt?: Date;
+  
+  // New fields from Excel sheet
+  oltIp?: string; // OLT_IP - Optical Line Terminal IP address
+  mtceFranchise?: string; // MTCE_FRANCHISE - Maintenance Franchise
+  category?: string; // CATEG - Category
+  mobile?: string; // MOBILE - Mobile Number (separate from phoneNumber)
+  bbUserId?: string; // BB_USER_ID - Broadband User ID
+  ftthExchangePlan?: string; // FTTH_EXCH_PLAN - Fiber to the Home Exchange Plan
+  bbPlan?: string; // BB_PLAN - Broadband Plan
+  llInstallDate?: Date; // LL_INSTALL - Landline Installation Date
+  workingStatus?: string; // WKG_ST - Working Status
+  assigned?: string; // ASSIGNED
+  ruralUrban?: string; // RURAL_UR - Rural/Urban
+  acquisitionType?: string; // ACQUISITION_TYPE
+  addedBy?: string; // ADDED_BY
+  isActivated?: boolean; // IS_ACTIVATED
 }
 
 const GeoPointSchema = new Schema<IGeoPoint>({
@@ -130,7 +146,29 @@ const UserSchema = new Schema<IUser>({
   jti: { type: String },
   deviceType: { type: String },
   deviceToken: { type: String },
-  password: { type: String }
+  password: { type: String },
+  
+  // New fields from Excel sheet
+  oltIp: { type: String }, // OLT_IP - Optical Line Terminal IP address
+  mtceFranchise: { type: String }, // MTCE_FRANCHISE - Maintenance Franchise
+  category: { type: String }, // CATEG - Category
+  mobile: { type: String }, // MOBILE - Mobile Number (separate from phoneNumber)
+  bbUserId: { type: String }, // BB_USER_ID - Broadband User ID
+  ftthExchangePlan: { type: String }, // FTTH_EXCH_PLAN - Fiber to the Home Exchange Plan
+  bbPlan: { type: String }, // BB_PLAN - Broadband Plan
+  llInstallDate: { type: Date }, // LL_INSTALL - Landline Installation Date
+  workingStatus: { type: String }, // WKG_ST - Working Status
+  assigned: { type: String }, // ASSIGNED
+  ruralUrban: { type: String }, // RURAL_UR - Rural/Urban
+  acquisitionType: { type: String }, // ACQUISITION_TYPE
+  addedBy:{
+    type: Schema.Types.ObjectId,
+    ref: "User"
+  },
+  isActivated:{
+    type: Boolean,
+    default: false
+  }
 }, {
   timestamps: true
 });

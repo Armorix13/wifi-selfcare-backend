@@ -12,6 +12,7 @@ export const requestBill = async (req: Request, res: Response): Promise<any> => 
     //   planName, 
     //   userRemarks 
     // } = req.body;
+    
     const userId = (req as any).userId;
 
     // Get user details
@@ -28,7 +29,7 @@ export const requestBill = async (req: Request, res: Response): Promise<any> => 
       userId,
       status: { $in: ['pending', 'bill_uploaded', 'payment_pending'] }
     });
-
+    
     if (existingRequest) {
       return res.status(400).json({
         success: false,

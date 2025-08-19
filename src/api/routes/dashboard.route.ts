@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload } from '../services/upload.service';
-import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics } from '../controllers/dashboard.controller';
+import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel } from '../controllers/dashboard.controller';
 
 const dashboardRoute = Router();
 
@@ -18,5 +18,8 @@ dashboardRoute.delete('/engineers/:id', authenticate, deleteEngineer);
 // Engineer Complaint Routes
 dashboardRoute.get('/engineer-complaints', authenticate, getAllComplaintForEnginer);
 dashboardRoute.get('/engineer-dashboard', authenticate, getEngineerDashboardAnalytics);
+
+// Excel Upload Routes
+dashboardRoute.post('/upload-users-excel', authenticate, upload.array('files', 10), addUserFromExcel);
 
 export default dashboardRoute; 
