@@ -10,6 +10,7 @@ import { sendSuccess, sendError, generateOtp, hashPassword, generateRandomPasswo
 import { ComplaintModel, ComplaintStatus } from '../models/complaint.model';
 import { EngineerAttendanceModel } from '../models/engineerAttendance.model';
 import * as XLSX from 'xlsx';
+import * as fs from 'fs';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -1354,6 +1355,32 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
       return sendError(res, 'No files uploaded', 400);
     }
 
+    // Validate each file object
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      console.log(`Validating file ${i}:`, {
+        originalname: file?.originalname,
+        mimetype: file?.mimetype,
+        size: file?.size,
+        hasBuffer: !!file?.buffer,
+        hasPath: !!file?.path,
+        bufferLength: file?.buffer?.length,
+        path: file?.path,
+        keys: file ? Object.keys(file) : 'undefined'
+      });
+      
+      if (!file || typeof file !== 'object') {
+        return sendError(res, `File at index ${i} is invalid`, 400);
+      }
+      if (!file.originalname) {
+        return sendError(res, `File at index ${i} is missing original name`, 400);
+      }
+      // Check if file has either buffer (memory storage) or path (disk storage)
+      if (!file.buffer && !file.path) {
+        return sendError(res, `File ${file.originalname} is missing required properties (neither buffer nor path)`, 400);
+      }
+    }
+
     if (!addedBy) {
       return sendError(res, 'User authentication required', 401);
     }
@@ -1385,6 +1412,7 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
     // Process each uploaded file
     for (const file of files) {
       try {
+        console.log(`Processing file: ${file.originalname}`);
         const fileResult = await processExcelFile(file, addedBy);
         results.fileResults.push(fileResult);
         results.processedFiles++;
@@ -1393,7 +1421,11 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
         results.updatedUsers += fileResult.updatedUsers;
         results.errors.push(...fileResult.errors);
       } catch (fileError: any) {
-        results.errors.push(`File ${file.originalname}: ${fileError.message}`);
+        console.error(`Error processing file ${file.originalname}:`, fileError);
+        const errorMessage = file.originalname 
+          ? `File ${file.originalname}: ${fileError.message}`
+          : `Unknown file: ${fileError.message}`;
+        results.errors.push(errorMessage);
       }
     }
 
@@ -1412,6 +1444,20 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
 
 // Helper function to process individual Excel file
 const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
+  // Validate file object
+  if (!file) {
+    throw new Error('File object is undefined');
+  }
+
+  if (!file.originalname) {
+    throw new Error('File has no original name');
+  }
+
+  // Check if file has buffer (memory storage) or path (disk storage)
+  if (!file.buffer && !file.path) {
+    throw new Error('File has neither buffer data nor file path');
+  }
+
   const fileResult = {
     fileName: file.originalname,
     totalUsers: 0,
@@ -1421,54 +1467,205 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
   };
 
   try {
-    // Parse Excel file
-    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    // Debug file information
+    console.log('File info:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      bufferLength: file.buffer ? file.buffer.length : 'undefined',
+      bufferType: file.buffer ? typeof file.buffer : 'undefined',
+      path: file.path || 'undefined'
+    });
+
+    let fileBuffer: Buffer;
+
+    // Handle both memory storage (buffer) and disk storage (path)
+    if (file.buffer) {
+      // Memory storage - use buffer directly
+      if (!file.buffer || file.buffer.length === 0) {
+        throw new Error('File buffer is empty or corrupted');
+      }
+
+      if (!Buffer.isBuffer(file.buffer)) {
+        throw new Error('File buffer is not a valid Buffer object');
+      }
+
+      if (file.buffer.length < 100) {
+        throw new Error('File is too small to be a valid Excel file');
+      }
+
+      fileBuffer = file.buffer;
+    } else if (file.path) {
+      // Disk storage - read file from disk
+      try {
+        fileBuffer = fs.readFileSync(file.path);
+        
+        if (!fileBuffer || fileBuffer.length === 0) {
+          throw new Error('File read from disk is empty or corrupted');
+        }
+
+        if (fileBuffer.length < 100) {
+          throw new Error('File read from disk is too small to be a valid Excel file');
+        }
+      } catch (readError: any) {
+        throw new Error(`Failed to read file from disk: ${readError.message}`);
+      }
+    } else {
+      throw new Error('No file data available (neither buffer nor path)');
+    }
+
+    // Check file extension
+    const fileExtension = file.originalname.toLowerCase().split('.').pop();
+    if (!fileExtension || !['xls', 'xlsx', 'csv'].includes(fileExtension)) {
+      throw new Error(`Unsupported file format: ${fileExtension}. Only .xls, .xlsx, and .csv files are supported`);
+    }
+
+    // Parse Excel file with error handling
+    let workbook;
+    try {
+      // Try different parsing options
+      workbook = XLSX.read(fileBuffer, { 
+        type: 'buffer',
+        cellDates: true,
+        cellNF: false,
+        cellText: false
+      });
+    } catch (xlsxError: any) {
+      console.error('XLSX parsing error:', xlsxError);
+      
+      // Try alternative parsing method
+      try {
+        console.log('Trying alternative parsing method...');
+        workbook = XLSX.read(fileBuffer, { 
+          type: 'buffer',
+          cellDates: false,
+          cellNF: false,
+          cellText: true
+        });
+      } catch (altError: any) {
+        console.error('Alternative parsing also failed:', altError);
+        
+        // Provide more specific error messages based on the error type
+        if (xlsxError.message.includes('Cannot read properties of undefined')) {
+          throw new Error('Excel file appears to be corrupted or in an unsupported format. Please ensure the file is a valid Excel file (.xls, .xlsx) and try again.');
+        } else if (xlsxError.message.includes('password')) {
+          throw new Error('Excel file appears to be password-protected. Please remove the password protection and try again.');
+        } else {
+          throw new Error(`Failed to parse Excel file: ${xlsxError.message}. Alternative method also failed: ${altError.message}`);
+        }
+      }
+    }
+    
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error('Excel file contains no sheets');
+    }
+    
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
+    
+    if (!worksheet) {
+      throw new Error('Could not read worksheet from Excel file');
+    }
+    
     const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-    if (data.length < 2) {
+    if (!data || data.length < 2) {
       throw new Error('Excel file must have at least header row and one data row');
     }
 
     // Extract headers and data
     const headers = data[0] as string[];
+    if (!headers || !Array.isArray(headers)) {
+      throw new Error('Invalid header row in Excel file');
+    }
+    
     const rows = data.slice(1) as any[][];
+    if (!rows || !Array.isArray(rows)) {
+      throw new Error('No data rows found in Excel file');
+    }
 
-    // Validate required headers
-    const requiredHeaders = ['PHONE_N', 'CUSTOMER NAME', 'EMAIL_ID'];
-    const missingHeaders = requiredHeaders.filter(header => 
-      !headers.some(h => h && h.toString().toUpperCase().includes(header.replace('_', '')))
-    );
+    // Map Excel headers to User model fields
+    const headerMapping: { [key: string]: string } = {
+      'PHONE_NO': 'phoneNumber',
+      'PHONE_N': 'phoneNumber',
+      'PHONE N': 'phoneNumber',
+      'OLT_IP': 'oltIp',
+      'MTCE_FRANCHISE_CODE': 'mtceFranchise',
+      'MTCE_FRANCHISE': 'mtceFranchise',
+      'CATEGORY': 'category',
+      'CATEG': 'category',
+      'CUSTOMER_NAME': 'customerName',
+      'CUSTOMER NAME': 'customerName',
+      'MOBILE_NO': 'mobile',
+      'MOBILE': 'mobile',
+      'EMAIL_ID': 'email',
+      'EMAIL ID': 'email',
+      'BB_USER_ID': 'bbUserId',
+      'BB USER ID': 'bbUserId',
+      'FTTH_EXCHANGE': 'ftthExchange',
+      'FTTH_EXCH': 'ftthExchange',
+      'FTTH_EXCH_PLAN': 'ftthExchangePlan',
+      'PLAN_ID': 'planId',
+      'BB_PLAN': 'bbPlan',
+      'BB PLAN': 'bbPlan',
+      'LL_INSTALL_DATE': 'llInstallDate',
+      'LL_INSTALL': 'llInstallDate',
+      'WKG_STATUS': 'workingStatus',
+      'WKG_ST': 'workingStatus',
+      'VKG_ST': 'workingStatus',
+      'ASSIGNED_TO': 'assigned',
+      'ASSIGNED': 'assigned',
+      'RURAL_URBAN': 'ruralUrban',
+      'RURAL_UR': 'ruralUrban',
+      'RURAL_U': 'ruralUrban',
+      'ACQUISITION_TYPE': 'acquisitionType'
+    };
+
+    // Validate required headers with flexible matching
+    const requiredHeaders = [
+      { key: 'PHONE_N', patterns: ['PHONE_NO', 'PHONE_N', 'PHONE N', 'PHONE'] },
+      { key: 'CUSTOMER NAME', patterns: ['CUSTOMER_NAME', 'CUSTOMER NAME', 'CUSTOMER'] },
+      { key: 'EMAIL_ID', patterns: ['EMAIL_ID', 'EMAIL ID', 'EMAIL'] }
+    ];
+    
+    const missingHeaders: string[] = [];
+    
+    requiredHeaders.forEach(required => {
+      const found = headers.some(header => 
+        header && required.patterns.some(pattern => 
+          header.toString().toUpperCase().includes(pattern.replace('_', '').replace(' ', ''))
+        )
+      );
+      if (!found) {
+        missingHeaders.push(required.key);
+      }
+    });
+    
+    console.log('Found headers:', headers);
+    console.log('Missing headers:', missingHeaders);
+    
+    // Debug header mapping
+    console.log('Header mapping results:');
+    headers.forEach((header, index) => {
+      if (header) {
+        const mappedField = headerMapping[header];
+        console.log(`Column ${index}: "${header}" -> ${mappedField || 'UNMAPPED'}`);
+      }
+    });
 
     if (missingHeaders.length > 0) {
       throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
     }
 
-    // Map Excel headers to User model fields
-    const headerMapping: { [key: string]: string } = {
-      'PHONE_N': 'phoneNumber',
-      'OLT_IP': 'oltIp',
-      'MTCE_FRANCHISE': 'mtceFranchise',
-      'CATEG': 'category',
-      'CUSTOMER NAME': 'customerName',
-      'MOBILE': 'mobile',
-      'EMAIL_ID': 'email',
-      'BB_USER_ID': 'bbUserId',
-      'FTTH_EXCH_PLAN': 'ftthExchangePlan',
-      'BB_PLAN': 'bbPlan',
-      'LL_INSTALL': 'llInstallDate',
-      'WKG_ST': 'workingStatus',
-      'ASSIGNED': 'assigned',
-      'RURAL_UR': 'ruralUrban',
-      'ACQUISITION_TYPE': 'acquisitionType'
-    };
-
     // Process each row
+    console.log(`Processing ${rows.length} rows`);
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex];
       try {
-        if (!row || row.every(cell => !cell)) continue; // Skip empty rows
+        if (!row || !Array.isArray(row) || row.every(cell => !cell)) {
+          console.log(`Skipping empty row ${rowIndex + 2}`);
+          continue; // Skip empty rows
+        }
 
         // Map row data to user object
         const userData: any = {
@@ -1477,7 +1674,7 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         };
 
         headers.forEach((header, colIndex) => {
-          if (header && row[colIndex] !== undefined && row[colIndex] !== null) {
+          if (header && row && Array.isArray(row) && colIndex < row.length && row[colIndex] !== undefined && row[colIndex] !== null) {
             const fieldName = headerMapping[header];
             if (fieldName) {
               let value = row[colIndex];
@@ -1486,8 +1683,8 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
               if (fieldName === 'customerName') {
                 // Split customer name into firstName and lastName
                 const nameParts = value.toString().trim().split(' ');
-                userData.firstName = nameParts[0] || '';
-                userData.lastName = nameParts.slice(1).join(' ') || '';
+                userData.firstName = nameParts && nameParts.length > 0 ? nameParts[0] : '';
+                userData.lastName = nameParts && nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
               } else if (fieldName === 'llInstallDate') {
                 // Convert date string to Date object
                 try {
@@ -1558,11 +1755,13 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         }
 
       } catch (rowError: any) {
+        console.error(`Error processing row ${rowIndex + 2}:`, rowError);
         fileResult.errors.push(`Row ${rowIndex + 2}: ${rowError.message}`);
       }
     }
 
   } catch (error: any) {
+    console.error('Excel file processing error:', error);
     fileResult.errors.push(`File processing error: ${error.message}`);
   }
 

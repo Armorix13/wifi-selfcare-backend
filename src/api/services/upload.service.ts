@@ -9,11 +9,13 @@ const imageDir = path.join(__dirname.split("dist")[0], "view", "image");
 const pdfDir = path.join(__dirname.split("dist")[0], "view", "pdf");
 const videoDir = path.join(__dirname.split("dist")[0], "view", "video");
 const audioDir = path.join(__dirname.split("dist")[0], "view", "audio");
+const documentDir = path.join(__dirname.split("dist")[0], "view", "document");
 
 if (!fs.existsSync(imageDir)) fs.mkdirSync(imageDir, { recursive: true });
 if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
 if (!fs.existsSync(videoDir)) fs.mkdirSync(videoDir, { recursive: true });
 if (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });
+if (!fs.existsSync(documentDir)) fs.mkdirSync(documentDir, { recursive: true });
 
 const allowedImageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.ico', '.svg'];
 
@@ -29,6 +31,13 @@ const storage: StorageEngine = multer.diskStorage({
       cb(null, videoDir);
     } else if (mimeType.startsWith("audio/")) {
       cb(null, audioDir);
+    } else if (mimeType === "application/vnd.ms-excel" || 
+               mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+               mimeType === "text/csv" ||
+               originalName.endsWith('.xls') || 
+               originalName.endsWith('.xlsx') || 
+               originalName.endsWith('.csv')) {
+      cb(null, documentDir);
     } else {
       cb(new Error("Unsupported file type"), imageDir); // fallback to imageDir, won't be used
     }
@@ -36,13 +45,30 @@ const storage: StorageEngine = multer.diskStorage({
   filename: (req, file, cb) => {
     let fileExtension = mime.extension(file.mimetype);
     const originalName = file.originalname.toLowerCase();
-    if (file.mimetype === "application/octet-stream") {
-      // Try to get extension from original filename
+    
+    // Handle Excel files and other document types
+    if (file.mimetype === "application/vnd.ms-excel" || 
+        file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        file.mimetype === "text/csv" ||
+        originalName.endsWith('.xls') || 
+        originalName.endsWith('.xlsx') || 
+        originalName.endsWith('.csv')) {
+      // Get extension from original filename for Excel files
+      if (originalName.endsWith('.xls')) {
+        fileExtension = 'xls';
+      } else if (originalName.endsWith('.xlsx')) {
+        fileExtension = 'xlsx';
+      } else if (originalName.endsWith('.csv')) {
+        fileExtension = 'csv';
+      }
+    } else if (file.mimetype === "application/octet-stream") {
+      // Try to get extension from original filename for images
       const matchedExt = allowedImageExtensions.find(ext => originalName.endsWith(ext));
       if (matchedExt) {
         fileExtension = matchedExt.replace('.', '');
       }
     }
+    
     if (!fileExtension) {
       cb(new Error("Unsupported file type"), "");
     } else {
@@ -58,7 +84,9 @@ const upload = multer({
     console.log(file);
     console.log(file.mimetype);
     const mimeType = file.mimetype;
+    const originalName = file.originalname.toLowerCase();
     const allowedImageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.ico', '.svg'];
+    
     // Accept all image/* types, including svg, gif, webp, bmp, tiff, ico, etc.
     if (mimeType.startsWith("image/")) {
       cb(null, true);
@@ -70,7 +98,16 @@ const upload = multer({
       cb(null, true);
     } else if (
       mimeType === "application/octet-stream" &&
-      allowedImageExtensions.some(ext => file.originalname.toLowerCase().endsWith(ext))
+      allowedImageExtensions.some(ext => originalName.endsWith(ext))
+    ) {
+      cb(null, true);
+    } else if (
+      mimeType === "application/vnd.ms-excel" || 
+      mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      mimeType === "text/csv" ||
+      originalName.endsWith('.xls') || 
+      originalName.endsWith('.xlsx') || 
+      originalName.endsWith('.csv')
     ) {
       cb(null, true);
     } else {
@@ -162,8 +199,32 @@ const paymentProofUpload = multer({
   }
 });
 
+// Excel upload configuration
+const excelUpload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb: FileFilterCallback) => {
+    const mimeType = file.mimetype;
+    const originalName = file.originalname.toLowerCase();
+    
+    // Allow Excel files (.xls, .xlsx) and CSV files
+    if (mimeType === "application/vnd.ms-excel" || 
+        mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        mimeType === "text/csv" ||
+        originalName.endsWith('.xls') || 
+        originalName.endsWith('.xlsx') || 
+        originalName.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type for Excel upload. Only Excel files (.xls, .xlsx) and CSV files are allowed."));
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit for Excel files
+  }
+});
+
 // Export new upload instances alongside existing ones
-export { billUpload, paymentProofUpload };
+export { billUpload, paymentProofUpload, excelUpload };
 
 // Bill upload handler
 export const handleBillUpload = (

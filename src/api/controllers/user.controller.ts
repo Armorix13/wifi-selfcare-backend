@@ -522,7 +522,18 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             status: { $in: ['inreview', 'accept'] }
         }).populate('planId');
 
-        const isApplicationFormApplied = !!userApplication;
+        let isApplicationFormApplied = !!userApplication;
+
+        let applicationStatus = 1;//Not applied for application form
+        if(userApplication && userApplication.status === 'inreview'){
+            applicationStatus = 2;//Applied for application form
+        }
+        if(userApplication && userApplication.status === 'accept'){
+            applicationStatus = 3;//Applied for application form and accepted
+        }
+        if(userApplication && userApplication.status === 'reject'){
+            applicationStatus = 4;//Applied for application form and rejected
+        }
 
         // 3. Check for recently rejected application
         const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
