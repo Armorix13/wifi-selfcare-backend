@@ -524,15 +524,15 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
 
         let isApplicationFormApplied = !!userApplication;
 
-        let applicationStatus = 1;//Not applied for application form
-        if(userApplication && userApplication.status === 'inreview'){
-            applicationStatus = 2;//Applied for application form
+        let installationStatus = 1;//Not applied for application form
+        if (userApplication && userApplication.status === 'inreview') {
+            installationStatus = 2;//Applied for application form
         }
-        if(userApplication && userApplication.status === 'accept'){
-            applicationStatus = 3;//Applied for application form and accepted
+        if (userApplication && userApplication.status === 'accept') {
+            installationStatus = 3;//Applied for application form and accepted
         }
-        if(userApplication && userApplication.status === 'reject'){
-            applicationStatus = 4;//Applied for application form and rejected
+        if (userApplication && userApplication.status === 'reject') {
+            installationStatus = 4;//Applied for application form and rejected
         }
 
         // 3. Check for recently rejected application
@@ -563,15 +563,29 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
             .sort({ createdAt: -1 });
 
+
         const isWifiInstallationRequest = !!wifiInstallationRequest;
+
+        if (wifiInstallationRequest && wifiInstallationRequest.status === 'inreview') {
+            installationStatus = 5;//In review for wifi installation
+        }
+        if (wifiInstallationRequest && wifiInstallationRequest.status === 'approved') {
+            installationStatus = 6;//Approved for wifi installation
+        }
+        if (wifiInstallationRequest && wifiInstallationRequest.status === 'rejected') {
+            installationStatus = 7;//Rejected for wifi installation
+        }
+
+        console.log("installationStatus",installationStatus);
+        
 
 
         //Ott Installation Request
         let ottStatus = 1; //Not requested for ott installation
         const ottInstallationRequest = await OttInstallationRequest.findOne({ userId })
-        .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
-        .populate('ottPlanId', 'name price description')
-        .sort({ createdAt: -1 });
+            .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+            .populate('ottPlanId', 'name price description')
+            .sort({ createdAt: -1 });
         ;
         if (ottInstallationRequest && ottInstallationRequest.status === 'approved') {
 
@@ -585,9 +599,9 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         //Iptv installation request
         let iptvStatus = 1; //Not requested for iptv installation
         const iptvInstallationRequest = await IptvInstallationRequest.findOne({ userId })
-        .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
-        .populate('iptvPlanId', 'name price description')
-        .sort({ createdAt: -1 });
+            .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+            .populate('iptvPlanId', 'name price description')
+            .sort({ createdAt: -1 });
         ;
         if (iptvInstallationRequest && iptvInstallationRequest.status === 'approved') {
             iptvStatus = 3; //Approved for iptv installation
@@ -600,9 +614,9 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         //Fibre installation request
         let fibreStatus = 1; //Not requested for fibre installation
         const fibreInstallationRequest = await FibreInstallationRequest.findOne({ userId })
-        .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
-        .populate('fibrePlanId', 'name price description')
-        .sort({ createdAt: -1 });
+            .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+            .populate('fibrePlanId', 'name price description')
+            .sort({ createdAt: -1 });
         ;
         if (fibreInstallationRequest && fibreInstallationRequest.status === 'approved') {
             fibreStatus = 3; //Approved for fibre installation
@@ -615,8 +629,8 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         //Cctv request releted info
         let cctvInsttalationRequestStatus = 1; //Not requested for cctv installation
         const cctvRequest = await CctvRequestModel.findOne({ userId })
-        .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
-        .sort({ createdAt: -1 });
+            .populate('assignedEngineer', 'firstName lastName email phoneNumber countryCode profileImage role')
+            .sort({ createdAt: -1 });
         ;
         if (cctvRequest && cctvRequest.status === CctvStatus.APPLICATION_ACCEPTED) {
             cctvInsttalationRequestStatus = 3; //Approved for cctv installation
@@ -629,13 +643,14 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         //Is bill request send or not
         let isBillRequestSend = false;
         const billRequest = await RequestBill.findOne({ userId })
-        .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 });
         if (billRequest) {
             isBillRequestSend = true;
         }
 
 
         const result = {
+            installationStatus,
             cctv: cctvAds,
             wifi: wifiAds,
             isApplicationFormApplied,
@@ -649,7 +664,7 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             wifiInstallationApprovedDate: wifiInstallationRequest?.approvedDate || null,
             wifiInstallationRemarks: wifiInstallationRequest?.remarks || null,
             assignedEngineer: wifiInstallationRequest?.assignedEngineer || null,
-            ottInstallation:{
+            ottInstallation: {
                 ottStatus,
                 ottInstallationRequestData: ottInstallationRequest || null,
                 ottInstallationStatus: ottInstallationRequest?.status || null,
@@ -657,7 +672,7 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
                 ottInstallationRemarks: ottInstallationRequest?.remarks || null,
                 assignedEngineer: ottInstallationRequest?.assignedEngineer || null,
             },
-            iptvInstallation:{
+            iptvInstallation: {
                 iptvStatus,
                 iptvInstallationRequestData: iptvInstallationRequest || null,
                 iptvInstallationStatus: iptvInstallationRequest?.status || null,
@@ -665,7 +680,7 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
                 iptvInstallationRemarks: iptvInstallationRequest?.remarks || null,
                 assignedEngineer: iptvInstallationRequest?.assignedEngineer || null,
             },
-            fibreInstallation:{
+            fibreInstallation: {
                 fibreStatus,
                 fibreInstallationRequestData: fibreInstallationRequest || null,
                 fibreInstallationStatus: fibreInstallationRequest?.status || null,
@@ -673,7 +688,7 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
                 fibreInstallationRemarks: fibreInstallationRequest?.remarks || null,
                 assignedEngineer: fibreInstallationRequest?.assignedEngineer || null,
             },
-            cctvInstallation:{
+            cctvInstallation: {
                 cctvInsttalationRequestStatus,
                 cctvInstallationRequestData: cctvRequest || null,
                 cctvInstallationStatus: cctvRequest?.status || null,
