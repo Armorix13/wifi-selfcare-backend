@@ -190,14 +190,28 @@ const markAttendance = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "User ID is required", 400);
         }
 
-        // Get current date (start of day)
+        // Get current date and time
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const currentTime = today.getTime();
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        
+        // Define attendance time restrictions
+        const canMarkStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 5, 0, 0); // 5:00 AM
+        const canMarkEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 22, 0, 0); // 10:00 PM
+        
+        // Check if current time is within allowed attendance window
+        if (currentTime < canMarkStart.getTime()) {
+            return sendError(res, "You can only mark attendance after 5:00 AM", 400);
+        }
+        
+        if (currentTime > canMarkEnd.getTime()) {
+            return sendError(res, "Attendance marking is closed for today. You are too late to mark attendance.", 400);
+        }
 
         // Check if attendance already marked for today
         const existingAttendance = await EngineerAttendanceModel.findOne({
             engineer: userId,
-            date: today
+            date: todayStart
         });
 
         if (existingAttendance) {
@@ -207,7 +221,7 @@ const markAttendance = async (req: Request, res: Response): Promise<any> => {
         // Automatically mark as present with current time as check-in
         const attendanceData = {
             engineer: userId,
-            date: today,
+            date: todayStart,
             status: 'present', // Default to present
             checkInTime: new Date(), // Current time as check-in
             markedBy: userId

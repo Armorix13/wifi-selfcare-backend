@@ -1219,7 +1219,60 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
     ]);
     const repeatedComplaints = userComplaintCounts.length;
 
-    const dashboardData = {
+    let isTodayAttendance = false;
+    let attendanceMessage = '';
+    let canMarkAttendance = false;
+    const today = new Date();
+    const currentHour = today.getHours();
+    const currentTime = today.getTime();
+    
+    // Check if engineer has marked attendance for today
+    try {
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+        
+        const todayAttendance = await EngineerAttendanceModel.findOne({
+            engineer: userId,
+            date: {
+                $gte: todayStart,
+                $lte: todayEnd
+            }
+        });
+        
+        isTodayAttendance = !!todayAttendance;
+        
+        // Define attendance time restrictions
+        const canMarkStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 5, 0, 0); // 5:00 AM
+        const canMarkEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 22, 0, 0); // 10:00 PM
+        
+        // Check if current time is within allowed attendance window
+        if (currentTime >= canMarkStart.getTime() && currentTime <= canMarkEnd.getTime()) {
+            canMarkAttendance = true;
+            if (isTodayAttendance) {
+                attendanceMessage = 'Attendance already marked for today';
+            } else {
+                attendanceMessage = 'You can mark attendance now';
+            }
+        } else if (currentTime > canMarkEnd.getTime() && currentTime < new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0).getTime()) {
+            // Between 10:00 PM and 12:00 AM (before new day starts)
+            canMarkAttendance = false;
+            attendanceMessage = 'Attendance marking is closed for today. You are too late to mark attendance.';
+        } else if (currentTime >= new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0).getTime() && currentTime < canMarkStart.getTime()) {
+            // Between 12:00 AM and 5:00 AM (new day but before allowed time)
+            canMarkAttendance = false;
+            attendanceMessage = 'You can only mark attendance after 5:00 AM';
+        }
+        
+    } catch (error) {
+        console.error('Error checking today attendance:', error);
+        isTodayAttendance = false;
+        canMarkAttendance = false;
+        attendanceMessage = 'Error checking attendance status';
+    } 
+    
+    
+
+    const dashboardData = {      
       engineer: {
         _id: engineer._id,
         name: `${engineer.firstName} ${engineer.lastName}`,
@@ -1244,8 +1297,21 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
         // Detailed status breakdown for all statuses
         statusBreakdown: statusCounts
       },
+      isTodayAttendance: isTodayAttendance,
+      attendance: {
+        isTodayMarked: isTodayAttendance,
+        canMark: canMarkAttendance,
+        message: attendanceMessage,
+        timeRestrictions: {
+          startTime: '5:00 AM',
+          endTime: '10:00 PM',
+          note: 'Attendance can only be marked between 5:00 AM and 10:00 PM'
+        }
+      },
       recentComplaints: complaints.slice(0, 5) // Last 5 complaints
     };
+
+
 
     return sendSuccess(res, dashboardData, 'Engineer dashboard analytics retrieved successfully');
   } catch (error: any) {
