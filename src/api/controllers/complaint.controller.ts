@@ -1052,7 +1052,7 @@ const getComplaintStatusHistory = async (req: Request, res: Response): Promise<a
 const closeComplaint = async (req: Request, res: Response): Promise<any> => {
     try {
         const { id } = req.params;
-        const { notes }: CloseComplaintBody = req.body;
+        const { resolutionAttachments, notes }: CloseComplaintBody = req.body;
         const userId = (req as any).userId;
         const userRole = (req as any).role;
 
@@ -1060,13 +1060,10 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
         if (userRole !== Role.ENGINEER && ![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
             return sendError(res, "Access denied. Engineer access required", 403);
         }
-
-        // Get uploaded files from multer
-        const files = req.files as Express.Multer.File[];
         
         // Validate resolution attachments
-        if (!files || files.length < 2 || files.length > 4) {
-            return sendError(res, "Resolution attachments must be between 2 and 4 images", 400);
+        if (!resolutionAttachments || resolutionAttachments.length < 2 || resolutionAttachments.length > 4) {
+            return sendError(res, "Resolution attachments must be between 2 and 4 image URLs", 400);
         }
 
         const complaint = await ComplaintModel.findById(id);
@@ -1083,25 +1080,6 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
         if (complaint.status === ComplaintStatus.RESOLVED) {
             return sendError(res, "Complaint is already resolved", 400);
         }
-
-        // Generate file URLs for uploaded files using consistent pattern
-        const resolutionAttachments = files.map(file => {
-            // Extract file path from uploaded file
-            const absolutePath = file.path.replace(/\\/g, "/");
-            const viewIndex = absolutePath.lastIndexOf("/view/");
-            let fileUrl = absolutePath;
-            
-            if (viewIndex !== -1) {
-                fileUrl = absolutePath.substring(viewIndex);
-            }
-            
-            if (!fileUrl.startsWith("/view/")) {
-                fileUrl = `/view/${fileUrl.split("/view/")[1]}`;
-            }
-            
-            return fileUrl;
-        });
-
         // Close the complaint (this will generate OTP and update status)
         await complaint.closeComplaint("", resolutionAttachments, notes, userId);
 

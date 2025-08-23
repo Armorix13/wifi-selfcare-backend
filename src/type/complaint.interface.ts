@@ -57,5 +57,6 @@ export interface AssignEngineerBody {
 }
 
 export interface CloseComplaintBody {
+  resolutionAttachments: string[]; // Array of image URLs (2-4 images)
   notes?: string; // Optional resolution notes
 }
