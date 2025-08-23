@@ -22,6 +22,13 @@ userRouter.post("/logout", authenticate, userController.logout);
 userRouter.get("/dashboard", authenticate, userController.dashboard);
 userRouter.get("/engineers", authenticate, userController.getAllEngineer);
 
+// Admin management routes
+userRouter.get("/admin-dashboard", authenticate, userController.getAdminDashboardData);
+userRouter.delete("/admin/:adminId", authenticate, userController.deleteAdmin);
+
+// Company routes
+userRouter.post("/add-company", userController.addCompany);
+
 // Company profile routes
 userRouter.get("/company-profile", authenticate, userController.getCompanyProfile);
 userRouter.patch("/company-profile", authenticate, upload.single("companyLogo"), userController.updateCompanyProfile);

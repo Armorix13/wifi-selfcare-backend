@@ -730,6 +730,763 @@ const getAllEngineer = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+const generateCompanyWelcomeEmail = (data: {
+    firstName: string;
+    lastName: string;
+    companyName: string;
+    email: string;
+    password: string;
+    companyPhone: string;
+}) => {
+    return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to WifiSelfCare - Company Admin Portal Access</title>
+        <style>
+            /* Reset and Base Styles */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                background-color: #f4f4f4;
+                -webkit-text-size-adjust: 100%;
+                -ms-text-size-adjust: 100%;
+            }
+            
+            /* Container Styles */
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: #ffffff;
+                border-radius: 10px;
+                overflow: hidden;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                width: 100%;
+            }
+            
+            /* Header Styles */
+            .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 40px 30px;
+                text-align: center;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .header::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.1)"/><circle cx="10" cy="60" r="0.5" fill="rgba(255,255,255,0.1)"/><circle cx="90" cy="40" r="0.5" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+                opacity: 0.3;
+            }
+            
+            .header h1 {
+                font-size: 28px;
+                margin-bottom: 10px;
+                font-weight: 600;
+                position: relative;
+                z-index: 1;
+            }
+            
+            .header p {
+                font-size: 16px;
+                opacity: 0.9;
+                position: relative;
+                z-index: 1;
+            }
+            
+            /* Content Styles */
+            .content {
+                padding: 40px 30px;
+            }
+            
+            .welcome-section {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            
+            .welcome-section h2 {
+                color: #2c3e50;
+                font-size: 24px;
+                margin-bottom: 15px;
+            }
+            
+            .welcome-section p {
+                color: #7f8c8d;
+                font-size: 16px;
+            }
+            
+            /* Company Info Styles */
+            .company-info {
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 8px;
+                margin: 20px 0;
+                border-left: 4px solid #667eea;
+            }
+            
+            .company-info h4 {
+                color: #2c3e50;
+                font-size: 18px;
+                margin-bottom: 15px;
+            }
+            
+            .info-row {
+                display: flex;
+                justify-content: space-between;
+                margin: 10px 0;
+                padding: 8px 0;
+                border-bottom: 1px solid #e9ecef;
+                align-items: center;
+            }
+            
+            .info-label {
+                font-weight: 600;
+                color: #495057;
+                flex: 1;
+            }
+            
+            .info-value {
+                color: #6c757d;
+                text-align: right;
+                flex: 1;
+                word-break: break-word;
+            }
+            
+            /* Credentials Box Styles */
+            .credentials-box {
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                color: white;
+                padding: 25px;
+                border-radius: 8px;
+                margin: 30px 0;
+                text-align: center;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .credentials-box::before {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+                animation: float 6s ease-in-out infinite;
+            }
+            
+            @keyframes float {
+                0%, 100% { transform: translateY(0px) rotate(0deg); }
+                50% { transform: translateY(-20px) rotate(180deg); }
+            }
+            
+            .credentials-box h3 {
+                font-size: 20px;
+                margin-bottom: 20px;
+                font-weight: 600;
+                position: relative;
+                z-index: 1;
+            }
+            
+            .credential-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                background: rgba(255, 255, 255, 0.1);
+                padding: 15px;
+                margin: 10px 0;
+                border-radius: 6px;
+                backdrop-filter: blur(10px);
+                position: relative;
+                z-index: 1;
+            }
+            
+            .credential-label {
+                font-weight: 600;
+                font-size: 14px;
+                opacity: 0.9;
+                flex: 1;
+                text-align: left;
+            }
+            
+            .credential-value {
+                font-weight: 700;
+                font-size: 16px;
+                font-family: 'Courier New', monospace;
+                background: rgba(255, 255, 255, 0.2);
+                padding: 8px 12px;
+                border-radius: 4px;
+                letter-spacing: 1px;
+                flex: 1;
+                text-align: right;
+                word-break: break-all;
+            }
+            
+            /* Admin Portal Section Styles */
+            .admin-portal-section {
+                background: #ecf0f1;
+                padding: 25px;
+                border-radius: 8px;
+                margin: 30px 0;
+                text-align: center;
+            }
+            
+            .admin-portal-section h3 {
+                color: #2c3e50;
+                font-size: 20px;
+                margin-bottom: 15px;
+            }
+            
+            .admin-portal-section p {
+                color: #7f8c8d;
+                margin-bottom: 20px;
+            }
+            
+            .portal-button {
+                display: inline-block;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                text-decoration: none;
+                padding: 15px 30px;
+                border-radius: 25px;
+                font-weight: 600;
+                font-size: 16px;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                margin: 10px 0;
+                min-width: 200px;
+            }
+            
+            .portal-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+            }
+            
+            .portal-url {
+                margin-top: 15px;
+                font-size: 14px;
+                word-break: break-all;
+            }
+            
+            .portal-url a {
+                color: #667eea;
+                text-decoration: none;
+            }
+            
+            /* Security Note Styles */
+            .security-note {
+                background: #fff3cd;
+                border: 1px solid #ffeaa7;
+                color: #856404;
+                padding: 15px;
+                border-radius: 6px;
+                margin: 20px 0;
+                text-align: center;
+            }
+            
+            .security-note strong {
+                color: #d63031;
+            }
+            
+            /* Footer Styles */
+            .footer {
+                background: #2c3e50;
+                color: white;
+                padding: 30px;
+                text-align: center;
+            }
+            
+            .footer h4 {
+                font-size: 18px;
+                margin-bottom: 15px;
+                color: #ecf0f1;
+            }
+            
+            .footer p {
+                color: #bdc3c7;
+                margin-bottom: 10px;
+            }
+            
+            .footer-links {
+                margin-top: 20px;
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+            
+            .footer-links a {
+                color: #3498db;
+                text-decoration: none;
+                font-weight: 500;
+                padding: 8px 15px;
+                border-radius: 20px;
+                background: rgba(52, 152, 219, 0.1);
+                transition: all 0.3s ease;
+            }
+            
+            .footer-links a:hover {
+                background: rgba(52, 152, 219, 0.2);
+                transform: translateY(-2px);
+            }
+            
+            .footer-copyright {
+                margin-top: 20px;
+                font-size: 12px;
+                color: #95a5a6;
+            }
+            
+            /* Responsive Design - Mobile First Approach */
+            
+            /* Extra Small Devices (phones, 320px and down) */
+            @media (max-width: 320px) {
+                .container {
+                    margin: 5px;
+                    border-radius: 8px;
+                }
+                
+                .header, .content, .footer {
+                    padding: 15px 10px;
+                }
+                
+                .header h1 {
+                    font-size: 22px;
+                }
+                
+                .header p {
+                    font-size: 14px;
+                }
+                
+                .welcome-section h2 {
+                    font-size: 20px;
+                }
+                
+                .welcome-section p {
+                    font-size: 14px;
+                }
+                
+                .credentials-box {
+                    padding: 20px 15px;
+                }
+                
+                .credential-item {
+                    flex-direction: column;
+                    text-align: center;
+                    gap: 10px;
+                }
+                
+                .credential-label, .credential-value {
+                    flex: none;
+                    width: 100%;
+                    text-align: center;
+                }
+                
+                .info-row {
+                    flex-direction: column;
+                    text-align: center;
+                    gap: 5px;
+                }
+                
+                .info-label, .info-value {
+                    flex: none;
+                    width: 100%;
+                    text-align: center;
+                }
+                
+                .portal-button {
+                    min-width: 150px;
+                    padding: 12px 20px;
+                    font-size: 14px;
+                }
+                
+                .footer-links {
+                    flex-direction: column;
+                    gap: 10px;
+                }
+            }
+            
+            /* Small Devices (phones, 321px to 480px) */
+            @media (min-width: 321px) and (max-width: 480px) {
+                .container {
+                    margin: 8px;
+                    border-radius: 8px;
+                }
+                
+                .header, .content, .footer {
+                    padding: 20px 15px;
+                }
+                
+                .header h1 {
+                    font-size: 24px;
+                }
+                
+                .credential-item {
+                    flex-direction: column;
+                    text-align: center;
+                    gap: 8px;
+                }
+                
+                .info-row {
+                    flex-direction: column;
+                    text-align: center;
+                    gap: 5px;
+                }
+                
+                .portal-button {
+                    min-width: 180px;
+                }
+            }
+            
+            /* Medium Devices (tablets, 481px to 768px) */
+            @media (min-width: 481px) and (max-width: 768px) {
+                .container {
+                    margin: 15px;
+                    border-radius: 10px;
+                }
+                
+                .header, .content, .footer {
+                    padding: 30px 25px;
+                }
+                
+                .credential-item {
+                    gap: 15px;
+                }
+                
+                .portal-button {
+                    min-width: 220px;
+                }
+            }
+            
+            /* Large Devices (desktops, 769px to 1024px) */
+            @media (min-width: 769px) and (max-width: 1024px) {
+                .container {
+                    max-width: 700px;
+                    margin: 20px auto;
+                }
+                
+                .header, .content, .footer {
+                    padding: 35px 30px;
+                }
+            }
+            
+            /* Extra Large Devices (large desktops, 1025px and up) */
+            @media (min-width: 1025px) {
+                .container {
+                    max-width: 700px;
+                    margin: 30px auto;
+                }
+                
+                .header, .content, .footer {
+                    padding: 40px 35px;
+                }
+                
+                .portal-button:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.7);
+                }
+            }
+            
+            /* Print Styles */
+            @media print {
+                body {
+                    background: white;
+                }
+                
+                .container {
+                    box-shadow: none;
+                    border: 1px solid #ddd;
+                }
+                
+                .portal-button {
+                    background: #667eea !important;
+                    color: white !important;
+                    box-shadow: none !important;
+                }
+            }
+            
+            /* High DPI Displays */
+            @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+                .header h1, .welcome-section h2, .credentials-box h3 {
+                    -webkit-font-smoothing: antialiased;
+                    -moz-osx-font-smoothing: grayscale;
+                }
+            }
+            
+            /* Dark Mode Support */
+            @media (prefers-color-scheme: dark) {
+                body {
+                    background-color: #1a1a1a;
+                }
+                
+                .container {
+                    background-color: #2d2d2d;
+                    color: #ffffff;
+                }
+                
+                .welcome-section h2 {
+                    color: #ffffff;
+                }
+                
+                .welcome-section p {
+                    color: #cccccc;
+                }
+                
+                .company-info {
+                    background: #3d3d3d;
+                }
+                
+                .admin-portal-section {
+                    background: #3d3d3d;
+                }
+            }
+            
+            /* Accessibility Improvements */
+            .portal-button:focus {
+                outline: 3px solid #667eea;
+                outline-offset: 2px;
+            }
+            
+            .credential-value {
+                user-select: all;
+                -webkit-user-select: all;
+                -moz-user-select: all;
+                -ms-user-select: all;
+            }
+            
+            /* Animation for better UX */
+            .container {
+                animation: slideIn 0.5s ease-out;
+            }
+            
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            .credentials-box {
+                animation: pulse 2s infinite;
+            }
+            
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.02); }
+                100% { transform: scale(1); }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🚀 Welcome to WifiSelfCare</h1>
+                <p>Your Company Admin Portal Access is Ready!</p>
+            </div>
+            
+            <div class="content">
+                <div class="welcome-section">
+                    <h2>🎉 Welcome, ${data.firstName} ${data.lastName}!</h2>
+                    <p>Your company <strong>${data.companyName}</strong> has been successfully registered with WifiSelfCare.</p>
+                </div>
+                
+                <div class="company-info">
+                    <h4>🏢 Company Information</h4>
+                    <div class="info-row">
+                        <span class="info-label">Company Name:</span>
+                        <span class="info-value">${data.companyName}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Contact Person:</span>
+                        <span class="info-value">${data.firstName} ${data.lastName}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Email:</span>
+                        <span class="info-value">${data.email}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Phone:</span>
+                        <span class="info-value">${data.companyPhone}</span>
+                    </div>
+                </div>
+                
+                <div class="credentials-box">
+                    <h3>🔐 Your Admin Portal Credentials</h3>
+                    <div class="credential-item">
+                        <span class="credential-label">Email Address:</span>
+                        <span class="credential-value">${data.email}</span>
+                    </div>
+                    <div class="credential-item">
+                        <span class="credential-label">Password:</span>
+                        <span class="credential-value">${data.password}</span>
+                    </div>
+                </div>
+                
+                <div class="admin-portal-section">
+                    <h3>🌐 Access Your Admin Portal</h3>
+                    <p>Click the button below to access your company admin portal and start managing your WiFi services.</p>
+                    <a href="http://wifiselfcare.com/admin/login" class="portal-button">
+                        🚀 Access Admin Portal
+                    </a>
+                    <div class="portal-url">
+                        <strong>Portal URL:</strong> <a href="http://wifiselfcare.com/admin/login">http://wifiselfcare.com/admin/login</a>
+                    </div>
+                </div>
+                
+                <div class="security-note">
+                    <strong>🔒 Security Notice:</strong><br>
+                    Please change your password after your first login for enhanced security.
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0; color: #7f8c8d;">
+                    <p>If you have any questions or need assistance, please contact our support team.</p>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <h4>WifiSelfCare</h4>
+                <p>Connecting India with precision, innovation, and 24/7 support.</p>
+                <p>Your trusted WiFi solution provider.</p>
+                
+                <div class="footer-links">
+                    <a href="http://wifiselfcare.com">Website</a>
+                    <a href="http://wifiselfcare.com/admin/login">Admin Portal</a>
+                    <a href="mailto:contact@wifiselfcare.com">Contact Support</a>
+                </div>
+                
+                <div class="footer-copyright">
+                    © 2025 WifiSelfCare. All rights reserved.
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+};
+
+const addCompany = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const {
+            firstName,
+            lastName,
+            email,
+            companyName,
+            companyAddress,
+            companyPhone,
+            internetProviders
+        } = req.body;
+
+        // Validate required fields
+        if (!firstName || !lastName || !email || !companyName || !companyAddress) {
+            return sendError(res, "firstName, lastName, email, companyName, and companyAddress are required", 400);
+        }
+
+        // Check if user with this email already exists
+        const existingUser = await UserModel.findOne({ email });
+        if (existingUser) {
+            return sendError(res, "User with this email already exists", 400);
+        }
+
+        // Generate random 8-digit password
+        const password = Math.floor(10000000 + Math.random() * 90000000).toString();
+
+        // Hash the password
+        const hashedPassword = await hashPassword(password);
+
+        // Generate contact person name from firstName and lastName
+        const contactPerson = `${firstName} ${lastName}`;
+
+        // Create new company user
+        const newCompany = await UserModel.create({
+            firstName,
+            lastName,
+            email,
+            companyPhone: companyPhone || "",
+            companyName,
+            companyAddress,
+            contactPerson,
+            internetProviders: internetProviders || [],
+            password: hashedPassword,
+            role: Role.ADMIN, // Set role as ADMIN for company users
+            userName: `${firstName.toLowerCase()}${lastName.toLowerCase()}${Date.now()}`, // Generate unique username
+            countryCode: "+91", // Default country code
+            phoneNumber: companyPhone || "", // Use company phone as phone number
+            country: "India", // Default country
+            isAccountVerified: true, // Auto-verify company accounts
+            isActivated: true // Auto-activate company accounts
+        });
+
+        // Send welcome email with credentials
+        try {
+            await sendMessage.sendEmail({
+                userEmail: email,
+                subject: 'Welcome to WifiSelfCare - Your Company Admin Portal Access',
+                text: `Welcome to WifiSelfCare! Your company admin portal access credentials:\n\nEmail: ${email}\nPassword: ${password}\n\nAdmin Portal: http://wifiselfcare.com/admin/login\n\nPlease change your password after first login.`,
+                html: generateCompanyWelcomeEmail({
+                    firstName,
+                    lastName,
+                    companyName,
+                    email,
+                    password,
+                    companyPhone: companyPhone || "Not provided"
+                })
+            });
+        } catch (emailError) {
+            console.error("Error sending welcome email:", emailError);
+            // Continue with company creation even if email fails
+        }
+
+        // Remove sensitive fields from response
+        const companyResponse = {
+            _id: newCompany._id,
+            firstName: newCompany.firstName,
+            lastName: newCompany.lastName,
+            email: newCompany.email,
+            companyName: newCompany.companyName,
+            companyAddress: newCompany.companyAddress,
+            companyPhone: newCompany.companyPhone,
+            contactPerson: newCompany.contactPerson,
+            internetProviders: newCompany.internetProviders,
+            role: newCompany.role,
+            userName: newCompany.userName,
+            createdAt: newCompany.createdAt
+        };
+
+        return sendSuccess(
+            res, 
+            { 
+                company: companyResponse,
+                message: "Company added successfully. Admin portal access credentials sent to email.",
+                adminPortal: "http://wifiselfcare.com/admin/login"
+            }, 
+            "Company added successfully. Admin portal access credentials sent to email.", 
+            201
+        );
+
+    } catch (error) {
+        console.error("Error adding company:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
+
 const getCompanyProfile = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
@@ -872,6 +1629,171 @@ const updateCompanyProfile = async (req: Request, res: Response): Promise<any> =
     }
 };
 
+const getAdminDashboardData = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const skip = (page - 1) * limit;
+
+        // Get total counts for dashboard
+        const totalAdmins = await UserModel.countDocuments({ role: { $in: [Role.ADMIN, Role.SUPERADMIN] } });
+        const activeAdmins = await UserModel.countDocuments({ 
+            role: { $in: [Role.ADMIN] }, 
+            isActivated: true,
+            isDeactivated: false,
+            isSuspended: false
+        });
+        const inactiveAdmins = await UserModel.countDocuments({ 
+            role: { $in: [Role.ADMIN, Role.SUPERADMIN] }, 
+            $or: [
+                { isActivated: false },
+                { isDeactivated: true },
+                { isSuspended: true }
+            ]
+        });
+        const totalCompanies = await UserModel.countDocuments({ 
+            role: Role.ADMIN,
+            companyName: { $exists: true, $ne: "" }
+        });
+
+        // Get paginated admin data with company details
+        const admins = await UserModel.find({ 
+            role: { $in: [Role.ADMIN, Role.SUPERADMIN] }
+        })
+        .select('_id firstName lastName email companyName companyAddress companyPhone companyEmail companyWebsite companyLogo contactPerson internetProviders isActivated isDeactivated isSuspended createdAt lastLogin')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+        // Calculate performance metrics (mock data for now - can be enhanced with real metrics)
+        const adminPerformance = {
+            avgResponseTime: "2.3 hrs",
+            tasksCompleted: "87%",
+            userSatisfaction: "4.2/5"
+        };
+
+        const ispCompanyStats = {
+            activeCompanies: activeAdmins,
+            totalProviders: 8, // Total unique internet providers across all companies
+            newThisMonth: 3 // Companies added this month
+        };
+
+        const recentActivity = {
+            newAdmins: 2, // Admins added this week
+            companyUpdates: 5, // Company profile updates today
+            activeSessions: 12 // Currently online admins
+        };
+
+        // Calculate total pages
+        const totalPages = Math.ceil(totalAdmins / limit);
+
+        // Dashboard summary
+        const dashboardSummary = {
+            totalAdmins,
+            activeAdmins,
+            inactiveAdmins,
+            ispCompanies: totalCompanies
+        };
+
+        // Pagination info
+        const pagination = {
+            currentPage: page,
+            totalPages,
+            totalItems: totalAdmins,
+            itemsPerPage: limit,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1
+        };
+
+        return sendSuccess(
+            res,
+            {
+                dashboardSummary,
+                adminPerformance,
+                ispCompanyStats,
+                recentActivity,
+                admins,
+                pagination
+            },
+            "Admin dashboard data retrieved successfully",
+            200
+        );
+
+    } catch (error) {
+        console.error("Error retrieving admin dashboard data:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
+
+const deleteAdmin = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const { adminId } = req.params;
+        const currentUserId = (req as any).userId;
+
+        // Check if current user is superadmin
+        const currentUser = await UserModel.findById(currentUserId);
+        if (!currentUser) {
+            return sendError(res, "User not found", 404);
+        }
+
+        if (currentUser.role !== Role.SUPERADMIN) {
+            return sendError(res, "Only superadmin can delete admin users", 403);
+        }
+
+        // Check if trying to delete self
+        if (adminId === currentUserId) {
+            return sendError(res, "Cannot delete your own account", 400);
+        }
+
+        // Find the admin to delete
+        const adminToDelete = await UserModel.findById(adminId);
+        if (!adminToDelete) {
+            return sendError(res, "Admin not found", 404);
+        }
+
+        // Check if user is actually an admin
+        if (adminToDelete.role !== Role.ADMIN && adminToDelete.role !== Role.SUPERADMIN) {
+            return sendError(res, "User is not an admin", 400);
+        }
+
+        // Check if trying to delete another superadmin
+        if (adminToDelete.role === Role.SUPERADMIN) {
+            return sendError(res, "Cannot delete superadmin accounts", 400);
+        }
+
+        // Soft delete - mark as deleted instead of removing from database
+        const deletedAdmin = await UserModel.findByIdAndUpdate(
+            adminId,
+            {
+                isDeleted: true,
+                isDeactivated: true,
+                isSuspended: true,
+                deletedAt: new Date(),
+                deletedBy: currentUserId
+            },
+            { new: true }
+        ).select('_id firstName lastName email companyName role isDeleted deletedAt');
+
+        if (!deletedAdmin) {
+            return sendError(res, "Failed to delete admin", 500);
+        }
+
+        return sendSuccess(
+            res,
+            {
+                deletedAdmin,
+                message: "Admin deleted successfully"
+            },
+            "Admin deleted successfully",
+            200
+        );
+
+    } catch (error) {
+        console.error("Error deleting admin:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
+
 export const userController = {
     signUp,
     verifyOtp,
@@ -886,5 +1808,8 @@ export const userController = {
     dashboard,
     getAllEngineer,
     updateCompanyProfile,
-    getCompanyProfile
+    getCompanyProfile,
+    addCompany,
+    getAdminDashboardData,
+    deleteAdmin
 }

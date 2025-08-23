@@ -108,6 +108,9 @@ export interface IUser extends Document {
   companyCity?: string;
   companyState?: string;
   companyCountry?: string;
+  
+  // Internet providers array
+  internetProviders?: string[];
 }
 
 const GeoPointSchema = new Schema<IGeoPoint>({
@@ -182,6 +185,9 @@ const UserSchema = new Schema<IUser>({
   companyCity: { type: String },
   companyState: { type: String },
   companyCountry: { type: String },
+  
+  // Internet providers array
+  internetProviders: [{ type: String }],
 
   
   // New fields from Excel sheet
