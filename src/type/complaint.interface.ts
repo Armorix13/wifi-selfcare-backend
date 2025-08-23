@@ -55,3 +55,7 @@ export interface AssignEngineerBody {
   engineerId: string;
   priority?: Priority; // Admin can set priority when assigning
 }
+
+export interface CloseComplaintBody {
+  notes?: string; // Optional resolution notes
+}

@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 import { ComplaintModel, ComplaintStatus, Priority } from "../models/complaint.model";
 import { UserModel, Role } from "../models/user.model";
 import { sendSuccess, sendError } from "../../utils/helper";
-import { AssignEngineerBody, CreateComplaintBody, UpdateStatusBody } from "../../type/complaint.interface";
+import { AssignEngineerBody, CreateComplaintBody, UpdateStatusBody, CloseComplaintBody } from "../../type/complaint.interface";
+import { EmailService } from "../../utils/emailService";
 
 
 
@@ -1047,6 +1048,163 @@ const getComplaintStatusHistory = async (req: Request, res: Response): Promise<a
     }
 };
 
+// Close complaint with OTP and resolution attachments
+const closeComplaint = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const { id } = req.params;
+        const { notes }: CloseComplaintBody = req.body;
+        const userId = (req as any).userId;
+        const userRole = (req as any).role;
+
+        // Check if user is engineer or admin
+        if (userRole !== Role.ENGINEER && ![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
+            return sendError(res, "Access denied. Engineer access required", 403);
+        }
+
+        // Get uploaded files from multer
+        const files = req.files as Express.Multer.File[];
+        
+        // Validate resolution attachments
+        if (!files || files.length < 2 || files.length > 4) {
+            return sendError(res, "Resolution attachments must be between 2 and 4 images", 400);
+        }
+
+        const complaint = await ComplaintModel.findById(id);
+        if (!complaint) {
+            return sendError(res, "Complaint not found", 404);
+        }
+
+        // Check if engineer is assigned to this complaint (unless admin)
+        if (userRole === Role.ENGINEER && complaint.engineer?.toString() !== userId) {
+            return sendError(res, "You can only close complaints assigned to you", 403);
+        }
+
+        // Check if complaint is already resolved
+        if (complaint.status === ComplaintStatus.RESOLVED) {
+            return sendError(res, "Complaint is already resolved", 400);
+        }
+
+        // Generate file URLs for uploaded files using consistent pattern
+        const resolutionAttachments = files.map(file => {
+            // Extract file path from uploaded file
+            const absolutePath = file.path.replace(/\\/g, "/");
+            const viewIndex = absolutePath.lastIndexOf("/view/");
+            let fileUrl = absolutePath;
+            
+            if (viewIndex !== -1) {
+                fileUrl = absolutePath.substring(viewIndex);
+            }
+            
+            if (!fileUrl.startsWith("/view/")) {
+                fileUrl = `/view/${fileUrl.split("/view/")[1]}`;
+            }
+            
+            return fileUrl;
+        });
+
+        // Close the complaint (this will generate OTP and update status)
+        await complaint.closeComplaint("", resolutionAttachments, notes, userId);
+
+        // Get updated complaint with populated fields
+        const updatedComplaint = await ComplaintModel.findById(id)
+            .populate("user", "firstName lastName email phoneNumber")
+            .populate("engineer", "firstName lastName email phoneNumber")
+            .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email");
+
+        if (!updatedComplaint) {
+            return sendError(res, "Failed to retrieve updated complaint", 500);
+        }
+
+        // Send OTP email to customer
+        try {
+            const emailService = new EmailService();
+            const userEmail = (updatedComplaint.user as any).email;
+            const otp = updatedComplaint.otp;
+            const complaintId = updatedComplaint.id;
+            
+            if (userEmail && otp && complaintId) {
+                const emailSent = await emailService.sendOTP(userEmail, otp, complaintId);
+                
+                if (!emailSent) {
+                    console.warn(`Failed to send OTP email for complaint ${id}`);
+                }
+            } else {
+                console.warn(`Missing required data for email: email=${userEmail}, otp=${otp}, id=${complaintId}`);
+            }
+        } catch (emailError) {
+            console.error('Email service error:', emailError);
+            // Don't fail the request if email fails
+        }
+
+        return sendSuccess(res, { 
+            complaint: updatedComplaint,
+            message: `Complaint closed successfully. OTP ${updatedComplaint.otp} has been sent to customer's email.`
+        }, "Complaint closed successfully");
+    } catch (error) {
+        console.error("Close complaint error:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
+
+// Verify OTP to complete complaint closure
+const verifyOTP = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const { id } = req.params;
+        const { otp } = req.body;
+        const userId = (req as any).userId;
+
+        if (!otp) {
+            return sendError(res, "OTP is required", 400);
+        }
+
+        const complaint = await ComplaintModel.findById(id);
+        if (!complaint) {
+            return sendError(res, "Complaint not found", 404);
+        }
+
+        // Check if user is the complaint owner
+        if (complaint.user.toString() !== userId) {
+            return sendError(res, "Access denied. You can only verify OTP for your own complaints", 403);
+        }
+
+        // Check if complaint is already resolved
+        if (complaint.status !== ComplaintStatus.RESOLVED) {
+            return sendError(res, "Complaint is not resolved yet", 400);
+        }
+
+        // Check if OTP is already verified
+        if (complaint.otpVerified) {
+            return sendError(res, "OTP is already verified", 400);
+        }
+
+        // Verify OTP
+        await complaint.verifyOTP(otp);
+
+        // Get updated complaint
+        const updatedComplaint = await ComplaintModel.findById(id)
+            .populate("user", "firstName lastName email phoneNumber")
+            .populate("engineer", "firstName lastName email phoneNumber")
+            .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email");
+
+        if (!updatedComplaint) {
+            return sendError(res, "Failed to retrieve updated complaint", 500);
+        }
+
+        return sendSuccess(res, { 
+            complaint: updatedComplaint,
+            message: "OTP verified successfully. Complaint is now fully closed."
+        }, "OTP verified successfully");
+    } catch (error: any) {
+        console.error("Verify OTP error:", error);
+        if (error.message === 'Invalid OTP') {
+            return sendError(res, "Invalid OTP", 400);
+        }
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
+
 export {
     createComplaint,
     getAllComplaints,
@@ -1058,5 +1216,7 @@ export {
     getAssignedComplaints,
     getComplaintStats,
     getDashboardData,
-    getComplaintStatusHistory
+    getComplaintStatusHistory,
+    closeComplaint,
+    verifyOTP
 };

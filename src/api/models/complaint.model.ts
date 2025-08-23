@@ -50,6 +50,9 @@ export interface IComplaint extends Document {
     remark?: string;
     attachments?: string[]; // URLs to uploaded files/images - can contain multiple images
 
+    // Resolution attachments (2-4 images) uploaded by engineer when closing complaint
+    resolutionAttachments?: string[];
+
     estimatedResolutionTime?: Date;
     actualResolutionTime?: Date;
 
@@ -87,6 +90,8 @@ export interface IComplaint extends Document {
 
     // OTP for complaint resolution
     otp?: string;
+    otpVerified?: boolean;
+    otpVerifiedAt?: Date;
 
     // Re-complaint fields
     isReComplaint?: boolean;
@@ -104,6 +109,8 @@ export interface IComplaint extends Document {
     getFormattedStatusHistory(): any[];
     hasEngineerAssigned(): boolean;
     getEngineerAssignmentHistory(): any[];
+    closeComplaint(otp: string, resolutionAttachments: string[], notes?: string, updatedBy?: mongoose.Types.ObjectId): Promise<IComplaint>;
+    verifyOTP(otp: string): Promise<IComplaint>;
 }
 
 // Color mapping for each ComplaintStatus
@@ -231,10 +238,17 @@ const ComplaintSchema = new Schema<IComplaint>({
     ontRxPower: { type: String, trim: true },
     // OTP
     otp: { type: String, trim: true },
+    otpVerified: { type: Boolean, default: false },
+    otpVerifiedAt: { type: Date },
     // Re-complaint
     isReComplaint: { type: Boolean, default: false },
     parentComplaintId: { type: Schema.Types.ObjectId, ref: "Complaint" },
     attachments: [{
+        type: String
+    }],
+
+    // Resolution attachments (2-4 images) uploaded by engineer when closing complaint
+    resolutionAttachments: [{
         type: String
     }],
 
@@ -512,6 +526,11 @@ ComplaintSchema.virtual('statusHistoryCount').get(function () {
     return this.statusHistory ? this.statusHistory.length : 0;
 });
 
+// Virtual for resolution attachment count
+ComplaintSchema.virtual('resolutionAttachmentCount').get(function () {
+    return this.resolutionAttachments ? this.resolutionAttachments.length : 0;
+});
+
 // Virtual for latest status change
 ComplaintSchema.virtual('latestStatusChange').get(function () {
     if (!this.statusHistory || this.statusHistory.length === 0) {
@@ -546,6 +565,92 @@ ComplaintSchema.methods.getEngineerAssignmentHistory = function () {
             status: entry.status,
             remarks: entry.remarks
         }));
+};
+
+// Method to close complaint with OTP and resolution attachments
+ComplaintSchema.methods.closeComplaint = function (otp: string, resolutionAttachments: string[], notes?: string, updatedBy?: mongoose.Types.ObjectId) {
+    // Generate 4-digit OTP
+    const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    // Set OTP
+    this.otp = generatedOTP;
+    
+    // Add resolution attachments
+    if (resolutionAttachments && resolutionAttachments.length > 0) {
+        if (resolutionAttachments.length < 2 || resolutionAttachments.length > 4) {
+            throw new Error('Resolution attachments must be between 2 and 4 images');
+        }
+        this.resolutionAttachments = resolutionAttachments;
+    }
+    
+    // Update status to resolved
+    this.status = ComplaintStatus.RESOLVED;
+    this.resolved = true;
+    this.resolutionDate = new Date();
+    
+    // Add to status history
+    if (!this.statusHistory) {
+        this.statusHistory = [];
+    }
+    
+    this.statusHistory.push({
+        status: ComplaintStatus.RESOLVED,
+        remarks: notes || 'Complaint closed with OTP verification',
+        updatedBy: updatedBy || this.engineer || this.assignedBy,
+        updatedAt: new Date(),
+        previousStatus: this.status,
+        metadata: {
+            action: "complaint_closed",
+            otp: generatedOTP,
+            resolutionAttachments: resolutionAttachments,
+            resolutionNotes: notes
+        },
+        additionalInfo: {
+            oldStatus: this.status,
+            newStatus: ComplaintStatus.RESOLVED,
+            timestamp: new Date(),
+            closureMethod: "otp_verification"
+        }
+    });
+    
+    return this.save();
+};
+
+// Method to verify OTP and mark complaint as fully closed
+ComplaintSchema.methods.verifyOTP = function (otp: string) {
+    if (this.otp !== otp) {
+        throw new Error('Invalid OTP');
+    }
+    
+    // OTP is correct, mark as verified
+    this.otpVerified = true;
+    this.otpVerifiedAt = new Date();
+    
+    // Add to status history
+    if (!this.statusHistory) {
+        this.statusHistory = [];
+    }
+    
+    this.statusHistory.push({
+        status: ComplaintStatus.RESOLVED,
+        remarks: 'OTP verified by customer - complaint fully closed',
+        updatedBy: this.user, // Customer verified
+        updatedAt: new Date(),
+        previousStatus: ComplaintStatus.RESOLVED,
+        metadata: {
+            action: "otp_verified",
+            otp: otp,
+            verificationMethod: "customer_verification"
+        },
+        additionalInfo: {
+            oldStatus: ComplaintStatus.RESOLVED,
+            newStatus: ComplaintStatus.RESOLVED,
+            timestamp: new Date(),
+            verificationStatus: "verified"
+        }
+    });
+    
+    return this.save();
 };
 
 const ComplaintModel: Model<IComplaint> = mongoose.model<IComplaint>("Complaint", ComplaintSchema);

@@ -247,8 +247,31 @@ const excelUpload = multer({
   }
 });
 
+// Resolution attachment upload configuration for complaints
+const resolutionAttachmentUpload = multer({
+  storage: storage, // Use the same storage as existing upload
+  fileFilter: (req, file, cb: FileFilterCallback) => {
+    const mimeType = file.mimetype;
+    const originalName = file.originalname.toLowerCase();
+    
+    // Allow only images for resolution attachments
+    if (mimeType.startsWith("image/")) {
+      cb(null, true);
+    } else if (mimeType === "application/octet-stream" && 
+               allowedImageExtensions.some(ext => originalName.endsWith(ext))) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type for resolution attachment. Only images are allowed."));
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit per file
+    files: 4 // Maximum 4 files
+  }
+});
+
 // Export new upload instances alongside existing ones
-export { billUpload, paymentProofUpload, excelUpload };
+export { billUpload, paymentProofUpload, excelUpload, resolutionAttachmentUpload };
 
 // Bill upload handler
 export const handleBillUpload = (

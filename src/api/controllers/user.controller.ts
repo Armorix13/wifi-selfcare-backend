@@ -709,13 +709,32 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
 
 const getAllEngineer = async (req: Request, res: Response): Promise<any> => {
     try {
-        // Get all engineers with specified filters
-        const engineers = await UserModel.find({
+        const userId = (req as any).userId; // Logged in user ID
+        const role = (req as any).role;
+
+        // Build filter conditions based on user role
+        const filterConditions: any = {
             role: 'engineer',
             isDeactivated: false,
             isSuspended: false,
             isAccountVerified: true
-        }).select('_id firstName lastName email phoneNumber countryCode profileImage role createdAt')
+        };
+
+        // Role-based filtering
+        if (role === 'superadmin') {
+            // Superadmin gets all engineers - no additional filters needed
+        } else if (role === 'admin') {
+            // Admin gets only engineers where parentCompany equals their userId
+            filterConditions.parentCompany = userId;
+        } else {
+            // Other roles don't have access to this endpoint
+            return sendError(res, 'Access denied. Admin or Superadmin access required', 403);
+        }
+
+        // Get engineers with specified filters
+        const engineers = await UserModel.find(filterConditions)
+            .select('_id firstName lastName email phoneNumber countryCode profileImage role createdAt parentCompany')
+            .populate('parentCompany', 'firstName lastName email companyName')
             .sort({ createdAt: -1 });
 
         const total = engineers.length;
@@ -723,9 +742,10 @@ const getAllEngineer = async (req: Request, res: Response): Promise<any> => {
         return sendSuccess(res, {
             engineers,
             total,
-            message: 'All active engineers fetched successfully'
+            message: 'Engineers fetched successfully'
         }, 'Engineers fetched successfully');
     } catch (error: any) {
+        console.error('Get all engineers error:', error);
         return sendError(res, 'Failed to fetch engineers', 500, error.message || error);
     }
 };
@@ -1639,7 +1659,6 @@ const getAdminDashboardData = async (req: Request, res: Response): Promise<any> 
         const totalAdmins = await UserModel.countDocuments({ role: { $in: [Role.ADMIN] } });
         const activeAdmins = await UserModel.countDocuments({ 
             role: { $in: [Role.ADMIN] }, 
-            isActivated: true,
             isDeactivated: false,
             isSuspended: false
         });
