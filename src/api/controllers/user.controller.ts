@@ -1636,7 +1636,7 @@ const getAdminDashboardData = async (req: Request, res: Response): Promise<any> 
         const skip = (page - 1) * limit;
 
         // Get total counts for dashboard
-        const totalAdmins = await UserModel.countDocuments({ role: { $in: [Role.ADMIN, Role.SUPERADMIN] } });
+        const totalAdmins = await UserModel.countDocuments({ role: { $in: [Role.ADMIN] } });
         const activeAdmins = await UserModel.countDocuments({ 
             role: { $in: [Role.ADMIN] }, 
             isActivated: true,
