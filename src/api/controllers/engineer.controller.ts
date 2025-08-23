@@ -625,12 +625,17 @@ const applyLeave = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "You already have a leave request for these dates", 400);
         }
 
+        // Calculate total days (including the start date)
+        const timeDiff = toDateObj.getTime() - fromDateObj.getTime();
+        const totalDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+
         // Create leave request
         const leaveRequestData: any = {
             engineer: userId,
             leaveType,
             fromDate: fromDateObj,
             toDate: toDateObj,
+            totalDays, // Add calculated totalDays
             reason,
             description,
             documents: documents || []
