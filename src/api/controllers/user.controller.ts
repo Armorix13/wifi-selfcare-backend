@@ -730,6 +730,147 @@ const getAllEngineer = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+const getCompanyProfile = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId;
+
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            return sendError(res, "User not found", 404);
+        }
+
+        // Check if user is admin or has company role
+        if (user.role !== Role.ADMIN && user.role !== Role.SUPERADMIN) {
+            return sendError(res, "Only admin users can access company profile", 403);
+        }
+
+        // Extract company profile data
+        const companyProfile = {
+            companyName: user.companyName,
+            contactPerson: user.contactPerson,
+            companyEmail: user.companyEmail,
+            companyPhone: user.companyPhone,
+            industry: user.industry,
+            companySize: user.companySize,
+            companyWebsite: user.companyWebsite,
+            companyAddress: user.companyAddress,
+            companyCity: user.companyCity,
+            companyState: user.companyState,
+            companyCountry: user.companyCountry,
+            companyDescription: user.companyDescription,
+            companyLogo: user.companyLogo
+        };
+
+        return sendSuccess(
+            res, 
+            { 
+                companyProfile,
+                message: "Company profile retrieved successfully"
+            }, 
+            "Company profile retrieved successfully", 
+            200
+        );
+
+    } catch (error) {
+        console.error("Error retrieving company profile:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
+
+const updateCompanyProfile = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId;
+
+       
+
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            return sendError(res, "User not found", 404);
+        }
+
+        // Check if user is admin or has company role
+        if (user.role !== Role.ADMIN && user.role !== Role.SUPERADMIN) {
+            return sendError(res, "Only admin users can update company profile", 403);
+        }
+
+        // Extract company data from request body
+        const {
+            companyName,
+            contactPerson,
+            companyEmail,
+            companyPhone,
+            industry,
+            companySize,
+            companyWebsite,
+            companyAddress,
+            companyCity,
+            companyState,
+            companyCountry,
+            companyDescription
+        } = req.body;
+
+        // Handle logo upload if present
+        let companyLogo = user.companyLogo; // Keep existing logo if no new one
+        if (req.file) {
+            // Extract file path from uploaded file
+            const absolutePath = req.file.path.replace(/\\/g, "/");
+            const viewIndex = absolutePath.lastIndexOf("/view/");
+            let fileUrl = absolutePath;
+            
+            if (viewIndex !== -1) {
+                fileUrl = absolutePath.substring(viewIndex);
+            }
+            
+            if (!fileUrl.startsWith("/view/")) {
+                fileUrl = `/view/${fileUrl.split("/view/")[1]}`;
+            }
+            
+            companyLogo = fileUrl;
+        }
+
+        // Update company fields
+        const updateData: any = {};
+        
+        if (companyName !== undefined) updateData.companyName = companyName;
+        if (contactPerson !== undefined) updateData.contactPerson = contactPerson;
+        if (companyEmail !== undefined) updateData.companyEmail = companyEmail;
+        if (companyPhone !== undefined) updateData.companyPhone = companyPhone;
+        if (industry !== undefined) updateData.industry = industry;
+        if (companySize !== undefined) updateData.companySize = companySize;
+        if (companyWebsite !== undefined) updateData.companyWebsite = companyWebsite;
+        if (companyAddress !== undefined) updateData.companyAddress = companyAddress;
+        if (companyCity !== undefined) updateData.companyCity = companyCity;
+        if (companyState !== undefined) updateData.companyState = companyState;
+        if (companyCountry !== undefined) updateData.companyCountry = companyCountry;
+        if (companyDescription !== undefined) updateData.companyDescription = companyDescription;
+        if (companyLogo !== user.companyLogo) updateData.companyLogo = companyLogo;
+
+        // Update user with company data
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            userId,
+            updateData,
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedUser) {
+            return sendError(res, "Failed to update company profile", 500);
+        }
+
+        return sendSuccess(
+            res, 
+            { 
+                user: updatedUser,
+                message: "Company profile updated successfully"
+            }, 
+            "Company profile updated successfully", 
+            200
+        );
+
+    } catch (error) {
+        console.error("Error updating company profile:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
 
 export const userController = {
     signUp,
@@ -743,5 +884,7 @@ export const userController = {
     getUserDetails,
     updateUser,
     dashboard,
-    getAllEngineer
+    getAllEngineer,
+    updateCompanyProfile,
+    getCompanyProfile
 }

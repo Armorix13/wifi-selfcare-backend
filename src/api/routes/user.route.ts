@@ -1,6 +1,7 @@
 import { Router } from "express";
 import authenticate from "../../middleware/auth.middleware";
 import { userController } from "../controllers/user.controller";
+import { upload } from "../services/upload.service";
 
 
 const userRouter = Router();
@@ -20,5 +21,9 @@ userRouter.patch("/me", authenticate, userController.updateUser);
 userRouter.post("/logout", authenticate, userController.logout);
 userRouter.get("/dashboard", authenticate, userController.dashboard);
 userRouter.get("/engineers", authenticate, userController.getAllEngineer);
+
+// Company profile routes
+userRouter.get("/company-profile", authenticate, userController.getCompanyProfile);
+userRouter.patch("/company-profile", authenticate, upload.single("companyLogo"), userController.updateCompanyProfile);
 
 export default userRouter;

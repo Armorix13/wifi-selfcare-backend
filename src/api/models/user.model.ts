@@ -91,6 +91,23 @@ export interface IUser extends Document {
   addedBy?:  mongoose.Types.ObjectId; // ADDED_BY
   parentCompany?:  mongoose.Types.ObjectId; // ADDED_BY
   isActivated?: boolean; // IS_ACTIVATED
+
+  //for admin(company) details
+  companyName?: string;
+  companyAddress?: string;
+  companyPhone?: string;
+  companyEmail?: string;
+  companyWebsite?: string;
+  companyLogo?: string;
+  companyDescription?: string;
+  
+  // Enhanced company details
+  contactPerson?: string;
+  industry?: string;
+  companySize?: string;
+  companyCity?: string;
+  companyState?: string;
+  companyCountry?: string;
 }
 
 const GeoPointSchema = new Schema<IGeoPoint>({
@@ -148,6 +165,24 @@ const UserSchema = new Schema<IUser>({
   deviceType: { type: String },
   deviceToken: { type: String },
   password: { type: String },
+
+  //for admin(company) details
+  companyName: { type: String },
+  companyAddress: { type: String },
+  companyPhone: { type: String },
+  companyEmail: { type: String },
+  companyWebsite: { type: String },
+  companyLogo: { type: String },
+  companyDescription: { type: String },
+  
+  // Enhanced company details
+  contactPerson: { type: String },
+  industry: { type: String },
+  companySize: { type: String },
+  companyCity: { type: String },
+  companyState: { type: String },
+  companyCountry: { type: String },
+
   
   // New fields from Excel sheet
   oltIp: { type: String }, // OLT_IP - Optical Line Terminal IP address
