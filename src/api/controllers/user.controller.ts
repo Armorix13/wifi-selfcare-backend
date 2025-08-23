@@ -1644,7 +1644,7 @@ const getAdminDashboardData = async (req: Request, res: Response): Promise<any> 
             isSuspended: false
         });
         const inactiveAdmins = await UserModel.countDocuments({ 
-            role: { $in: [Role.ADMIN, Role.SUPERADMIN] }, 
+            role: { $in: [Role.ADMIN] }, 
             $or: [
                 { isActivated: false },
                 { isDeactivated: true },
@@ -1658,7 +1658,7 @@ const getAdminDashboardData = async (req: Request, res: Response): Promise<any> 
 
         // Get paginated admin data with company details
         const admins = await UserModel.find({ 
-            role: { $in: [Role.ADMIN, Role.SUPERADMIN] }
+            role: { $in: [Role.ADMIN] }
         })
         .select('_id firstName lastName email companyName companyAddress companyPhone companyEmail companyWebsite companyLogo contactPerson internetProviders isActivated isDeactivated isSuspended createdAt lastLogin')
         .sort({ createdAt: -1 })
