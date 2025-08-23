@@ -593,19 +593,31 @@ const applyLeave = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "Cannot apply leave for past dates", 400);
         }
 
-        // Check if to date is after from date
+        // Check if to date is not before from date (allows same date for one day leave)
         if (toDateObj < fromDateObj) {
-            return sendError(res, "To date must be after from date", 400);
+            return sendError(res, "To date cannot be before from date", 400);
         }
 
-        // Check for overlapping leave requests
+        // Check for overlapping leave requests - FIXED LOGIC
         const overlappingLeaves = await LeaveRequestModel.find({
             engineer: userId,
             status: { $in: [LeaveStatus.PENDING, LeaveStatus.APPROVED] },
             $or: [
-                { fromDate: { $gte: fromDateObj, $lte: toDateObj } },
-                { toDate: { $gte: fromDateObj, $lte: toDateObj } },
-                { $and: [{ fromDate: { $lte: fromDateObj } }, { toDate: { $gte: toDateObj } }] }
+                // Case 1: New leave starts during existing leave
+                { 
+                    fromDate: { $lte: fromDateObj }, 
+                    toDate: { $gte: fromDateObj } 
+                },
+                // Case 2: New leave ends during existing leave
+                { 
+                    fromDate: { $lte: toDateObj }, 
+                    toDate: { $gte: toDateObj } 
+                },
+                // Case 3: New leave completely encompasses existing leave
+                { 
+                    fromDate: { $gte: fromDateObj }, 
+                    toDate: { $lte: toDateObj } 
+                }
             ]
         });
 
