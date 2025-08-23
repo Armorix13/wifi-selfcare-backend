@@ -3,10 +3,10 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 enum Role {
   USER = "user",
-  ENGINEER = "engineer",
+  ENGINEER = "engineer",//UNIQUE CODE
   SUPERADMIN = "superadmin",
-  ADMIN = "admin",
-  MANAGER = "manager",
+  ADMIN = "admin",//UNIQUE CODE
+  MANAGER = "manager",//
   AGENT = "agent"
 }
 
@@ -88,7 +88,8 @@ export interface IUser extends Document {
   assigned?: string; // ASSIGNED
   ruralUrban?: string; // RURAL_UR - Rural/Urban
   acquisitionType?: string; // ACQUISITION_TYPE
-  addedBy?: string; // ADDED_BY
+  addedBy?:  mongoose.Types.ObjectId; // ADDED_BY
+  parentCompany?:  mongoose.Types.ObjectId; // ADDED_BY
   isActivated?: boolean; // IS_ACTIVATED
 }
 
@@ -165,6 +166,11 @@ const UserSchema = new Schema<IUser>({
     type: Schema.Types.ObjectId,
     ref: "User"
   },
+  //for engineer under which admin
+  parentCompany :{
+    type: Schema.Types.ObjectId,
+    ref: "User" 
+  },
   isActivated:{
     type: Boolean,
     default: false
@@ -172,6 +178,8 @@ const UserSchema = new Schema<IUser>({
 }, {
   timestamps: true
 });
+
+//UNIQUE ID FOR ENGINEER,ADMIN,
 
 const UserModel: Model<IUser> = mongoose.model<IUser>("User", UserSchema);
 

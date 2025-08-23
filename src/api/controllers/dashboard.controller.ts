@@ -514,6 +514,9 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
 
 // Get comprehensive engineer analytics with filtering and pagination
 export const getEngineerAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  const userId = (req as any).userId; // Logged in user ID
+  const role = (req as any).role;
+
   try {
     const { 
       page = 1, 
@@ -528,11 +531,19 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
       sortOrder = 'desc'
     } = req.query;
 
-    // Build filter conditions
+    // Build filter conditions based on role
     const filterConditions: any = {
       role: 'engineer',
       isDeleted: false
     };
+
+    // Role-based filtering
+    if (role === 'superadmin') {
+      // Superadmin gets all data - no additional filters needed
+    } else if (role === 'admin') {
+      // Admin gets only engineers where parentCompany equals their userId
+      filterConditions.parentCompany = userId;
+    }
 
     // Status filter (active/inactive)
     if (status === 'active') {
@@ -582,11 +593,10 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
       .skip(skip)
       .limit(Number(limit));
 
-    // Calculate analytics
-    const totalEngineersCount = await UserModel.countDocuments({ role: 'engineer', isDeleted: false });
+    // Calculate analytics with role-based filtering
+    const totalEngineersCount = await UserModel.countDocuments(filterConditions);
     const activeEngineersCount = await UserModel.countDocuments({ 
-      role: 'engineer', 
-      isDeleted: false, 
+      ...filterConditions,
       isDeactivated: false, 
       isSuspended: false, 
       isAccountVerified: true 
@@ -597,9 +607,9 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
     // For now, we'll use a placeholder - you can implement actual rating logic
     const avgRating = 89.4; // This should come from your rating system
 
-    // Get status distribution
+    // Get status distribution with role-based filtering
     const statusDistribution = await UserModel.aggregate([
-      { $match: { role: 'engineer', isDeleted: false } },
+      { $match: filterConditions },
       {
         $group: {
           _id: {
@@ -612,9 +622,9 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
       }
     ]);
 
-    // Get group distribution
+    // Get group distribution with role-based filtering
     const groupDistribution = await UserModel.aggregate([
-      { $match: { role: 'engineer', isDeleted: false, group: { $exists: true, $ne: null } } },
+      { $match: { ...filterConditions, group: { $exists: true, $ne: null } } },
       {
         $group: {
           _id: '$group',
@@ -624,9 +634,9 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
       { $sort: { count: -1 } }
     ]);
 
-    // Get zone distribution
+    // Get zone distribution with role-based filtering
     const zoneDistribution = await UserModel.aggregate([
-      { $match: { role: 'engineer', isDeleted: false, zone: { $exists: true, $ne: null } } },
+      { $match: { ...filterConditions, zone: { $exists: true, $ne: null } } },
       {
         $group: {
           _id: '$zone',
@@ -636,9 +646,9 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
       { $sort: { count: -1 } }
     ]);
 
-    // Get area distribution
+    // Get area distribution with role-based filtering
     const areaDistribution = await UserModel.aggregate([
-      { $match: { role: 'engineer', isDeleted: false, area: { $exists: true, $ne: null } } },
+      { $match: { ...filterConditions, area: { $exists: true, $ne: null } } },
       {
         $group: {
           _id: '$area',
@@ -647,9 +657,9 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
       }
     ]);
 
-    // Get mode distribution
+    // Get mode distribution with role-based filtering
     const modeDistribution = await UserModel.aggregate([
-      { $match: { role: 'engineer', isDeleted: false, mode: { $exists: true, $ne: null } } },
+      { $match: { ...filterConditions, mode: { $exists: true, $ne: null } } },
       {
         $group: {
           _id: '$mode',
@@ -658,13 +668,12 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
       }
     ]);
 
-    // Get recent activity (last 7 days)
+    // Get recent activity (last 7 days) with role-based filtering
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
     const recentActivity = await UserModel.countDocuments({
-      role: 'engineer',
-      isDeleted: false,
+      ...filterConditions,
       lastLogin: { $gte: sevenDaysAgo }
     });
 
@@ -757,14 +766,27 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
 export const getEngineerById = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const { id } = req.params;
+    const userId = (req as any).userId; // Logged in user ID
+    const role = (req as any).role; // Logged in user role
 
-    const engineer = await UserModel.findOne({ 
-      _id: id, 
+    // Build filter conditions based on role
+    const filterConditions: any = {
+      _id: id,
       role: 'engineer', 
       isDeleted: false 
-    })
-    .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName balanceDue otpVerified deviceToken deviceType jti')
-    .populate('profileImage', 'url');
+    };
+
+    // Role-based filtering
+    if (role === 'superadmin') {
+      // Superadmin gets all data - no additional filters needed
+    } else if (role === 'admin') {
+      // Admin gets only engineers where parentCompany equals their userId
+      filterConditions.parentCompany = userId;
+    }
+
+    const engineer = await UserModel.findOne(filterConditions)
+      .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName balanceDue otpVerified deviceToken deviceType jti')
+      .populate('profileImage', 'url');
 
     if (!engineer) {
       return sendError(res, 'Engineer not found', 404);
@@ -818,6 +840,7 @@ export const getEngineerById = async (req: Request, res: Response, next: NextFun
 
 export const addEngineer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
+    const userId = (req as any).userId; // Logged in user ID
     const { 
       firstName, 
       lastName, 
@@ -907,6 +930,7 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       fatherName,
       provider,
       providerId,
+      parentCompany: userId, // Set parentCompany to the logged in user's ID
       role: 'engineer',
       password: hashedPassword,
       isAccountVerified: true, // Already verified since admin is creating
@@ -948,6 +972,8 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
 // Update engineer details
 export const updateEngineer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
+    const userId = (req as any).userId; // Logged in user ID
+    const role = (req as any).role; // Logged in user role
     const { 
       engineerId,
       firstName, 
@@ -976,12 +1002,23 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       return sendError(res, 'Engineer ID is required', 400);
     }
 
-    // Check if engineer exists
-    const existingEngineer = await UserModel.findOne({ 
-      _id: engineerId, 
+    // Build filter conditions based on role
+    const filterConditions: any = {
+      _id: engineerId,
       role: 'engineer', 
       isDeleted: false 
-    });
+    };
+
+    // Role-based filtering
+    if (role === 'superadmin') {
+      // Superadmin gets all data - no additional filters needed
+    } else if (role === 'admin') {
+      // Admin gets only engineers where parentCompany equals their userId
+      filterConditions.parentCompany = userId;
+    }
+
+    // Check if engineer exists
+    const existingEngineer = await UserModel.findOne(filterConditions);
 
     if (!existingEngineer) {
       return sendError(res, 'Engineer not found', 404);
@@ -1111,18 +1148,31 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
 export const deleteEngineer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const { id } = req.params;
+    const userId = (req as any).userId; // Logged in user ID
+    const role = (req as any).role; // Logged in user role
 
     // Validate required fields
     if (!id) {
       return sendError(res, 'Engineer ID is required', 400);
     }
 
-    // Check if engineer exists and is not already deleted
-    const existingEngineer = await UserModel.findOne({ 
-      _id: id, 
+    // Build filter conditions based on role
+    const filterConditions: any = {
+      _id: id,
       role: 'engineer', 
       isDeleted: false 
-    });
+    };
+
+    // Role-based filtering
+    if (role === 'superadmin') {
+      // Superadmin gets all data - no additional filters needed
+    } else if (role === 'admin') {
+      // Admin gets only engineers where parentCompany equals their userId
+      filterConditions.parentCompany = userId;
+    }
+
+    // Check if engineer exists and is not already deleted
+    const existingEngineer = await UserModel.findOne(filterConditions);
 
     if (!existingEngineer) {
       return sendError(res, 'Engineer not found or already deleted', 404);
