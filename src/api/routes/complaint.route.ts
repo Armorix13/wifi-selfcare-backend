@@ -10,7 +10,8 @@ import {
     deleteComplaint,
     getAssignedComplaints,
     getComplaintStats,
-    getDashboardData
+    getDashboardData,
+    getComplaintStatusHistory
 } from "../controllers/complaint.controller";
 
 const router = Router();
@@ -32,6 +33,8 @@ router.get("/:id", authenticate, getComplaintById);
 router.put("/:id/assign", authenticate, assignEngineer);
 
 router.put("/:id/status", authenticate, updateComplaintStatus);
+
+router.get("/:id/status-history", authenticate, getComplaintStatusHistory);
 
 router.delete("/:id", authenticate, deleteComplaint);
 

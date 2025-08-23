@@ -43,6 +43,9 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
             attachments: attachments || []
         });
 
+        // Initialize status history with initial status
+        await complaint.initializeStatusHistory(userId);
+
         return sendSuccess(res, { complaint }, "Complaint created successfully", 201);
     } catch (error) {
         console.error("Create complaint error:", error);
@@ -109,6 +112,7 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
             .populate("user", "firstName lastName email phoneNumber")
             .populate("engineer", "firstName lastName email phoneNumber")
             .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email")
             .sort(sort)
             .skip(skip)
             .limit(Number(limit));
@@ -151,6 +155,7 @@ const getMyComplaints = async (req: Request, res: Response): Promise<any> => {
         const complaints = await ComplaintModel.find(filter)
             .populate("engineer", "firstName lastName email phoneNumber")
             .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email")
             .sort(sort)
             .skip(skip)
             .limit(Number(limit));
@@ -230,7 +235,8 @@ const getComplaintById = async (req: Request, res: Response): Promise<any> => {
         const complaint = await ComplaintModel.findById(id)
             .populate("user", "firstName lastName email phoneNumber")
             .populate("engineer", "firstName lastName email phoneNumber")
-            .populate("assignedBy", "firstName lastName email");
+            .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email");
 
         if (!complaint) {
             return sendError(res, "Complaint not found", 404);
@@ -259,6 +265,15 @@ const getComplaintById = async (req: Request, res: Response): Promise<any> => {
             );
             complaintData.resolutionTimeHours = resolutionTimeHours;
         }
+
+        // Add status history to the response
+        complaintData.statusHistory = complaint.getFormattedStatusHistory();
+        
+        // Add engineer assignment information
+        complaintData.hasEngineerAssigned = complaint.hasEngineerAssigned();
+        complaintData.engineerAssignmentHistory = complaint.getEngineerAssignmentHistory();
+        complaintData.statusHistoryCount = (complaint as any).statusHistoryCount;
+        complaintData.latestStatusChange = (complaint as any).latestStatusChange;
 
         return sendSuccess(res, { complaint: complaintData }, "Complaint retrieved successfully");
     } catch (error) {
@@ -314,7 +329,8 @@ const assignEngineer = async (req: Request, res: Response): Promise<any> => {
         const updatedComplaint = await ComplaintModel.findById(id)
             .populate("user", "firstName lastName email phoneNumber")
             .populate("engineer", "firstName lastName email phoneNumber")
-            .populate("assignedBy", "firstName lastName email");
+            .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email");
 
         return sendSuccess(res, { complaint: updatedComplaint }, "Engineer assigned successfully");
     } catch (error) {
@@ -350,8 +366,8 @@ const updateComplaintStatus = async (req: Request, res: Response): Promise<any> 
             return sendError(res, "You can only update complaints assigned to you", 403);
         }
 
-        // Update status with notes
-        await complaint.updateStatus(status, resolutionNotes);
+        // Update status with notes and track who made the change
+        await complaint.updateStatus(status, resolutionNotes, userId);
 
         // Update additional fields if provided
         if (remark) {
@@ -371,7 +387,8 @@ const updateComplaintStatus = async (req: Request, res: Response): Promise<any> 
         const updatedComplaint = await ComplaintModel.findById(id)
             .populate("user", "firstName lastName email phoneNumber")
             .populate("engineer", "firstName lastName email phoneNumber")
-            .populate("assignedBy", "firstName lastName email");
+            .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email");
 
         return sendSuccess(res, { complaint: updatedComplaint }, "Complaint status updated successfully");
     } catch (error) {
@@ -437,6 +454,7 @@ const getAssignedComplaints = async (req: Request, res: Response): Promise<any> 
         const complaints = await ComplaintModel.find(filter)
             .populate("user", "firstName lastName email phoneNumber")
             .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email")
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(Number(limit));
@@ -963,6 +981,72 @@ const getDashboardData = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+// Get complaint status history
+const getComplaintStatusHistory = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const { id } = req.params;
+        const userId = (req as any).userId;
+        const userRole = (req as any).role;
+
+        // Check if user has access to this complaint
+        const complaint = await ComplaintModel.findById(id);
+        if (!complaint) {
+            return sendError(res, "Complaint not found", 404);
+        }
+
+        // Check if user is authorized to view this complaint
+        const isOwner = complaint.user.toString() === userId;
+        const isAssignedEngineer = complaint.engineer?.toString() === userId;
+        const isAdmin = [Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole);
+
+        if (!isOwner && !isAssignedEngineer && !isAdmin) {
+            return sendError(res, "Access denied", 403);
+        }
+
+        // Get status history with user details
+        const statusHistory = await ComplaintModel.aggregate([
+            { $match: { _id: complaint._id } },
+            { $unwind: "$statusHistory" },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "statusHistory.updatedBy",
+                    foreignField: "_id",
+                    as: "userData"
+                }
+            },
+            {
+                $addFields: {
+                    "statusHistory.updatedByUser": {
+                        $arrayElemAt: ["$userData", 0]
+                    }
+                }
+            },
+            {
+                $project: {
+                    status: "$statusHistory.status",
+                    remarks: "$statusHistory.remarks",
+                    updatedAt: "$statusHistory.updatedAt",
+                    previousStatus: "$statusHistory.previousStatus",
+                    updatedBy: {
+                        firstName: "$statusHistory.updatedByUser.firstName",
+                        lastName: "$statusHistory.updatedByUser.lastName",
+                        email: "$statusHistory.updatedByUser.email"
+                    },
+                    metadata: "$statusHistory.metadata",
+                    additionalInfo: "$statusHistory.additionalInfo"
+                }
+            },
+            { $sort: { updatedAt: -1 } }
+        ]);
+
+        return sendSuccess(res, { statusHistory }, "Status history retrieved successfully");
+    } catch (error) {
+        console.error("Get status history error:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
+
 export {
     createComplaint,
     getAllComplaints,
@@ -973,5 +1057,6 @@ export {
     deleteComplaint,
     getAssignedComplaints,
     getComplaintStats,
-    getDashboardData
+    getDashboardData,
+    getComplaintStatusHistory
 };
