@@ -2,10 +2,8 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { ComplaintModel, ComplaintStatus, Priority } from "../models/complaint.model";
 import { UserModel, Role } from "../models/user.model";
-import { sendSuccess, sendError } from "../../utils/helper";
+import { sendSuccess, sendError, sendMessage } from "../../utils/helper";
 import { AssignEngineerBody, CreateComplaintBody, UpdateStatusBody, CloseComplaintBody } from "../../type/complaint.interface";
-import { EmailService } from "../../utils/emailService";
-
 
 
 const validatePriority = (priority: string): boolean => {
@@ -1096,22 +1094,39 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
 
         // Send OTP email to customer
         try {
-            const emailService = new EmailService();
             const userEmail = (updatedComplaint.user as any).email;
             const otp = updatedComplaint.otp;
             const complaintId = updatedComplaint.id;
             
             if (userEmail && otp && complaintId) {
-                const emailSent = await emailService.sendOTP(userEmail, otp, complaintId);
+                const emailSubject = `Complaint Resolution OTP - ${complaintId}`;
+                const emailText = `Your complaint has been resolved. Please use OTP: ${otp} to complete the resolution process.`;
+                const emailHtml = `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #333;">Complaint Resolution Complete</h2>
+                        <p>Dear Customer,</p>
+                        <p>Your complaint (ID: ${complaintId}) has been successfully resolved by our engineering team.</p>
+                        <p><strong>OTP Code: ${otp}</strong></p>
+                        <p>Please use this OTP to verify and complete the complaint resolution process.</p>
+                        <p>Thank you for your patience.</p>
+                        <br>
+                        <p>Best regards,<br>WiFi SelfCare Team</p>
+                    </div>
+                `;
                 
-                if (!emailSent) {
-                    console.warn(`Failed to send OTP email for complaint ${id}`);
-                }
+                await sendMessage.sendEmail({
+                    userEmail,
+                    subject: emailSubject,
+                    text: emailText,
+                    html: emailHtml
+                });
+                
+                console.log(`OTP email sent successfully to ${userEmail} for complaint ${id}`);
             } else {
                 console.warn(`Missing required data for email: email=${userEmail}, otp=${otp}, id=${complaintId}`);
             }
         } catch (emailError) {
-            console.error('Email service error:', emailError);
+            console.error('Email sending error:', emailError);
             // Don't fail the request if email fails
         }
 
@@ -1142,9 +1157,9 @@ const verifyOTP = async (req: Request, res: Response): Promise<any> => {
         }
 
         // Check if user is the complaint owner
-        if (complaint.user.toString() !== userId) {
-            return sendError(res, "Access denied. You can only verify OTP for your own complaints", 403);
-        }
+        // if (complaint.user.toString() !== userId) {
+        //     return sendError(res, "Access denied. You can only verify OTP for your own complaints", 403);
+        // }
 
         // Check if complaint is already resolved
         if (complaint.status !== ComplaintStatus.RESOLVED) {
