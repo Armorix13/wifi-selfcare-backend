@@ -9,7 +9,8 @@ enum ComplaintStatus {
     RESOLVED = "resolved",
     NOT_RESOLVED = "not_resolved",
     CANCELLED = "cancelled",
-    REOPENED = "reopened"
+    REOPENED = "reopened",
+    REVISIT = "re_visit"
 }
 
 enum Priority {
@@ -122,7 +123,8 @@ const ComplaintStatusColor: Record<ComplaintStatus, string> = {
     [ComplaintStatus.RESOLVED]: "#28A745",      // Green
     [ComplaintStatus.NOT_RESOLVED]: "#DC3545",  // Red
     [ComplaintStatus.CANCELLED]: "#6C757D",     // Gray
-    [ComplaintStatus.REOPENED]: "#FFC107"       // Yellow
+    [ComplaintStatus.REOPENED]: "#FFC107",      // Yellow
+    [ComplaintStatus.REVISIT]: "#FFC107"        // Yellow
 };
 
 
