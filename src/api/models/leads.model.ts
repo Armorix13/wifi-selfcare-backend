@@ -1,9 +1,8 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export enum LeadStatus {
-    INREVIEW = "inreview",
-    ACCEPTED = "accepted",
-    REJECTED = "rejected"
+    TRACKED = "tracked",
+    UNTRACKED = "untracked"
 }
 
 export enum LeadPlatform {
@@ -71,7 +70,7 @@ const leadsSchema = new Schema<ILeads>(
         status: {
             type: String,
             enum: Object.values(LeadStatus),
-            default: LeadStatus.INREVIEW,
+            default: LeadStatus.UNTRACKED,
         },
         remarks: {
             type: String,
