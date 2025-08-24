@@ -17,6 +17,9 @@ export const createLead = async (req: Request, res: Response): Promise<any> => {
       leadPlatform,
       source,
       email,
+      companyName,
+      priority,
+      estimatedCost,
     } = req.body;
 
     console.log("body",req.body);
@@ -71,8 +74,13 @@ export const createLead = async (req: Request, res: Response): Promise<any> => {
       installationAddress,
       leadPlatform,
       email,
+      companyName,
       source,
+      priority,
+      estimatedCost,
       status: LeadStatus.INREVIEW,
+      isTracked: false,
+      contactAttempts: 0,
     });
 
     const savedLead = await newLead.save();
@@ -97,12 +105,14 @@ export const getAllLeads = async (req: Request, res: Response) => {
   try {
     const {
       page = 1,
-      limit = 10,
+      limit = 6, // Changed default to 6 per page
       status,
       leadPlatform,
       byUserId,
       byEngineerId,
       search,
+      isTracked,
+      priority,
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
@@ -118,6 +128,8 @@ export const getAllLeads = async (req: Request, res: Response) => {
     if (leadPlatform) filter.leadPlatform = leadPlatform;
     if (byUserId) filter.byUserId = byUserId;
     if (byEngineerId) filter.byEngineerId = byEngineerId;
+    if (isTracked !== undefined) filter.isTracked = isTracked === 'true';
+    if (priority) filter.priority = priority;
 
     // Search functionality
     if (search) {
@@ -127,6 +139,8 @@ export const getAllLeads = async (req: Request, res: Response) => {
         { phoneNumber: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
         { companyName: { $regex: search, $options: "i" } },
+        { installationAddress: { $regex: search, $options: "i" } },
+        { trackingNotes: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -134,10 +148,11 @@ export const getAllLeads = async (req: Request, res: Response) => {
     const sort: any = {};
     sort[sortBy as string] = sortOrder === "desc" ? -1 : 1;
 
+    // Get leads with pagination
     const leads = await Leads.find(filter)
-      .populate("byUserId", "firstName lastName email phoneNumber")
-      .populate("byEngineerId", "firstName lastName email phoneNumber")
-      .populate("assignedTo", "firstName lastName email phoneNumber")
+      .populate("byUserId", "firstName lastName email phoneNumber role")
+      .populate("byEngineerId", "firstName lastName email phoneNumber role")
+      .populate("assignedTo", "firstName lastName email phoneNumber role")
       .sort(sort)
       .skip(skip)
       .limit(limitNum);
@@ -145,9 +160,100 @@ export const getAllLeads = async (req: Request, res: Response) => {
     const totalLeads = await Leads.countDocuments(filter);
     const totalPages = Math.ceil(totalLeads / limitNum);
 
+    // Get comprehensive statistics
+    const [
+      statusStats,
+      platformStats,
+      trackingStats,
+      priorityStats,
+      todayLeads,
+      monthlyLeads,
+      highPriorityCount
+    ] = await Promise.all([
+      // Status distribution
+      Leads.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      // Platform distribution
+      Leads.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: "$leadPlatform",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      // Tracking statistics
+      Leads.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            totalTracked: { $sum: { $cond: ["$isTracked", 1, 0] } },
+            totalUntracked: { $sum: { $cond: ["$isTracked", 0, 1] } },
+            totalContactAttempts: { $sum: "$contactAttempts" },
+            avgContactAttempts: { $avg: "$contactAttempts" }
+          }
+        }
+      ]),
+      // Priority distribution
+      Leads.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: "$priority",
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      // Today's leads
+      Leads.countDocuments({
+        ...filter,
+        createdAt: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0)),
+        },
+      }),
+      // Monthly leads
+      Leads.countDocuments({
+        ...filter,
+        createdAt: {
+          $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        },
+      }),
+      // High priority leads
+      Leads.countDocuments({
+        ...filter,
+        priority: "high",
+      })
+    ]);
+
+    // Format statistics
+    const statistics = {
+      totalLeads,
+      todayLeads,
+      monthlyLeads,
+      highPriorityCount,
+      statusDistribution: statusStats,
+      platformDistribution: platformStats,
+      priorityDistribution: priorityStats,
+      trackingStats: trackingStats[0] || {
+        totalTracked: 0,
+        totalUntracked: 0,
+        totalContactAttempts: 0,
+        avgContactAttempts: 0
+      }
+    };
+
     res.status(200).json({
       success: true,
-      message: "Leads retrieved successfully",
+      message: "Leads and statistics retrieved successfully",
       data: {
         leads,
         pagination: {
@@ -156,7 +262,9 @@ export const getAllLeads = async (req: Request, res: Response) => {
           totalLeads,
           hasNextPage: pageNum < totalPages,
           hasPrevPage: pageNum > 1,
+          limit: limitNum,
         },
+        statistics
       },
     });
   } catch (error) {
@@ -175,9 +283,9 @@ export const getLeadById = async (req: Request, res: Response): Promise<any> => 
     const { id } = req.params;
 
     const lead = await Leads.findById(id)
-      .populate("byUserId", "firstName lastName email phoneNumber")
-      .populate("byEngineerId", "firstName lastName email phoneNumber")
-      .populate("assignedTo", "firstName lastName email phoneNumber");
+      .populate("byUserId", "firstName lastName email phoneNumber role")
+      .populate("byEngineerId", "firstName lastName email phoneNumber role")
+      .populate("assignedTo", "firstName lastName email phoneNumber role");
 
     if (!lead) {
       return res.status(404).json({
@@ -243,9 +351,9 @@ export const updateLead = async (req: Request, res: Response): Promise<any> => {
       id,
       updateData,
       { new: true, runValidators: true }
-    ).populate("byUserId", "firstName lastName email phoneNumber")
-      .populate("byEngineerId", "firstName lastName email phoneNumber")
-      .populate("assignedTo", "firstName lastName email phoneNumber");
+    ).populate("byUserId", "firstName lastName email phoneNumber role")
+      .populate("byEngineerId", "firstName lastName email phoneNumber role")
+      .populate("assignedTo", "firstName lastName email phoneNumber role");
 
     if (!updatedLead) {
       return res.status(404).json({
@@ -326,9 +434,9 @@ export const updateLeadStatus = async (req: Request, res: Response): Promise<any
       id,
       { status, remarks, assignedTo },
       { new: true, runValidators: true }
-    ).populate("byUserId", "firstName lastName email phoneNumber")
-      .populate("byEngineerId", "firstName lastName email phoneNumber")
-      .populate("assignedTo", "firstName lastName email phoneNumber");
+    ).populate("byUserId", "firstName lastName email phoneNumber role")
+      .populate("byEngineerId", "firstName lastName email phoneNumber role")
+      .populate("assignedTo", "firstName lastName email phoneNumber role");
 
     if (!updatedLead) {
       return res.status(404).json({
@@ -352,11 +460,54 @@ export const updateLeadStatus = async (req: Request, res: Response): Promise<any
   }
 };
 
+// Update lead tracking
+export const updateLeadTracking = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const { isTracked } = req.body;
+
+    if (isTracked === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "isTracked field is required",
+      });
+    }
+
+    const updatedLead = await Leads.findByIdAndUpdate(
+      id,
+      { isTracked },
+      { new: true, runValidators: true }
+    ).populate("byUserId", "firstName lastName email phoneNumber role")
+      .populate("byEngineerId", "firstName lastName email phoneNumber role")
+      .populate("assignedTo", "firstName lastName email phoneNumber role");
+
+    if (!updatedLead) {
+      return res.status(404).json({
+        success: false,
+        message: "Lead not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Lead tracking updated successfully",
+      data: updatedLead,
+    });
+  } catch (error) {
+    console.error("Error updating lead tracking:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
 // Get leads by user ID
 export const getLeadsByUserId = async (req: Request, res: Response): Promise<any> => {
   try {
     const { userId } = req.params;
-    const { page = 1, limit = 10, status } = req.query;
+    const { page = 1, limit = 6, status } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -366,9 +517,9 @@ export const getLeadsByUserId = async (req: Request, res: Response): Promise<any
     if (status) filter.status = status;
 
     const leads = await Leads.find(filter)
-      .populate("byUserId", "firstName lastName email phoneNumber")
-      .populate("byEngineerId", "firstName lastName email phoneNumber")
-      .populate("assignedTo", "firstName lastName email phoneNumber")
+      .populate("byUserId", "firstName lastName email phoneNumber role")
+      .populate("byEngineerId", "firstName lastName email phoneNumber role")
+      .populate("assignedTo", "firstName lastName email phoneNumber role")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -387,6 +538,7 @@ export const getLeadsByUserId = async (req: Request, res: Response): Promise<any
           totalLeads,
           hasNextPage: pageNum < totalPages,
           hasPrevPage: pageNum > 1,
+          limit: limitNum,
         },
       },
     });
@@ -404,7 +556,7 @@ export const getLeadsByUserId = async (req: Request, res: Response): Promise<any
 export const getLeadsByEngineerId = async (req: Request, res: Response): Promise<any> => {
   try {
     const { engineerId } = req.params;
-    const { page = 1, limit = 10, status } = req.query;
+    const { page = 1, limit = 6, status } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -414,9 +566,9 @@ export const getLeadsByEngineerId = async (req: Request, res: Response): Promise
     if (status) filter.status = status;
 
     const leads = await Leads.find(filter)
-      .populate("byUserId", "firstName lastName email phoneNumber")
-      .populate("byEngineerId", "firstName lastName email phoneNumber")
-      .populate("assignedTo", "firstName lastName email phoneNumber")
+      .populate("byUserId", "firstName lastName email phoneNumber role")
+      .populate("byEngineerId", "firstName lastName email phoneNumber role")
+      .populate("assignedTo", "firstName lastName email phoneNumber role")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -435,6 +587,7 @@ export const getLeadsByEngineerId = async (req: Request, res: Response): Promise
           totalLeads,
           hasNextPage: pageNum < totalPages,
           hasPrevPage: pageNum > 1,
+          limit: limitNum,
         },
       },
     });
@@ -501,4 +654,10 @@ export const getLeadStatistics = async (req: Request, res: Response): Promise<an
       error: error instanceof Error ? error.message : "Unknown error",
     });
   }
+};
+
+// Get comprehensive lead data with tracking (wrapper for getAllLeads)
+export const getComprehensiveLeadData = async (req: Request, res: Response): Promise<any> => {
+  // Simply call getAllLeads since it now includes all statistics
+  return getAllLeads(req, res);
 };

@@ -5,22 +5,30 @@ import {
   getLeadById,
   updateLead,
   updateLeadStatus,
+  updateLeadTracking,
   deleteLead,
   getLeadsByUserId,
   getLeadsByEngineerId,
-  getLeadStatistics
+  getLeadStatistics,
+  getComprehensiveLeadData
 } from "../controllers/leads.controller";
 import authMiddleware from "../../middleware/auth.middleware";
 
 const router = express.Router();
 
-// Create a new lead
+// Create a new lead - NO AUTHENTICATION REQUIRED
 router.post("/", createLead);
 
-// Get all leads with pagination and filters
+// Apply authentication middleware to all other routes
+router.use(authMiddleware);
+
+// Get all leads with pagination, filters, and statistics (6 per page)
 router.get("/", getAllLeads);
 
-// Get lead statistics
+// Get comprehensive lead data (same as getAllLeads, kept for backward compatibility)
+router.get("/comprehensive", getComprehensiveLeadData);
+
+// Get lead statistics (separate endpoint for statistics only)
 router.get("/statistics", getLeadStatistics);
 
 // Get leads by user ID
@@ -37,6 +45,9 @@ router.put("/:id", updateLead);
 
 // Update lead status
 router.patch("/:id/status", updateLeadStatus);
+
+// Update lead tracking
+router.patch("/:id/tracking", updateLeadTracking);
 
 // Delete lead
 router.delete("/:id", deleteLead);
