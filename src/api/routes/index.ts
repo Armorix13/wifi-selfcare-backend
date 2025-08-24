@@ -23,6 +23,7 @@ import wifiConnectionRouter from "./wifiConnection.route";
 import faqRouter from "./faq.route";
 import engineerRouter from "./engineer.route";
 import chatbotRouter from "./chatbot.route";
+import leadsRouter from "./leads.route";
 const parentRouter = Router();
 
 parentRouter.post("/file-upload", multerUpload,handleMulterUpload);
@@ -49,6 +50,7 @@ parentRouter.use('/wifi-connections', wifiConnectionRouter);
 parentRouter.use('/faqs', faqRouter);
 parentRouter.use('/engineers', engineerRouter);
 parentRouter.use('/chatbot', chatbotRouter);
+parentRouter.use('/leads', leadsRouter);
 
 export default parentRouter;
 

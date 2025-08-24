@@ -341,10 +341,17 @@ const assignEngineer = async (req: Request, res: Response): Promise<any> => {
 // 6. Update Complaint Status (Engineer)
 const updateComplaintStatus = async (req: Request, res: Response): Promise<any> => {
     try {
+       
+        
         const { id } = req.params;
         const { status, resolved, remark, notResolvedReason, resolutionNotes }: UpdateStatusBody = req.body;
         const userId = (req as any).userId;
         const userRole = (req as any).role;
+
+        console.log("updateComplaintStatus",req.body);
+        console.log("userId",userId);
+        console.log("userRole",userRole);
+    
 
         // Check if user is engineer or admin
         if (userRole !== Role.ENGINEER && ![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
