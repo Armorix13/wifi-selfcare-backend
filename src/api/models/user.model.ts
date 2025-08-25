@@ -111,6 +111,34 @@ export interface IUser extends Document {
   
   // Internet providers array
   internetProviders?: string[];
+  
+  // Customer-specific fields for fiber network
+  customerId?: string; // Auto-generated customer ID (e.g., CUS1234)
+  customerType?: string; // residential, commercial, enterprise
+  customerPower?: string; // on, off, standby
+  bandwidth?: number; // in Mbps
+  planId?: string; // Reference to plan
+  installationDate?: Date; // Customer installation date
+  lastBillingDate?: Date; // Last billing date
+  assignedEngineer?: mongoose.Types.ObjectId; // Reference to engineer
+  assignedCompany?: mongoose.Types.ObjectId; // Reference to company
+  
+  // Network connection fields
+  networkInput?: {
+    type: "x2" | "fdb" | "subms";
+    id: string;
+  };
+  networkOutputs?: Array<{
+    type: "x2" | "fdb" | "subms";
+    id: string;
+  }>;
+}
+
+// Interface for static methods
+export interface IUserModel extends mongoose.Model<IUser> {
+  findCustomersByLocation(latitude: number, longitude: number, maxDistance?: number): Promise<IUser[]>;
+  findCustomersByStatus(status: string): Promise<IUser[]>;
+  findCustomersByType(customerType: string): Promise<IUser[]>;
 }
 
 const GeoPointSchema = new Schema<IGeoPoint>({
@@ -188,6 +216,39 @@ const UserSchema = new Schema<IUser>({
   
   // Internet providers array
   internetProviders: [{ type: String }],
+  
+  // Customer-specific fields for fiber network
+  customerId: { type: String, unique: true, sparse: true },
+  customerType: { type: String, enum: ["residential", "commercial", "enterprise"] },
+  customerPower: { type: String, enum: ["on", "off", "standby"], default: "on" },
+  bandwidth: { type: Number, min: 0 },
+  planId: { type: String },
+  installationDate: { type: Date },
+  lastBillingDate: { type: Date },
+  assignedEngineer: {
+    type: Schema.Types.ObjectId,
+    ref: "User"
+  },
+  assignedCompany: {
+    type: Schema.Types.ObjectId,
+    ref: "User"
+  },
+  
+  // Network connection fields
+  networkInput: {
+    type: {
+      type: String,
+      enum: ["x2", "fdb", "subms"]
+    },
+    id: { type: String }
+  },
+  networkOutputs: [{
+    type: {
+      type: String,
+      enum: ["x2", "fdb", "subms"]
+    },
+    id: { type: String }
+  }],
 
   
   // New fields from Excel sheet
@@ -222,7 +283,57 @@ const UserSchema = new Schema<IUser>({
 
 //UNIQUE ID FOR ENGINEER,ADMIN,
 
-const UserModel: Model<IUser> = mongoose.model<IUser>("User", UserSchema);
+// Pre-save middleware
+UserSchema.pre('save', function(next) {
+  // Auto-generate customerId for users with role "user" if not provided
+  if (this.role === "user" && !this.customerId) {
+    const timestamp = Date.now().toString().slice(-4);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    this.customerId = `CUS${timestamp}${random}`;
+  }
+
+  // Sync lat/long with location GeoJSON if both are provided
+  if (this.lat && this.long) {
+    this.location = {
+      type: "Point",
+      coordinates: [this.long, this.lat] // GeoJSON uses [lng, lat] order
+    };
+  }
+
+  next();
+});
+
+// Indexes for customer queries
+UserSchema.index({ customerId: 1 });
+UserSchema.index({ role: 1 });
+UserSchema.index({ "networkInput.id": 1 });
+UserSchema.index({ "networkOutputs.id": 1 });
+
+// Static methods for customer queries
+UserSchema.statics.findCustomersByLocation = function(latitude: number, longitude: number, maxDistance: number = 10000) {
+  return this.find({
+    role: "user",
+    location: {
+      $near: {
+        $geometry: {
+          type: "Point",
+          coordinates: [longitude, latitude]
+        },
+        $maxDistance: maxDistance
+      }
+    }
+  });
+};
+
+UserSchema.statics.findCustomersByStatus = function(status: string) {
+  return this.find({ role: "user", status });
+};
+
+UserSchema.statics.findCustomersByType = function(customerType: string) {
+  return this.find({ role: "user", customerType });
+};
+
+const UserModel: IUserModel = mongoose.model<IUser, IUserModel>("User", UserSchema);
 
 export { UserModel, Role, AreaType, Mode };
 

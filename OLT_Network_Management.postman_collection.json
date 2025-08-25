@@ -1,0 +1,903 @@
+{
+	"info": {
+		"_postman_id": "olt-network-management",
+		"name": "OLT Network Management",
+		"description": "Complete API collection for OLT, MS, SUBMS, FDB, X2, and Customer management in fiber network system",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "OLT Management",
+			"item": [
+				{
+					"name": "Create OLT",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"oltModel\": \"Huawei MA5608T\",\n  \"ipAddress\": \"192.168.1.10\",\n  \"macAddress\": \"00:1A:2B:3C:4D:5E\",\n  \"serialNumber\": \"SN1234567\",\n  \"power\": 2,\n  \"location\": [30.7333, 76.7794],\n  \"status\": \"active\",\n  \"outputs\": [\n    {\n      \"type\": \"ms\",\n      \"id\": \"MS001\"\n    },\n    {\n      \"type\": \"fdb\",\n      \"id\": \"FDB001\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/olt",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "olt"]
+						}
+					}
+				},
+				{
+					"name": "Get All OLTs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/olt",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "olt"]
+						}
+					}
+				},
+				{
+					"name": "Get OLT by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/olt/{{olt_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "olt", "{{olt_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update OLT",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"oltModel\": \"Huawei MA5608T\",\n  \"ipAddress\": \"192.168.1.11\",\n  \"macAddress\": \"00:1A:2B:3C:4D:5E\",\n  \"serialNumber\": \"SN1234567\",\n  \"power\": 3,\n  \"location\": [30.7333, 76.7794],\n  \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/olt/{{olt_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "olt", "{{olt_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete OLT",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/olt/{{olt_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "olt", "{{olt_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get OLT Network Topology",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/olt/{{olt_id}}/topology",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "olt", "{{olt_id}}", "topology"]
+						}
+					}
+				},
+				{
+					"name": "Search OLTs by Location",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/olt/search/location?latitude=30.7333&longitude=76.7794&maxDistance=1000",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "olt", "search", "location"],
+							"query": [
+								{
+									"key": "latitude",
+									"value": "30.7333"
+								},
+								{
+									"key": "longitude",
+									"value": "76.7794"
+								},
+								{
+									"key": "maxDistance",
+									"value": "1000"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Bulk Create OLTs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"olts\": [\n    {\n      \"oltModel\": \"Huawei MA5608T\",\n      \"ipAddress\": \"192.168.1.10\",\n      \"macAddress\": \"00:1A:2B:3C:4D:5E\",\n      \"serialNumber\": \"SN1234567\",\n      \"power\": 2,\n      \"location\": [30.7333, 76.7794],\n      \"status\": \"active\"\n    },\n    {\n      \"oltModel\": \"Huawei MA5608T\",\n      \"ipAddress\": \"192.168.1.11\",\n      \"macAddress\": \"00:1A:2B:3C:4D:5F\",\n      \"serialNumber\": \"SN1234568\",\n      \"power\": 2,\n      \"location\": [30.7340, 76.7800],\n      \"status\": \"active\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/olt/bulk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "olt", "bulk"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "MS Management",
+			"item": [
+				{
+					"name": "Create MS",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"msName\": \"Main Splitter 1\",\n  \"msType\": \"1x8\",\n  \"power\": 4,\n  \"location\": [30.7340, 76.7800],\n  \"status\": \"active\",\n  \"input\": {\n    \"type\": \"olt\",\n    \"id\": \"{{olt_id}}\"\n  },\n  \"outputs\": [\n    {\n      \"type\": \"subms\",\n      \"id\": \"SUBMS001\"\n    },\n    {\n      \"type\": \"fdb\",\n      \"id\": \"FDB002\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/ms",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "ms"]
+						}
+					}
+				},
+				{
+					"name": "Get All MS Devices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/ms",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "ms"]
+						}
+					}
+				},
+				{
+					"name": "Get MS by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/ms/{{ms_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "ms", "{{ms_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update MS",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"msName\": \"Main Splitter 1 Updated\",\n  \"msType\": \"1x8\",\n  \"power\": 5,\n  \"location\": [30.7340, 76.7800],\n  \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/ms/{{ms_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "ms", "{{ms_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete MS",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/ms/{{ms_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "ms", "{{ms_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get MS Network Topology",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/ms/{{ms_id}}/topology",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "ms", "{{ms_id}}", "topology"]
+						}
+					}
+				},
+				{
+					"name": "Bulk Create MS Devices",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mss\": [\n    {\n      \"msName\": \"Main Splitter 1\",\n      \"msType\": \"1x8\",\n      \"power\": 4,\n      \"location\": [30.7340, 76.7800],\n      \"status\": \"active\",\n      \"input\": {\n        \"type\": \"olt\",\n        \"id\": \"{{olt_id}}\"\n      }\n    },\n    {\n      \"msName\": \"Main Splitter 2\",\n      \"msType\": \"1x16\",\n      \"power\": 6,\n      \"location\": [30.7350, 76.7810],\n      \"status\": \"active\",\n      \"input\": {\n        \"type\": \"olt\",\n        \"id\": \"{{olt_id}}\"\n      }\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/ms/bulk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "ms", "bulk"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "SUBMS Management",
+			"item": [
+				{
+					"name": "Create SUBMS",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"submsName\": \"Sub-Splitter 1\",\n  \"submsType\": \"1x4\",\n  \"power\": 2,\n  \"location\": [30.7350, 76.7810],\n  \"status\": \"active\",\n  \"input\": {\n    \"type\": \"ms\",\n    \"id\": \"{{ms_id}}\"\n  },\n  \"outputs\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/subms",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "subms"]
+						}
+					}
+				},
+				{
+					"name": "Get All SUBMS Devices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/subms",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "subms"]
+						}
+					}
+				},
+				{
+					"name": "Get SUBMS by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/subms/{{subms_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "subms", "{{subms_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update SUBMS",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"submsName\": \"Sub-Splitter 1 Updated\",\n  \"submsType\": \"1x4\",\n  \"power\": 3,\n  \"location\": [30.7350, 76.7810],\n  \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/subms/{{subms_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "subms", "{{subms_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete SUBMS",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/subms/{{subms_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "subms", "{{subms_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Bulk Create SUBMS Devices",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subms\": [\n    {\n      \"submsName\": \"Sub-Splitter 1\",\n      \"submsType\": \"1x4\",\n      \"power\": 2,\n      \"location\": [30.7350, 76.7810],\n      \"status\": \"active\",\n      \"input\": {\n        \"type\": \"ms\",\n        \"id\": \"{{ms_id}}\"\n      }\n    },\n    {\n      \"submsName\": \"Sub-Splitter 2\",\n      \"submsType\": \"1x8\",\n      \"power\": 4,\n      \"location\": [30.7360, 76.7820],\n      \"status\": \"active\",\n      \"input\": {\n        \"type\": \"ms\",\n        \"id\": \"{{ms_id}}\"\n      }\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/subms/bulk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "subms", "bulk"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "FDB Management",
+			"item": [
+				{
+					"name": "Create FDB",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fdbName\": \"FDB Box 1\",\n  \"fdbType\": \"outdoor\",\n  \"power\": 8,\n  \"location\": [30.7360, 76.7820],\n  \"status\": \"active\",\n  \"input\": {\n    \"type\": \"olt\",\n    \"id\": \"{{olt_id}}\"\n  },\n  \"outputs\": [\n    {\n      \"type\": \"x2\",\n      \"id\": \"X2001\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/fdb",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "fdb"]
+						}
+					}
+				},
+				{
+					"name": "Get All FDB Devices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/fdb",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "fdb"]
+						}
+					}
+				},
+				{
+					"name": "Get FDB by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/fdb/{{fdb_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "fdb", "{{fdb_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update FDB",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fdbName\": \"FDB Box 1 Updated\",\n  \"fdbType\": \"outdoor\",\n  \"power\": 10,\n  \"location\": [30.7360, 76.7820],\n  \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/fdb/{{fdb_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "fdb", "{{fdb_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete FDB",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/fdb/{{fdb_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "fdb", "{{fdb_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get FDB Network Topology",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/fdb/{{fdb_id}}/topology",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "fdb", "{{fdb_id}}", "topology"]
+						}
+					}
+				},
+				{
+					"name": "Bulk Create FDB Devices",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fdb\": [\n    {\n      \"fdbName\": \"FDB Box 1\",\n      \"fdbType\": \"outdoor\",\n      \"power\": 8,\n      \"location\": [30.7360, 76.7820],\n      \"status\": \"active\",\n      \"input\": {\n        \"type\": \"olt\",\n        \"id\": \"{{olt_id}}\"\n      }\n    },\n    {\n      \"fdbName\": \"FDB Box 2\",\n      \"fdbType\": \"indoor\",\n      \"power\": 4,\n      \"location\": [30.7370, 76.7830],\n      \"status\": \"active\",\n      \"input\": {\n        \"type\": \"ms\",\n        \"id\": \"{{ms_id}}\"\n      }\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/fdb/bulk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "fdb", "bulk"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "X2 Management",
+			"item": [
+				{
+					"name": "Create X2",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"x2Name\": \"X2 Box 1\",\n  \"x2Type\": \"terminal\",\n  \"power\": 2,\n  \"location\": [30.7380, 76.7840],\n  \"status\": \"active\",\n  \"input\": {\n    \"type\": \"fdb\",\n    \"id\": \"{{fdb_id}}\"\n  },\n  \"outputs\": [\n    {\n      \"type\": \"customer\",\n      \"id\": \"CUS001\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/x2",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "x2"]
+						}
+					}
+				},
+				{
+					"name": "Get All X2 Devices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/x2",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "x2"]
+						}
+					}
+				},
+				{
+					"name": "Get X2 by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/x2/{{x2_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "x2", "{{x2_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update X2",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"x2Name\": \"X2 Box 1 Updated\",\n  \"x2Type\": \"terminal\",\n  \"power\": 3,\n  \"location\": [30.7380, 76.7840],\n  \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/x2/{{x2_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "x2", "{{x2_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete X2",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/x2/{{x2_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "x2", "{{x2_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get X2 Network Topology",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/x2/{{x2_id}}/topology",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "x2", "{{x2_id}}", "topology"]
+						}
+					}
+				},
+				{
+					"name": "Bulk Create X2 Devices",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"x2\": [\n    {\n      \"x2Name\": \"X2 Box 1\",\n      \"x2Type\": \"terminal\",\n      \"power\": 2,\n      \"location\": [30.7380, 76.7840],\n      \"status\": \"active\",\n      \"input\": {\n        \"type\": \"fdb\",\n        \"id\": \"{{fdb_id}}\"\n      }\n    },\n    {\n      \"x2Name\": \"X2 Box 2\",\n      \"x2Type\": \"terminal\",\n      \"power\": 2,\n      \"location\": [30.7390, 76.7850],\n      \"status\": \"active\",\n      \"input\": {\n        \"type\": \"fdb\",\n        \"id\": \"{{fdb_id}}\"\n      }\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/x2/bulk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "x2", "bulk"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Customer Management",
+			"item": [
+				{
+					"name": "Create Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"phone\": \"+1234567890\",\n  \"role\": \"user\",\n  \"customerType\": \"residential\",\n  \"customerPower\": \"on\",\n  \"bandwidth\": 100,\n  \"planId\": \"PLAN001\",\n  \"location\": [30.7390, 76.7850],\n  \"status\": \"active\",\n  \"networkInput\": {\n    \"type\": \"x2\",\n    \"id\": \"{{x2_id}}\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer"]
+						}
+					}
+				},
+				{
+					"name": "Get All Customers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer/{{customer_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer", "{{customer_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe Updated\",\n  \"email\": \"john.doe@example.com\",\n  \"phone\": \"+1234567890\",\n  \"customerType\": \"residential\",\n  \"customerPower\": \"on\",\n  \"bandwidth\": 200,\n  \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer/{{customer_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer", "{{customer_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Customer",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer/{{customer_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer", "{{customer_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer Network Topology",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer/{{customer_id}}/topology",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer", "{{customer_id}}", "topology"]
+						}
+					}
+				},
+				{
+					"name": "Search Customers by Location",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer/search/location?latitude=30.7390&longitude=76.7850&maxDistance=1000",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer", "search", "location"],
+							"query": [
+								{
+									"key": "latitude",
+									"value": "30.7390"
+								},
+								{
+									"key": "longitude",
+									"value": "76.7850"
+								},
+								{
+									"key": "maxDistance",
+									"value": "1000"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Search Customers by Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer/status/active",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer", "status", "active"]
+						}
+					}
+				},
+				{
+					"name": "Search Customers by Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer/type/residential",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer", "type", "residential"]
+						}
+					}
+				},
+				{
+					"name": "Bulk Create Customers",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customers\": [\n    {\n      \"firstName\": \"John\",\n      \"lastName\": \"Doe\",\n      \"email\": \"john.doe@example.com\",\n      \"phone\": \"+1234567890\",\n      \"role\": \"user\",\n      \"customerType\": \"residential\",\n      \"customerPower\": \"on\",\n      \"bandwidth\": 100,\n      \"location\": [30.7390, 76.7850],\n      \"status\": \"active\",\n      \"networkInput\": {\n        \"type\": \"x2\",\n        \"id\": \"{{x2_id}}\"\n      }\n    },\n    {\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Smith\",\n      \"email\": \"jane.smith@example.com\",\n      \"phone\": \"+1234567891\",\n      \"role\": \"user\",\n      \"customerType\": \"commercial\",\n      \"customerPower\": \"on\",\n      \"bandwidth\": 500,\n      \"location\": [30.7400, 76.7860],\n      \"status\": \"active\",\n      \"networkInput\": {\n        \"type\": \"x2\",\n        \"id\": \"{{x2_id}}\"\n      }\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/customer/bulk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "customer", "bulk"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Network Topology",
+			"item": [
+				{
+					"name": "Get Complete Network Topology",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/network/topology/{{olt_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "network", "topology", "{{olt_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Network Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/network/statistics",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "network", "statistics"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Advanced Queries",
+			"item": [
+				{
+					"name": "Get Devices by Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/devices/status/active",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "devices", "status", "active"]
+						}
+					}
+				},
+				{
+					"name": "Get Devices by Location Range",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/network/devices/location-range?minLat=30.7300&maxLat=30.7500&minLng=76.7700&maxLng=76.7900",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "network", "devices", "location-range"],
+							"query": [
+								{
+									"key": "minLat",
+									"value": "30.7300"
+								},
+								{
+									"key": "maxLat",
+									"value": "30.7500"
+								},
+								{
+									"key": "minLng",
+									"value": "76.7700"
+								},
+								{
+									"key": "maxLng",
+									"value": "76.7900"
+								}
+							]
+						}
+					}
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "olt_id",
+			"value": "OLT1234",
+			"type": "string"
+		},
+		{
+			"key": "ms_id",
+			"value": "MS1234",
+			"type": "string"
+		},
+		{
+			"key": "subms_id",
+			"value": "SUBMS1234",
+			"type": "string"
+		},
+		{
+			"key": "fdb_id",
+			"value": "FDB1234",
+			"type": "string"
+		},
+		{
+			"key": "x2_id",
+			"value": "X21234",
+			"type": "string"
+		},
+		{
+			"key": "customer_id",
+			"value": "CUS1234",
+			"type": "string"
+		}
+	]
+}
