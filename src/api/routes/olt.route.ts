@@ -40,7 +40,15 @@ import {
   searchCustomersByStatus,
   searchCustomersByType,
   getCompleteNetworkTopology,
-  getNetworkStatistics
+  getNetworkStatistics,
+  // New company-based functions
+  getOLTsByCompany,
+  getFDBsByCompany,
+  getMSByCompany,
+  getSUBMSByCompany,
+  getX2ByCompany,
+  getAllNetworkComponentsByCompany,
+  getDetailedNetworkComponentsByCompany
 } from "../controllers/olt.controller";
 import { OLTModel } from "../models/olt.model";
 import { MSModel } from "../models/ms.model";
@@ -520,5 +528,28 @@ router.get("/devices/location-range", async (req, res): Promise<any> => {
     });
   }
 });
+
+// ==================== COMPANY-BASED ROUTES ====================
+
+// Get all OLTs by Company ID
+router.get("/company/:companyId/olt", getOLTsByCompany);
+
+// Get all FDBs by Company ID
+router.get("/company/:companyId/fdb", getFDBsByCompany);
+
+// Get all MS devices by Company ID
+router.get("/company/:companyId/ms", getMSByCompany);
+
+// Get all SUBMS devices by Company ID
+router.get("/company/:companyId/subms", getSUBMSByCompany);
+
+// Get all X2 devices by Company ID
+router.get("/company/:companyId/x2", getX2ByCompany);
+
+// Get summary of all network components by Company ID
+router.get("/company/:companyId/summary", getAllNetworkComponentsByCompany);
+
+// Get detailed network components by Company ID (with pagination and filtering)
+router.get("/company/:companyId/components", getDetailedNetworkComponentsByCompany);
 
 export default router;

@@ -1437,3 +1437,344 @@ async function buildNetworkTopology(olt: any) {
 
   return topology;
 }
+
+// ==================== COMPANY-BASED QUERIES ====================
+
+// Get all OLTs by Company ID
+export const getOLTsByCompany = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { companyId } = req.params;
+    
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID is required"
+      });
+    }
+
+    const olts = await OLTModel.find({ ownedBy: companyId })
+      .populate('ownedBy', 'name email company')
+      .populate('assignedEngineer', 'name email')
+      .populate('assignedCompany', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      companyId,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching OLTs by company",
+      error: error.message
+    });
+  }
+};
+
+// Get all FDBs by Company ID
+export const getFDBsByCompany = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { companyId } = req.params;
+    
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID is required"
+      });
+    }
+
+    const fdbs = await FDBModel.find({ ownedBy: companyId })
+      .populate('ownedBy', 'name email company')
+      .populate('assignedEngineer', 'name email')
+      .populate('assignedCompany', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: fdbs.length,
+      companyId,
+      data: fdbs
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching FDBs by company",
+      error: error.message
+    });
+  }
+};
+
+// Get all MS devices by Company ID
+export const getMSByCompany = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { companyId } = req.params;
+    
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID is required"
+      });
+    }
+
+    const msDevices = await MSModel.find({ ownedBy: companyId })
+      .populate('ownedBy', 'name email company')
+      .populate('assignedEngineer', 'name email')
+      .populate('assignedCompany', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: msDevices.length,
+      companyId,
+      data: msDevices
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching MS devices by company",
+      error: error.message
+    });
+  }
+};
+
+// Get all SUBMS devices by Company ID
+export const getSUBMSByCompany = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { companyId } = req.params;
+    
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID is required"
+      });
+    }
+
+    const submsDevices = await SUBMSModel.find({ ownedBy: companyId })
+      .populate('ownedBy', 'name email company')
+      .populate('assignedEngineer', 'name email')
+      .populate('assignedCompany', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: submsDevices.length,
+      companyId,
+      data: submsDevices
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching SUBMS devices by company",
+      error: error.message
+    });
+  }
+};
+
+// Get all X2 devices by Company ID
+export const getX2ByCompany = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { companyId } = req.params;
+    
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID is required"
+      });
+    }
+
+    const x2Devices = await X2Model.find({ ownedBy: companyId })
+      .populate('ownedBy', 'name email company')
+      .populate('assignedEngineer', 'name email')
+      .populate('assignedCompany', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: x2Devices.length,
+      companyId,
+      data: x2Devices
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching X2 devices by company",
+      error: error.message
+    });
+  }
+};
+
+// Get all network components by Company ID (summary)
+export const getAllNetworkComponentsByCompany = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { companyId } = req.params;
+    
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID is required"
+      });
+    }
+
+    const [olts, fdbs, ms, subms, x2] = await Promise.all([
+      OLTModel.find({ ownedBy: companyId }).countDocuments(),
+      FDBModel.find({ ownedBy: companyId }).countDocuments(),
+      MSModel.find({ ownedBy: companyId }).countDocuments(),
+      SUBMSModel.find({ ownedBy: companyId }).countDocuments(),
+      X2Model.find({ ownedBy: companyId }).countDocuments()
+    ]);
+
+    res.status(200).json({
+      success: true,
+      companyId,
+      summary: {
+        totalDevices: olts + fdbs + ms + subms + x2,
+        olts: { count: olts },
+        fdbs: { count: fdbs },
+        ms: { count: ms },
+        subms: { count: subms },
+        x2: { count: x2 }
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching network components summary by company",
+      error: error.message
+    });
+  }
+};
+
+// Get all network components by Company ID (detailed)
+export const getDetailedNetworkComponentsByCompany = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { companyId } = req.params;
+    const { page = 1, limit = 50, type } = req.query;
+    
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID is required"
+      });
+    }
+
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const companyFilter = { ownedBy: companyId };
+
+    let result: any = {};
+
+    if (!type || type === 'all') {
+      // Get all types with pagination
+      const [olts, fdbs, ms, subms, x2] = await Promise.all([
+        OLTModel.find(companyFilter)
+          .populate('ownedBy', 'name email company')
+          .populate('assignedEngineer', 'name email')
+          .populate('assignedCompany', 'name email')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit as string)),
+        FDBModel.find(companyFilter)
+          .populate('ownedBy', 'name email company')
+          .populate('assignedEngineer', 'name email')
+          .populate('assignedCompany', 'name email')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit as string)),
+        MSModel.find(companyFilter)
+          .populate('ownedBy', 'name email company')
+          .populate('assignedEngineer', 'name email')
+          .populate('assignedCompany', 'name email')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit as string)),
+        SUBMSModel.find(companyFilter)
+          .populate('ownedBy', 'name email company')
+          .populate('assignedEngineer', 'name email')
+          .populate('assignedCompany', 'name email')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit as string)),
+        X2Model.find(companyFilter)
+          .populate('ownedBy', 'name email company')
+          .populate('assignedEngineer', 'name email')
+          .populate('assignedCompany', 'name email')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit as string))
+      ]);
+
+      result = {
+        olts: { count: olts.length, data: olts },
+        fdbs: { count: fdbs.length, data: fdbs },
+        ms: { count: ms.length, data: ms },
+        subms: { count: subms.length, data: subms },
+        x2: { count: x2.length, data: x2 }
+      };
+    } else {
+      // Get specific type with pagination
+      let model: any;
+      let typeName: string;
+
+      switch (type) {
+        case 'olt':
+          model = OLTModel;
+          typeName = 'OLTs';
+          break;
+        case 'fdb':
+          model = FDBModel;
+          typeName = 'FDBs';
+          break;
+        case 'ms':
+          model = MSModel;
+          typeName = 'MS devices';
+          break;
+        case 'subms':
+          model = SUBMSModel;
+          typeName = 'SUBMS devices';
+          break;
+        case 'x2':
+          model = X2Model;
+          typeName = 'X2 devices';
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: "Invalid type. Use: olt, fdb, ms, subms, x2, or all"
+          });
+      }
+
+      const devices = await model.find(companyFilter)
+        .populate('ownedBy', 'name email company')
+        .populate('assignedEngineer', 'name email')
+        .populate('assignedCompany', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit as string));
+
+      result = {
+        type,
+        typeName,
+        count: devices.length,
+        data: devices
+      };
+    }
+
+    res.status(200).json({
+      success: true,
+      companyId,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        skip
+      },
+      ...result
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching detailed network components by company",
+      error: error.message
+    });
+  }
+};
