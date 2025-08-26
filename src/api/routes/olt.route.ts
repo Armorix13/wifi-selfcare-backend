@@ -30,15 +30,16 @@ import {
   updateX2,
   deleteX2,
   getX2NetworkTopology,
-  createCustomer,
   getAllCustomers,
   getCustomerById,
   updateCustomer,
-  deleteCustomer,
   getCustomerNetworkTopology,
   searchCustomersByLocation,
   searchCustomersByStatus,
   searchCustomersByType,
+  attachCustomerToNetwork,
+  detachCustomerFromNetwork,
+  getCustomersByNetworkComponent,
   getCompleteNetworkTopology,
   getNetworkStatistics,
   // New company-based functions
@@ -48,7 +49,12 @@ import {
   getSUBMSByCompany,
   getX2ByCompany,
   getAllNetworkComponentsByCompany,
-  getDetailedNetworkComponentsByCompany
+  getDetailedNetworkComponentsByCompany,
+  // New topology planning functions
+  planTopology,
+  getTopologyRules,
+  validateExistingTopology,
+  getTopologyExamples
 } from "../controllers/olt.controller";
 import { OLTModel } from "../models/olt.model";
 import { MSModel } from "../models/ms.model";
@@ -160,10 +166,7 @@ router.delete("/x2/:id", deleteX2);
 // Get X2 network topology
 router.get("/x2/:id/topology", getX2NetworkTopology);
 
-// ==================== CUSTOMER ROUTES ====================
-
-// Create Customer
-router.post("/customer", createCustomer);
+// ==================== CUSTOMER MANAGEMENT ROUTES ====================
 
 // Get all Customers
 router.get("/customer", getAllCustomers);
@@ -173,9 +176,6 @@ router.get("/customer/:id", getCustomerById);
 
 // Update Customer
 router.put("/customer/:id", updateCustomer);
-
-// Delete Customer
-router.delete("/customer/:id", deleteCustomer);
 
 // Get Customer network topology
 router.get("/customer/:id/topology", getCustomerNetworkTopology);
@@ -189,6 +189,17 @@ router.get("/customer/status/:status", searchCustomersByStatus);
 // Search Customers by type
 router.get("/customer/type/:type", searchCustomersByType);
 
+// ==================== NETWORK ATTACHMENT ROUTES ====================
+
+// Attach customer to network component
+router.post("/customer/attach", attachCustomerToNetwork);
+
+// Detach customer from network
+router.delete("/customer/:customerId/detach", detachCustomerFromNetwork);
+
+// Get customers by network component
+router.get("/network/:componentType/:componentId/customers", getCustomersByNetworkComponent);
+
 // ==================== NETWORK TOPOLOGY ROUTES ====================
 
 // Get complete network topology from OLT
@@ -199,7 +210,7 @@ router.get("/network/statistics", getNetworkStatistics);
 
 // ==================== BULK OPERATIONS ====================
 
-// Bulk create OLTs
+// Bulk create OLTsd
 router.post("/olt/bulk", async (req, res): Promise<any> => {
   try {
     const { olts } = req.body;
@@ -551,5 +562,19 @@ router.get("/company/:companyId/summary", getAllNetworkComponentsByCompany);
 
 // Get detailed network components by Company ID (with pagination and filtering)
 router.get("/company/:companyId/components", getDetailedNetworkComponentsByCompany);
+
+// ==================== TOPOLOGY PLANNING ROUTES ====================
+
+// Plan topology based on subscriber count and OLT type
+router.post("/topology/plan", planTopology);
+
+// Get topology rules and constants
+router.get("/topology/rules", getTopologyRules);
+
+// Validate existing topology for an OLT
+router.get("/topology/validate/:oltId", validateExistingTopology);
+
+// Get topology examples for different scenarios
+router.get("/topology/examples", getTopologyExamples);
 
 export default router;

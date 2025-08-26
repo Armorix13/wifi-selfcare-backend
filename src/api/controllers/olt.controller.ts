@@ -4,6 +4,15 @@ import { MSModel } from "../models/ms.model";
 import { SUBMSModel } from "../models/subms.model";
 import { FDBModel } from "../models/fdb.model";
 import { X2Model } from "../models/x2.model";
+import { 
+  calculateTopology, 
+  validateTopology, 
+  generateRecommendations, 
+  createTopologyDiagram, 
+  getSplitterLoss,
+  TOPOLOGY_RULES, 
+  TopologyType 
+} from "../services/topology.service";
 import { UserModel } from "../models/user.model";
 
 // ==================== OLT FUNCTIONS ====================
@@ -1043,36 +1052,9 @@ export const getX2NetworkTopology = async (req: Request, res: Response): Promise
   }
 };
 
-// ==================== CUSTOMER FUNCTIONS ====================
+// ==================== CUSTOMER MANAGEMENT FUNCTIONS ====================
 
-// Create Customer (User with role "user")
-export const createCustomer = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const customerData = req.body;
-    
-    // Set role to "user" for customers
-    customerData.role = "user";
-    
-    // Handle location array format
-    if (Array.isArray(customerData.location)) {
-      customerData.lat = customerData.location[0];
-      customerData.long = customerData.location[1];
-    }
 
-    const customer = new UserModel(customerData);
-    const savedCustomer = await customer.save();
-    
-    res.status(201).json({
-      success: true,
-      data: savedCustomer
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
 
 // Get all Customers (Users with role "user")
 export const getAllCustomers = async (req: Request, res: Response): Promise<any> => {
@@ -1148,27 +1130,7 @@ export const updateCustomer = async (req: Request, res: Response): Promise<any> 
   }
 };
 
-// Delete Customer
-export const deleteCustomer = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const customer = await UserModel.findOneAndDelete({ _id: req.params.id, role: "user" });
-    if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found"
-      });
-    }
-    res.status(200).json({
-      success: true,
-      message: "Customer deleted successfully"
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
+
 
 // Get Customer network topology
 export const getCustomerNetworkTopology = async (req: Request, res: Response): Promise<any> => {
@@ -1261,6 +1223,173 @@ export const searchCustomersByType = async (req: Request, res: Response): Promis
     res.status(500).json({
       success: false,
       message: error.message
+    });
+  }
+};
+
+// ==================== NETWORK ATTACHMENT FUNCTIONS ====================
+
+// Attach customer to network component (X2, FDB, SUBMS)
+export const attachCustomerToNetwork = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { customerId, networkComponentType, networkComponentId } = req.body;
+    
+    if (!customerId || !networkComponentType || !networkComponentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer ID, network component type, and network component ID are required"
+      });
+    }
+
+    // Validate network component type
+    const validTypes = ["x2", "fdb", "subms"];
+    if (!validTypes.includes(networkComponentType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid network component type. Use: x2, fdb, or subms"
+      });
+    }
+
+    // Check if customer exists
+    const customer = await UserModel.findOne({ _id: customerId, role: "user" });
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    // Check if network component exists
+    let networkComponent;
+    switch (networkComponentType) {
+      case "x2":
+        networkComponent = await X2Model.findById(networkComponentId);
+        break;
+      case "fdb":
+        networkComponent = await FDBModel.findById(networkComponentId);
+        break;
+      case "subms":
+        networkComponent = await SUBMSModel.findById(networkComponentId);
+        break;
+    }
+
+    if (!networkComponent) {
+      return res.status(404).json({
+        success: false,
+        message: `${networkComponentType.toUpperCase()} component not found`
+      });
+    }
+
+    // Update customer's network input
+    const updatedCustomer = await UserModel.findByIdAndUpdate(
+      customerId,
+      {
+        networkInput: {
+          type: networkComponentType,
+          id: networkComponentId
+        }
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Customer attached to ${networkComponentType.toUpperCase()} successfully`,
+      data: updatedCustomer
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error attaching customer to network",
+      error: error.message
+    });
+  }
+};
+
+// Detach customer from network
+export const detachCustomerFromNetwork = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { customerId } = req.params;
+    
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer ID is required"
+      });
+    }
+
+    // Check if customer exists
+    const customer = await UserModel.findOne({ _id: customerId, role: "user" });
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    // Remove network input
+    const updatedCustomer = await UserModel.findByIdAndUpdate(
+      customerId,
+      {
+        $unset: { networkInput: 1 }
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Customer detached from network successfully",
+      data: updatedCustomer
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error detaching customer from network",
+      error: error.message
+    });
+  }
+};
+
+// Get all customers connected to a specific network component
+export const getCustomersByNetworkComponent = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { componentType, componentId } = req.params;
+    
+    if (!componentType || !componentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Component type and component ID are required"
+      });
+    }
+
+    // Validate component type
+    const validTypes = ["x2", "fdb", "subms"];
+    if (!validTypes.includes(componentType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid component type. Use: x2, fdb, or subms"
+      });
+    }
+
+    // Find customers connected to this component
+    const customers = await UserModel.find({
+      role: "user",
+      "networkInput.type": componentType,
+      "networkInput.id": componentId
+    });
+
+    res.status(200).json({
+      success: true,
+      count: customers.length,
+      componentType,
+      componentId,
+      data: customers
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching customers by network component",
+      error: error.message
     });
   }
 };
@@ -1774,6 +1903,288 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
     res.status(500).json({
       success: false,
       message: "Error fetching detailed network components by company",
+      error: error.message
+    });
+  }
+};
+
+// ==================== TOPOLOGY PLANNING FUNCTIONS ====================
+
+// Plan topology based on subscriber count and OLT type
+export const planTopology = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { subscriberCount, oltType } = req.body;
+    
+    if (!subscriberCount || !oltType) {
+      return res.status(400).json({
+        success: false,
+        message: "Subscriber count and OLT type are required"
+      });
+    }
+
+    if (subscriberCount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Subscriber count must be greater than 0"
+      });
+    }
+
+    // Calculate topology using EXACT rules
+    const topology = calculateTopology(subscriberCount, oltType);
+    
+    // Validate topology
+    const validation = validateTopology(topology);
+    
+    // Generate recommendations
+    const recommendations = generateRecommendations(subscriberCount, oltType);
+    
+    // Create topology diagram
+    const diagram = createTopologyDiagram(topology);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        topology,
+        validation,
+        recommendations,
+        diagram,
+        rules: TOPOLOGY_RULES
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error planning topology",
+      error: error.message
+    });
+  }
+};
+
+// Get topology rules and constants
+export const getTopologyRules = async (req: Request, res: Response): Promise<any> => {
+  try {
+    res.status(200).json({
+      success: true,
+      data: {
+        rules: TOPOLOGY_RULES,
+        description: "Exact topology rules for splitter losses, PON capacity, and tube system"
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching topology rules",
+      error: error.message
+    });
+  }
+};
+
+// Validate existing topology
+export const validateExistingTopology = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { oltId } = req.params;
+    
+    if (!oltId) {
+      return res.status(400).json({
+        success: false,
+        message: "OLT ID is required"
+      });
+    }
+
+    const olt = await OLTModel.findById(oltId)
+      .populate('outputs.id')
+      .populate('ownedBy', 'name email company');
+
+    if (!olt) {
+      return res.status(404).json({
+        success: false,
+        message: "OLT not found"
+      });
+    }
+
+    // Analyze existing topology
+    const topologyAnalysis = await analyzeExistingTopology(olt);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        olt,
+        topologyAnalysis
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error validating existing topology",
+      error: error.message
+    });
+  }
+};
+
+// Analyze existing topology for compliance with rules
+async function analyzeExistingTopology(olt: any) {
+  const analysis: {
+    totalLoss: number;
+    stages: Array<{
+      stage: number;
+      deviceType: string;
+      deviceId: any;
+      splitterType: string;
+      loss: number;
+      cumulativeLoss: number;
+    }>;
+    compliance: {
+      isValid: boolean;
+      errors: string[];
+      warnings: string[];
+    };
+    recommendations: string[];
+  } = {
+    totalLoss: 0,
+    stages: [],
+    compliance: {
+      isValid: true,
+      errors: [],
+      warnings: []
+    },
+    recommendations: []
+  };
+
+  try {
+    // Calculate total loss from existing devices
+    let currentLoss = 0;
+    let stageCount = 0;
+
+    // Check outputs and calculate losses
+    if (olt.outputs && olt.outputs.length > 0) {
+      for (const output of olt.outputs) {
+        if (output.type === 'ms') {
+          const ms = await MSModel.findById(output.id);
+          if (ms) {
+            const loss = getSplitterLoss(ms.msType);
+            currentLoss += loss;
+            stageCount++;
+            
+            analysis.stages.push({
+              stage: stageCount,
+              deviceType: 'ms',
+              deviceId: ms._id,
+              splitterType: ms.msType,
+              loss: loss,
+              cumulativeLoss: currentLoss
+            });
+          }
+        } else if (output.type === 'subms') {
+          const subms = await SUBMSModel.findById(output.id);
+          if (subms) {
+            const loss = getSplitterLoss(subms.submsType);
+            currentLoss += loss;
+            stageCount++;
+            
+            analysis.stages.push({
+              stage: stageCount,
+              deviceType: 'subms',
+              deviceId: subms._id,
+              splitterType: subms.submsType,
+              loss: loss,
+              cumulativeLoss: currentLoss
+            });
+          }
+        }
+      }
+    }
+
+    analysis.totalLoss = currentLoss;
+
+    // Check compliance with rules
+    if (currentLoss > TOPOLOGY_RULES.MAX_PASSIVE_LOSS) {
+      analysis.compliance.isValid = false;
+      analysis.compliance.errors.push(`Total loss ${currentLoss} dB exceeds maximum allowed ${TOPOLOGY_RULES.MAX_PASSIVE_LOSS} dB`);
+    }
+
+    if (currentLoss === TOPOLOGY_RULES.MAX_PASSIVE_LOSS) {
+      analysis.compliance.warnings.push('Total loss is at maximum limit (20 dB). No further passive elements can be added.');
+    }
+
+    // Generate recommendations
+    if (currentLoss < TOPOLOGY_RULES.MAX_PASSIVE_LOSS) {
+      const remainingLoss = TOPOLOGY_RULES.MAX_PASSIVE_LOSS - currentLoss;
+      analysis.recommendations.push(`Can add more passive elements. Remaining loss budget: ${remainingLoss} dB`);
+    } else {
+      analysis.recommendations.push('Cannot add more passive elements. Loss limit reached.');
+    }
+
+    // Check topology type compliance
+    if (stageCount === 0) {
+      analysis.recommendations.push('Direct topology - no passive elements');
+    } else if (stageCount === 2 && 
+               analysis.stages[0]?.splitterType === '1x16' && 
+               analysis.stages[1]?.splitterType === '1x4') {
+      analysis.recommendations.push('Tube system topology detected - compliant with rules');
+    } else {
+      analysis.compliance.warnings.push('Topology does not follow standard tube system pattern');
+    }
+
+  } catch (error:any) {
+    analysis.compliance.errors.push(`Error analyzing topology: ${error.message}`);
+    analysis.compliance.isValid = false;
+  }
+
+  return analysis;
+}
+
+// Get topology examples for different scenarios
+export const getTopologyExamples = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const examples = [
+      {
+        scenario: "Small Network (< 12 subscribers)",
+        subscriberCount: 8,
+        oltType: "gpon",
+        topology: calculateTopology(8, "gpon"),
+        description: "Direct connection - no passive elements needed"
+      },
+      {
+        scenario: "Medium Network (12-64 subscribers)",
+        subscriberCount: 24,
+        oltType: "gpon",
+        topology: calculateTopology(24, "gpon"),
+        description: "Tube system: 1×16 → 4×1×4 (total loss: 20 dB)"
+      },
+      {
+        scenario: "Large Network (64 subscribers)",
+        subscriberCount: 64,
+        oltType: "gpon",
+        topology: calculateTopology(64, "gpon"),
+        description: "Tube system at capacity - no more passive elements allowed"
+      },
+      {
+        scenario: "EPON Network (64 ONU limit)",
+        subscriberCount: 64,
+        oltType: "epon",
+        topology: calculateTopology(64, "epon"),
+        description: "EPON capacity limit reached"
+      },
+      {
+        scenario: "GPON Network (128 ONU limit)",
+        subscriberCount: 128,
+        oltType: "gpon",
+        topology: calculateTopology(128, "gpon"),
+        description: "GPON capacity limit reached"
+      }
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        examples,
+        rules: TOPOLOGY_RULES
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching topology examples",
       error: error.message
     });
   }

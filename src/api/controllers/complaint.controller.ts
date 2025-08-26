@@ -18,6 +18,8 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
         const { title, issueDescription, issueType, phoneNumber, attachments, complaintType, type }: CreateComplaintBody = req.body;
+        console.log("createComplaint",req.body);
+        
 
         if (!title || !issueDescription || !issueType || !phoneNumber || !type) {
             return sendError(res, "Title, issue description, issue type, phone number, and type are required", 400);
