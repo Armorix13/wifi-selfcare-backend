@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { upload } from '../services/upload.service';
 
 // X2 Status Enum
 enum X2Status {
@@ -104,9 +105,13 @@ export interface IX2 extends Document {
   activeCustomers?: number; // Number of active customer connections
   
   // Management and Ownership
+  ownedBy: mongoose.Types.ObjectId; // Admin(Company) that owns this X2
   assignedEngineer?: mongoose.Types.ObjectId;
   assignedCompany?: mongoose.Types.ObjectId;
   addedBy?: mongoose.Types.ObjectId;
+  
+  // Attachments
+  attachments: string[]; // Array of strings as links with minimum 2 required
   
   // Timestamps
   createdAt?: Date;
@@ -337,6 +342,11 @@ const X2Schema = new Schema<IX2>({
   },
   
   // Management and Ownership
+  ownedBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
   assignedEngineer: {
     type: Schema.Types.ObjectId,
     ref: "User"
@@ -348,6 +358,18 @@ const X2Schema = new Schema<IX2>({
   addedBy: {
     type: Schema.Types.ObjectId,
     ref: "User"
+  },
+  
+  // Attachments
+  attachments: {
+    type: [String],
+    required: true,
+    validate: {
+      validator: function(attachments: string[]) {
+        return attachments && attachments.length >= 2;
+      },
+      message: 'At least 2 attachments are required'
+    }
   }
 }, {
   timestamps: true
@@ -361,6 +383,7 @@ X2Schema.index({ "outputs.id": 1 }); // Index for output connections
 X2Schema.index({ location: "2dsphere" }); // Geospatial index
 X2Schema.index({ status: 1 });
 X2Schema.index({ x2Type: 1 });
+X2Schema.index({ ownedBy: 1 }); // Index for ownedBy field
 X2Schema.index({ assignedEngineer: 1 });
 X2Schema.index({ assignedCompany: 1 });
 

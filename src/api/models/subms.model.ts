@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { upload } from '../services/upload.service';
 
 // SUBMS Status Enum
 enum SUBMSStatus {
@@ -96,9 +97,13 @@ export interface ISUBMS extends Document {
   postalCode?: string;
   
   // Management and Ownership
+  ownedBy: mongoose.Types.ObjectId; // Admin(Company) that owns this SUBMS
   assignedEngineer?: mongoose.Types.ObjectId;
   assignedCompany?: mongoose.Types.ObjectId;
   addedBy?: mongoose.Types.ObjectId;
+  
+  // Attachments
+  attachments: string[]; // Array of strings as links with minimum 2 required
   
   // Timestamps
   createdAt?: Date;
@@ -308,6 +313,11 @@ const SUBMSSchema = new Schema<ISUBMS>({
   },
   
   // Management and Ownership
+  ownedBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
   assignedEngineer: {
     type: Schema.Types.ObjectId,
     ref: "User"
@@ -319,6 +329,18 @@ const SUBMSSchema = new Schema<ISUBMS>({
   addedBy: {
     type: Schema.Types.ObjectId,
     ref: "User"
+  },
+  
+  // Attachments
+  attachments: {
+    type: [String],
+    required: true,
+    validate: {
+      validator: function(attachments: string[]) {
+        return attachments && attachments.length >= 2;
+      },
+      message: 'At least 2 attachments are required'
+    }
   }
 }, {
   timestamps: true
@@ -332,6 +354,7 @@ SUBMSSchema.index({ "outputs.id": 1 }); // Index for output connections
 SUBMSSchema.index({ location: "2dsphere" }); // Geospatial index
 SUBMSSchema.index({ status: 1 });
 SUBMSSchema.index({ submsType: 1 });
+SUBMSSchema.index({ ownedBy: 1 }); // Index for ownedBy field
 SUBMSSchema.index({ assignedEngineer: 1 });
 SUBMSSchema.index({ assignedCompany: 1 });
 

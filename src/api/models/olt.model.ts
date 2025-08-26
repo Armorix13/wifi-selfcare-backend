@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { upload } from '../services/upload.service';
 
 // OLT Status Enum
 enum OLTStatus {
@@ -94,9 +95,13 @@ export interface IOLT extends Document {
   }>;
   
   // Management and Ownership
+  ownedBy: mongoose.Types.ObjectId; // Admin(Company) that owns this OLT
   assignedEngineer?: mongoose.Types.ObjectId;
   assignedCompany?: mongoose.Types.ObjectId;
   addedBy?: mongoose.Types.ObjectId;
+  
+  // Attachments
+  attachments: string[]; // Array of strings as links with minimum 4 required
   
   // Timestamps
   createdAt?: Date;
@@ -310,6 +315,11 @@ const OLTSchema = new Schema<IOLT>({
   }],
   
   // Management and Ownership
+  ownedBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
   assignedEngineer: {
     type: Schema.Types.ObjectId,
     ref: "User"
@@ -321,6 +331,18 @@ const OLTSchema = new Schema<IOLT>({
   addedBy: {
     type: Schema.Types.ObjectId,
     ref: "User"
+  },
+  
+  // Attachments
+  attachments: {
+    type: [String],
+    required: true,
+    validate: {
+      validator: function(attachments: string[]) {
+        return attachments && attachments.length >= 4;
+      },
+      message: 'At least 4 attachments are required'
+    }
   }
 }, {
   timestamps: true
@@ -334,6 +356,7 @@ OLTSchema.index({ serialNumber: 1 });
 OLTSchema.index({ location: "2dsphere" }); // Geospatial index
 OLTSchema.index({ status: 1 });
 OLTSchema.index({ oltType: 1 });
+OLTSchema.index({ ownedBy: 1 }); // Index for ownedBy field
 OLTSchema.index({ assignedEngineer: 1 });
 OLTSchema.index({ assignedCompany: 1 });
 

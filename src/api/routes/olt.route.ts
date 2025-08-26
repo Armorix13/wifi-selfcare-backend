@@ -48,13 +48,14 @@ import { SUBMSModel } from "../models/subms.model";
 import { FDBModel } from "../models/fdb.model";
 import { X2Model } from "../models/x2.model";
 import { UserModel } from "../models/user.model";
+import { upload } from '../services/upload.service';
 
 const router = Router();
 
 // ==================== OLT ROUTES ====================
 
-// Create OLT
-router.post("/olt", createOLT);
+// Create OLT with image uploads (minimum 4 images required)
+router.post("/olt", upload.array('images', 10), createOLT);
 
 // Get all OLTs
 router.get("/olt", getAllOLTs);
@@ -76,8 +77,8 @@ router.get("/olt/search/location", searchOLTsByLocation);
 
 // ==================== MS ROUTES ====================
 
-// Create MS
-router.post("/ms", createMS);
+// Create MS with image uploads (minimum 2 images required)
+router.post("/ms", upload.array('images', 10), createMS);
 
 // Get all MS devices
 router.get("/ms", getAllMS);
@@ -96,8 +97,8 @@ router.get("/ms/:id/topology", getMSNetworkTopology);
 
 // ==================== SUBMS ROUTES ====================
 
-// Create SUBMS
-router.post("/subms", createSUBMS);
+// Create SUBMS with image uploads (minimum 2 images required)
+router.post("/subms", upload.array('images', 10), createSUBMS);
 
 // Get all SUBMS devices
 router.get("/subms", getAllSUBMS);
@@ -113,8 +114,8 @@ router.delete("/subms/:id", deleteSUBMS);
 
 // ==================== FDB ROUTES ====================
 
-// Create FDB
-router.post("/fdb", createFDB);
+// Create FDB with image uploads (minimum 2 images required)
+router.post("/fdb", upload.array('images', 10), createFDB);
 
 // Get all FDB devices
 router.get("/fdb", getAllFDB);
@@ -133,8 +134,8 @@ router.get("/fdb/:id/topology", getFDBNetworkTopology);
 
 // ==================== X2 ROUTES ====================
 
-// Create X2
-router.post("/x2", createX2);
+// Create X2 with image uploads (minimum 2 images required)
+router.post("/x2", upload.array('images', 10), createX2);
 
 // Get all X2 devices
 router.get("/x2", getAllX2);

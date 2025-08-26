@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { upload } from '../services/upload.service';
 
 // FDB Status Enum
 enum FDBStatus {
@@ -100,9 +101,13 @@ export interface IFDB extends Document {
   depth?: number; // Depth if underground in meters
   
   // Management and Ownership
+  ownedBy: mongoose.Types.ObjectId; // Admin(Company) that owns this FDB
   assignedEngineer?: mongoose.Types.ObjectId;
   assignedCompany?: mongoose.Types.ObjectId;
   addedBy?: mongoose.Types.ObjectId;
+  
+  // Attachments
+  attachments: string[]; // Array of strings as links with minimum 2 required
   
   // Timestamps
   createdAt?: Date;
@@ -323,6 +328,11 @@ const FDBSchema = new Schema<IFDB>({
   },
   
   // Management and Ownership
+  ownedBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
   assignedEngineer: {
     type: Schema.Types.ObjectId,
     ref: "User"
@@ -334,6 +344,18 @@ const FDBSchema = new Schema<IFDB>({
   addedBy: {
     type: Schema.Types.ObjectId,
     ref: "User"
+  },
+  
+  // Attachments
+  attachments: {
+    type: [String],
+    required: true,
+    validate: {
+      validator: function(attachments: string[]) {
+        return attachments && attachments.length >= 2;
+      },
+      message: 'At least 2 attachments are required'
+    }
   }
 }, {
   timestamps: true
@@ -347,6 +369,7 @@ FDBSchema.index({ "outputs.id": 1 }); // Index for output connections
 FDBSchema.index({ location: "2dsphere" }); // Geospatial index
 FDBSchema.index({ status: 1 });
 FDBSchema.index({ fdbType: 1 });
+FDBSchema.index({ ownedBy: 1 }); // Index for ownedBy field
 FDBSchema.index({ assignedEngineer: 1 });
 FDBSchema.index({ assignedCompany: 1 });
 

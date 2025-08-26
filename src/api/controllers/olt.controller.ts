@@ -13,6 +13,26 @@ export const createOLT = async (req: Request, res: Response): Promise<any> => {
   try {
     const oltData = req.body;
     
+    // Handle uploaded images
+    if (req.files && Array.isArray(req.files)) {
+      if (req.files.length < 4) {
+        return res.status(400).json({
+          success: false,
+          message: "At least 4 images are required for OLT"
+        });
+      }
+      
+      // Convert uploaded files to attachment URLs
+      const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
+      
+      oltData.attachments = attachments;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Images are required for OLT creation"
+      });
+    }
+    
     // Extract location array if provided
     if (oltData.location && Array.isArray(oltData.location)) {
       oltData.latitude = oltData.location[0];
@@ -239,6 +259,26 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
   try {
     const msData = req.body;
     
+    // Handle uploaded images
+    if (req.files && Array.isArray(req.files)) {
+      if (req.files.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "At least 2 images are required for MS"
+        });
+      }
+      
+      // Convert uploaded files to attachment URLs
+      const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
+      
+      msData.attachments = attachments;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Images are required for MS creation"
+      });
+    }
+    
     // Extract location array if provided
     if (msData.location && Array.isArray(msData.location)) {
       msData.latitude = msData.location[0];
@@ -436,6 +476,26 @@ export const createSUBMS = async (req: Request, res: Response): Promise<any> => 
   try {
     const submsData = req.body;
     
+    // Handle uploaded images
+    if (req.files && Array.isArray(req.files)) {
+      if (req.files.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "At least 2 images are required for SUBMS"
+        });
+      }
+      
+      // Convert uploaded files to attachment URLs
+      const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
+      
+      submsData.attachments = attachments;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Images are required for SUBMS creation"
+      });
+    }
+    
     // Extract location array if provided
     if (submsData.location && Array.isArray(submsData.location)) {
       submsData.latitude = submsData.location[0];
@@ -577,6 +637,26 @@ export const deleteSUBMS = async (req: Request, res: Response): Promise<any> => 
 export const createFDB = async (req: Request, res: Response): Promise<any> => {
   try {
     const fdbData = req.body;
+    
+    // Handle uploaded images
+    if (req.files && Array.isArray(req.files)) {
+      if (req.files.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "At least 2 images are required for FDB"
+        });
+      }
+      
+      // Convert uploaded files to attachment URLs
+      const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
+      
+      fdbData.attachments = attachments;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Images are required for FDB creation"
+      });
+    }
     
     // Extract location array if provided
     if (fdbData.location && Array.isArray(fdbData.location)) {
@@ -767,6 +847,26 @@ export const getFDBNetworkTopology = async (req: Request, res: Response): Promis
 export const createX2 = async (req: Request, res: Response): Promise<any> => {
   try {
     const x2Data = req.body;
+    
+    // Handle uploaded images
+    if (req.files && Array.isArray(req.files)) {
+      if (req.files.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message: "At least 2 images are required for X2"
+        });
+      }
+      
+      // Convert uploaded files to attachment URLs
+      const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
+      
+      x2Data.attachments = attachments;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Images are required for X2 creation"
+      });
+    }
     
     // Extract location array if provided
     if (x2Data.location && Array.isArray(x2Data.location)) {

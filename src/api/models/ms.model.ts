@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { upload } from '../services/upload.service';
 
 // MS Status Enum
 enum MSStatus {
@@ -98,9 +99,13 @@ export interface IMS extends Document {
   postalCode?: string;
   
   // Management and Ownership
+  ownedBy: mongoose.Types.ObjectId; // Admin(Company) that owns this MS
   assignedEngineer?: mongoose.Types.ObjectId;
   assignedCompany?: mongoose.Types.ObjectId;
   addedBy?: mongoose.Types.ObjectId;
+  
+  // Attachments
+  attachments: string[]; // Array of strings as links with minimum 2 required
   
   // Timestamps
   createdAt?: Date;
@@ -310,6 +315,11 @@ const MSSchema = new Schema<IMS>({
   },
   
   // Management and Ownership
+  ownedBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
   assignedEngineer: {
     type: Schema.Types.ObjectId,
     ref: "User"
@@ -321,6 +331,18 @@ const MSSchema = new Schema<IMS>({
   addedBy: {
     type: Schema.Types.ObjectId,
     ref: "User"
+  },
+  
+  // Attachments
+  attachments: {
+    type: [String],
+    required: true,
+    validate: {
+      validator: function(attachments: string[]) {
+        return attachments && attachments.length >= 2;
+      },
+      message: 'At least 2 attachments are required'
+    }
   }
 }, {
   timestamps: true
@@ -334,6 +356,7 @@ MSSchema.index({ "outputs.id": 1 }); // Index for output connections
 MSSchema.index({ location: "2dsphere" }); // Geospatial index
 MSSchema.index({ status: 1 });
 MSSchema.index({ msType: 1 });
+MSSchema.index({ ownedBy: 1 }); // Index for ownedBy field
 MSSchema.index({ assignedEngineer: 1 });
 MSSchema.index({ assignedCompany: 1 });
 
