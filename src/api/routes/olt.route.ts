@@ -7,6 +7,20 @@ import {
   deleteOLT,
   getOLTNetworkTopology,
   searchOLTsByLocation,
+  // OLT Search Functions
+  searchOLTsBySerialNumber,
+  searchOLTsByName,
+  searchOLTsByOLTId,
+  searchOLTsByIP,
+  searchOLTsByMAC,
+  searchOLTsByManufacturer,
+  searchOLTsByModel,
+  searchOLTsByStatus,
+  searchOLTsByPowerStatus,
+  searchOLTsByCity,
+  searchOLTsByState,
+  advancedSearchOLTs,
+  getOLTStatistics,
   createMS,
   getAllMS,
   getMSById,
@@ -88,6 +102,25 @@ router.get("/olt/:id/topology", getOLTNetworkTopology);
 
 // Search OLTs by location
 router.get("/olt/search/location", searchOLTsByLocation);
+
+// ==================== OLT SEARCH ROUTES ====================
+
+// Individual Search Routes
+router.get("/olt/search/serial/:serialNumber", searchOLTsBySerialNumber);
+router.get("/olt/search/name/:name", searchOLTsByName);
+router.get("/olt/search/id/:oltId", searchOLTsByOLTId);
+router.get("/olt/search/ip/:ip", searchOLTsByIP);
+router.get("/olt/search/mac/:mac", searchOLTsByMAC);
+router.get("/olt/search/manufacturer/:manufacturer", searchOLTsByManufacturer);
+router.get("/olt/search/model/:model", searchOLTsByModel);
+router.get("/olt/search/status/:status", searchOLTsByStatus);
+router.get("/olt/search/power/:powerStatus", searchOLTsByPowerStatus);
+router.get("/olt/search/city/:city", searchOLTsByCity);
+router.get("/olt/search/state/:state", searchOLTsByState);
+
+// Advanced Search and Statistics
+router.get("/olt/search/advanced", advancedSearchOLTs);
+router.get("/olt/statistics", getOLTStatistics);
 
 // ==================== MS ROUTES ====================
 

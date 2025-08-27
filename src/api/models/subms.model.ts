@@ -347,8 +347,7 @@ const SUBMSSchema = new Schema<ISUBMS>({
 });
 
 // Indexes for better performance
-SUBMSSchema.index({ submsId: 1 });
-SUBMSSchema.index({ submsName: 1 });
+// Note: unique: true fields automatically create indexes, so we don't need to declare them again
 SUBMSSchema.index({ "input.id": 1 }); // Index for input connections
 SUBMSSchema.index({ "outputs.id": 1 }); // Index for output connections
 SUBMSSchema.index({ location: "2dsphere" }); // Geospatial index

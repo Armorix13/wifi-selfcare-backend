@@ -36,6 +36,7 @@ const OrderProductSchema = new Schema<IOrderProduct>({
 const OrderSchema = new Schema<IOrder>({
   orderId: {
     type: String,
+    unique: true,
     trim: true
   },
   user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -78,7 +79,6 @@ OrderSchema.pre('save', async function (next) {
   next();
 });
 
-// Add index for orderId
-OrderSchema.index({ orderId: 1 }, { unique: true });
+// Note: unique: true fields automatically create indexes, so we don't need to declare them again
 
 export default mongoose.model<IOrder>('Order', OrderSchema); 

@@ -130,24 +130,20 @@ const OLTSchema = new Schema<IOLT>({
   },
   name: { 
     type: String, 
-    required: true,
     trim: true
   },
   oltIp: { 
     type: String, 
-    required: true,
     unique: true,
     trim: true
   },
   macAddress: { 
     type: String, 
-    required: true,
     unique: true,
     trim: true
   },
   serialNumber: { 
     type: String, 
-    required: true,
     unique: true,
     trim: true
   },
@@ -194,7 +190,7 @@ const OLTSchema = new Schema<IOLT>({
   powerStatus: { 
     type: String, 
     enum: Object.values(PowerStatus), 
-    default: PowerStatus.OFF
+    default: PowerStatus.ON
   },
   oltPower: { 
     type: Number,
@@ -217,7 +213,7 @@ const OLTSchema = new Schema<IOLT>({
   status: { 
     type: String, 
     enum: Object.values(OLTStatus), 
-    default: OLTStatus.INACTIVE
+    default: OLTStatus.ACTIVE
   },
   uptime: { 
     type: Number,
@@ -302,7 +298,6 @@ const OLTSchema = new Schema<IOLT>({
     },
     id: {
       type: String,
-      required: true
     },
     port: {
       type: Number,
@@ -318,7 +313,6 @@ const OLTSchema = new Schema<IOLT>({
   ownedBy: {
     type: Schema.Types.ObjectId,
     ref: "User",
-    required: true
   },
   assignedEngineer: {
     type: Schema.Types.ObjectId,
@@ -336,7 +330,6 @@ const OLTSchema = new Schema<IOLT>({
   // Attachments
   attachments: {
     type: [String],
-    required: true,
     validate: {
       validator: function(attachments: string[]) {
         return attachments && attachments.length >= 4;
@@ -349,16 +342,30 @@ const OLTSchema = new Schema<IOLT>({
 });
 
 // Indexes for better performance
-OLTSchema.index({ oltId: 1 });
-OLTSchema.index({ oltIp: 1 });
-OLTSchema.index({ macAddress: 1 });
-OLTSchema.index({ serialNumber: 1 });
+// Note: unique: true fields automatically create indexes, so we don't need to declare them again
 OLTSchema.index({ location: "2dsphere" }); // Geospatial index
 OLTSchema.index({ status: 1 });
 OLTSchema.index({ oltType: 1 });
 OLTSchema.index({ ownedBy: 1 }); // Index for ownedBy field
 OLTSchema.index({ assignedEngineer: 1 });
 OLTSchema.index({ assignedCompany: 1 });
+
+// Additional indexes for search performance
+OLTSchema.index({ manufacturer: 1 });
+OLTSchema.index({ oltModel: 1 });
+OLTSchema.index({ city: 1 });
+OLTSchema.index({ state: 1 });
+OLTSchema.index({ country: 1 });
+OLTSchema.index({ powerStatus: 1 });
+OLTSchema.index({ createdAt: 1 });
+OLTSchema.index({ updatedAt: 1 });
+
+// Compound indexes for common query patterns
+OLTSchema.index({ status: 1, powerStatus: 1 });
+OLTSchema.index({ ownedBy: 1, status: 1 });
+OLTSchema.index({ city: 1, state: 1 });
+OLTSchema.index({ oltType: 1, status: 1 });
+OLTSchema.index({ manufacturer: 1, oltModel: 1 });
 
 // Pre-save middleware to generate OLT ID and ensure location coordinates match lat/long
 OLTSchema.pre('save', function(next) {
@@ -400,6 +407,98 @@ OLTSchema.methods.isHealthy = function() {
   return this.status === OLTStatus.ACTIVE && 
          this.powerStatus === PowerStatus.ON &&
          this.temperature && this.temperature < 80;
+};
+
+// Method to get OLT health score (0-100)
+OLTSchema.methods.getHealthScore = function() {
+  let score = 100;
+  
+  // Status penalty
+  if (this.status === OLTStatus.ERROR) score -= 50;
+  else if (this.status === OLTStatus.OFFLINE) score -= 40;
+  else if (this.status === OLTStatus.MAINTENANCE) score -= 20;
+  else if (this.status === OLTStatus.INACTIVE) score -= 10;
+  
+  // Power status penalty
+  if (this.powerStatus === PowerStatus.ERROR) score -= 30;
+  else if (this.powerStatus === PowerStatus.OFF) score -= 25;
+  else if (this.powerStatus === PowerStatus.STANDBY) score -= 5;
+  
+  // Temperature penalty
+  if (this.temperature) {
+    if (this.temperature > 80) score -= 30;
+    else if (this.temperature > 70) score -= 20;
+    else if (this.temperature > 60) score -= 10;
+  }
+  
+  // Port utilization penalty
+  if (this.totalPorts && this.activePorts) {
+    const utilization = (this.activePorts / this.totalPorts) * 100;
+    if (utilization > 90) score -= 15;
+    else if (utilization > 80) score -= 10;
+    else if (utilization > 70) score -= 5;
+  }
+  
+  return Math.max(0, score);
+};
+
+// Method to get OLT summary information
+OLTSchema.methods.getSummary = function() {
+  return {
+    oltId: this.oltId,
+    name: this.name,
+    status: this.status,
+    powerStatus: this.powerStatus,
+    healthScore: this.getHealthScore(),
+    location: {
+      city: this.city,
+      state: this.state,
+      country: this.country,
+      coordinates: this.location?.coordinates
+    },
+    ports: {
+      total: this.totalPorts,
+      active: this.activePorts,
+      available: this.availablePorts,
+      utilization: this.totalPorts && this.activePorts ? 
+        Math.round((this.activePorts / this.totalPorts) * 100) : 0
+    },
+    lastSeen: this.lastSeen,
+    uptime: this.uptime
+  };
+};
+
+// Method to validate OLT configuration
+OLTSchema.methods.validateConfiguration = function() {
+  const errors = [];
+  
+  if (!this.oltIp) errors.push('OLT IP address is required');
+  if (!this.macAddress) errors.push('MAC address is required');
+  if (!this.serialNumber) errors.push('Serial number is required');
+  if (!this.manufacturer) errors.push('Manufacturer is required');
+  if (!this.oltModel) errors.push('OLT model is required');
+  
+  // Validate IP address format
+  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  if (this.oltIp && !ipRegex.test(this.oltIp)) {
+    errors.push('Invalid IP address format');
+  }
+  
+  // Validate MAC address format
+  const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
+  if (this.macAddress && !macRegex.test(this.macAddress)) {
+    errors.push('Invalid MAC address format');
+  }
+  
+  // Validate port counts
+  if (this.totalPorts && this.activePorts && this.activePorts > this.totalPorts) {
+    errors.push('Active ports cannot exceed total ports');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
 };
 
 const OLTModel: Model<IOLT> = mongoose.model<IOLT>("OLT", OLTSchema);

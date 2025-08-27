@@ -61,7 +61,7 @@ export interface IMS extends Document {
   
   // Technical Specifications
   manufacturer?: string;
-  model?: string;
+  deviceModel?: string;
   serialNumber?: string;
   firmwareVersion?: string;
   hardwareVersion?: string;
@@ -197,7 +197,7 @@ const MSSchema = new Schema<IMS>({
     type: String,
     trim: true
   },
-  model: { 
+  deviceModel: { 
     type: String,
     trim: true
   },
@@ -218,7 +218,7 @@ const MSSchema = new Schema<IMS>({
   powerStatus: { 
     type: String, 
     enum: Object.values(PowerStatus), 
-    default: PowerStatus.OFF
+    default: PowerStatus.ON
   },
   powerConsumption: { 
     type: Number,
@@ -237,7 +237,7 @@ const MSSchema = new Schema<IMS>({
   status: { 
     type: String, 
     enum: Object.values(MSStatus), 
-    default: MSStatus.INACTIVE
+    default: MSStatus.ACTIVE
   },
   uptime: { 
     type: Number,
@@ -318,7 +318,6 @@ const MSSchema = new Schema<IMS>({
   ownedBy: {
     type: Schema.Types.ObjectId,
     ref: "User",
-    required: true
   },
   assignedEngineer: {
     type: Schema.Types.ObjectId,
@@ -349,8 +348,7 @@ const MSSchema = new Schema<IMS>({
 });
 
 // Indexes for better performance
-MSSchema.index({ msId: 1 });
-MSSchema.index({ msName: 1 });
+// Note: unique: true fields automatically create indexes, so we don't need to declare them again
 MSSchema.index({ "input.id": 1 }); // Index for input connections
 MSSchema.index({ "outputs.id": 1 }); // Index for output connections
 MSSchema.index({ location: "2dsphere" }); // Geospatial index
@@ -439,7 +437,7 @@ MSSchema.methods.addOutput = function(output: IMSConnection) {
 // Method to remove output connection
 MSSchema.methods.removeOutput = function(outputId: string) {
   if (this.outputs) {
-    this.outputs = this.outputs.filter(output => output.id !== outputId);
+    this.outputs = this.outputs.filter((output: IMSConnection) => output.id !== outputId);
   }
   return this.save();
 };
@@ -458,7 +456,7 @@ MSSchema.methods.getConnectedDevices = function() {
   
   // Add output devices
   if (this.outputs) {
-    this.outputs.forEach(output => {
+    this.outputs.forEach((output: IMSConnection) => {
       devices.push({
         type: 'output',
         connection: output

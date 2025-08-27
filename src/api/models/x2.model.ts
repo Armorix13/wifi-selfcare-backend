@@ -376,8 +376,7 @@ const X2Schema = new Schema<IX2>({
 });
 
 // Indexes for better performance
-X2Schema.index({ x2Id: 1 });
-X2Schema.index({ x2Name: 1 });
+// Note: unique: true fields automatically create indexes, so we don't need to declare them again
 X2Schema.index({ "input.id": 1 }); // Index for input connections
 X2Schema.index({ "outputs.id": 1 }); // Index for output connections
 X2Schema.index({ location: "2dsphere" }); // Geospatial index

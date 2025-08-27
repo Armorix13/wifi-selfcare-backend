@@ -21,6 +21,8 @@ import { UserModel } from "../models/user.model";
 export const createOLT = async (req: Request, res: Response): Promise<any> => {
   try {
     const oltData = req.body;
+
+    console.log(req.body);
     
     // Handle uploaded images
     if (req.files && Array.isArray(req.files)) {
@@ -261,6 +263,527 @@ export const searchOLTsByLocation = async (req: Request, res: Response): Promise
   }
 };
 
+// ==================== OLT SEARCH FUNCTIONS ====================
+
+// Search OLTs by Serial Number
+export const searchOLTsBySerialNumber = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { serialNumber } = req.params;
+    
+    if (!serialNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Serial number is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      serialNumber: { $regex: serialNumber, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      serialNumber,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by serial number",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by Name
+export const searchOLTsByName = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { name } = req.params;
+    
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Name is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      name: { $regex: name, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      name,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by name",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by OLT ID
+export const searchOLTsByOLTId = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { oltId } = req.params;
+    
+    if (!oltId) {
+      return res.status(400).json({
+        success: false,
+        message: "OLT ID is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      oltId: { $regex: oltId, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      oltId,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by OLT ID",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by IP Address
+export const searchOLTsByIP = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { ip } = req.params;
+    
+    if (!ip) {
+      return res.status(400).json({
+        success: false,
+        message: "IP address is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      oltIp: { $regex: ip, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      ip,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by IP address",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by MAC Address
+export const searchOLTsByMAC = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { mac } = req.params;
+    
+    if (!mac) {
+      return res.status(400).json({
+        success: false,
+        message: "MAC address is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      macAddress: { $regex: mac, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      mac,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by MAC address",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by Manufacturer
+export const searchOLTsByManufacturer = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { manufacturer } = req.params;
+    
+    if (!manufacturer) {
+      return res.status(400).json({
+        success: false,
+        message: "Manufacturer is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      manufacturer: { $regex: manufacturer, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      manufacturer,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by manufacturer",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by Model
+export const searchOLTsByModel = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { model } = req.params;
+    
+    if (!model) {
+      return res.status(400).json({
+        success: false,
+        message: "Model is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      oltModel: { $regex: model, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      model,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by model",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by Status
+export const searchOLTsByStatus = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { status } = req.params;
+    
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "Status is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      status: { $regex: status, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      status,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by status",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by Power Status
+export const searchOLTsByPowerStatus = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { powerStatus } = req.params;
+    
+    if (!powerStatus) {
+      return res.status(400).json({
+        success: false,
+        message: "Power status is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      powerStatus: { $regex: powerStatus, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      powerStatus,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by power status",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by City
+export const searchOLTsByCity = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { city } = req.params;
+    
+    if (!city) {
+      return res.status(400).json({
+        success: false,
+        message: "City is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      city: { $regex: city, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      city,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by city",
+      error: error.message
+    });
+  }
+};
+
+// Search OLTs by State
+export const searchOLTsByState = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { state } = req.params;
+    
+    if (!state) {
+      return res.status(400).json({
+        success: false,
+        message: "State is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      state: { $regex: state, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      state,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by state",
+      error: error.message
+    });
+  }
+};
+
+// Advanced Search OLTs with multiple criteria
+export const advancedSearchOLTs = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const {
+      name,
+      serialNumber,
+      oltId,
+      oltIp,
+      macAddress,
+      manufacturer,
+      oltModel,
+      status,
+      powerStatus,
+      city,
+      state,
+      country,
+      oltType,
+      ownedBy,
+      assignedEngineer,
+      assignedCompany,
+      minPorts,
+      maxPorts,
+      minTemperature,
+      maxTemperature,
+      page = 1,
+      limit = 50,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build search filter
+    const filter: any = {};
+
+    // Text-based searches with regex
+    if (name) filter.name = { $regex: name, $options: 'i' };
+    if (serialNumber) filter.serialNumber = { $regex: serialNumber, $options: 'i' };
+    if (oltId) filter.oltId = { $regex: oltId, $options: 'i' };
+    if (oltIp) filter.oltIp = { $regex: oltIp, $options: 'i' };
+    if (macAddress) filter.macAddress = { $regex: macAddress, $options: 'i' };
+    if (manufacturer) filter.manufacturer = { $regex: manufacturer, $options: 'i' };
+    if (oltModel) filter.oltModel = { $regex: oltModel, $options: 'i' };
+    if (city) filter.city = { $regex: city, $options: 'i' };
+    if (state) filter.state = { $regex: state, $options: 'i' };
+    if (country) filter.country = { $regex: country, $options: 'i' };
+
+    // Exact matches
+    if (status) filter.status = status;
+    if (powerStatus) filter.powerStatus = powerStatus;
+    if (oltType) filter.oltType = oltType;
+    if (ownedBy) filter.ownedBy = ownedBy;
+    if (assignedEngineer) filter.assignedEngineer = assignedEngineer;
+    if (assignedCompany) filter.assignedCompany = assignedCompany;
+
+    // Range searches
+    if (minPorts || maxPorts) {
+      filter.totalPorts = {};
+      if (minPorts) filter.totalPorts.$gte = parseInt(minPorts as string);
+      if (maxPorts) filter.totalPorts.$lte = parseInt(maxPorts as string);
+    }
+
+    if (minTemperature || maxTemperature) {
+      filter.temperature = {};
+      if (minTemperature) filter.temperature.$gte = parseInt(minTemperature as string);
+      if (maxTemperature) filter.temperature.$lte = parseInt(maxTemperature as string);
+    }
+
+    // Pagination
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const sort: any = {};
+    sort[sortBy as string] = sortOrder === 'desc' ? -1 : 1;
+
+    // Execute search
+    const [olts, total] = await Promise.all([
+      OLTModel.find(filter)
+        .populate('ownedBy', 'name email company')
+        .populate('assignedEngineer', 'name email')
+        .populate('assignedCompany', 'name email')
+        .sort(sort)
+        .skip(skip)
+        .limit(parseInt(limit as string)),
+      OLTModel.countDocuments(filter)
+    ]);
+
+    res.status(200).json({
+      success: true,
+      count: olts.length,
+      total,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        totalPages: Math.ceil(total / parseInt(limit as string))
+      },
+      filters: req.query,
+      data: olts
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error performing advanced search",
+      error: error.message
+    });
+  }
+};
+
+// Get OLT Statistics
+export const getOLTStatistics = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { ownedBy } = req.query;
+    
+    const filter: any = {};
+    if (ownedBy) filter.ownedBy = ownedBy;
+
+    const [
+      totalOLTs,
+      activeOLTs,
+      inactiveOLTs,
+      maintenanceOLTs,
+      offlineOLTs,
+      errorOLTs,
+      onPowerOLTs,
+      offPowerOLTs,
+      standbyPowerOLTs,
+      gponOLTs,
+      eponOLTs,
+      xgsponOLTs,
+      xgponOLTs,
+      otherTypeOLTs
+    ] = await Promise.all([
+      OLTModel.countDocuments(filter),
+      OLTModel.countDocuments({ ...filter, status: 'active' }),
+      OLTModel.countDocuments({ ...filter, status: 'inactive' }),
+      OLTModel.countDocuments({ ...filter, status: 'maintenance' }),
+      OLTModel.countDocuments({ ...filter, status: 'offline' }),
+      OLTModel.countDocuments({ ...filter, status: 'error' }),
+      OLTModel.countDocuments({ ...filter, powerStatus: 'on' }),
+      OLTModel.countDocuments({ ...filter, powerStatus: 'off' }),
+      OLTModel.countDocuments({ ...filter, powerStatus: 'standby' }),
+      OLTModel.countDocuments({ ...filter, oltType: 'gpon' }),
+      OLTModel.countDocuments({ ...filter, oltType: 'epon' }),
+      OLTModel.countDocuments({ ...filter, oltType: 'xgspon' }),
+      OLTModel.countDocuments({ ...filter, oltType: 'xgpon' }),
+      OLTModel.countDocuments({ ...filter, oltType: 'other' })
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total: totalOLTs,
+        byStatus: {
+          active: activeOLTs,
+          inactive: inactiveOLTs,
+          maintenance: maintenanceOLTs,
+          offline: offlineOLTs,
+          error: errorOLTs
+        },
+        byPowerStatus: {
+          on: onPowerOLTs,
+          off: offPowerOLTs,
+          standby: standbyPowerOLTs
+        },
+        byType: {
+          gpon: gponOLTs,
+          epon: eponOLTs,
+          xgspon: xgsponOLTs,
+          xgpon: xgponOLTs,
+          other: otherTypeOLTs
+        }
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching OLT statistics",
+      error: error.message
+    });
+  }
+};
+
 // ==================== MS FUNCTIONS ====================
 
 // Create MS
@@ -288,11 +811,47 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
       });
     }
     
+    // Handle nested input object from FormData
+    if (req.body.inputType && req.body.inputId) {
+      msData.input = {
+        type: req.body.inputType,
+        id: req.body.inputId,
+        port: req.body.inputPort ? parseInt(req.body.inputPort) : undefined
+      };
+    }
+    
+    // Validate required fields
+    if (!msData.msName || !msData.msType || !msData.ownedBy) {
+      return res.status(400).json({
+        success: false,
+        message: "msName, msType, and ownedBy are required fields"
+      });
+    }
+    
+    // Validate input connection
+    if (!msData.input || !msData.input.type || !msData.input.id) {
+      return res.status(400).json({
+        success: false,
+        message: "Input connection with type and id is required"
+      });
+    }
+    
+    
     // Extract location array if provided
     if (msData.location && Array.isArray(msData.location)) {
       msData.latitude = msData.location[0];
       msData.longitude = msData.location[1];
       delete msData.location;
+    }
+    
+    // Ensure outputs is an aqqrray
+    if (!msData.outputs) {
+      msData.outputs = [];
+    }
+    
+    // Set default values if not provided
+    if (!msData.addedBy) {
+      msData.addedBy = msData.ownedBy;
     }
     
     const ms = new MSModel(msData);

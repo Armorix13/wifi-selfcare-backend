@@ -60,7 +60,7 @@ export interface IFDB extends Document {
   
   // Technical Specifications
   manufacturer?: string;
-  model?: string;
+  deviceModel?: string;
   serialNumber?: string;
   capacity?: number; // Number of fiber ports
   material?: string; // Material (plastic, metal, etc.)
@@ -199,7 +199,7 @@ const FDBSchema = new Schema<IFDB>({
     type: String,
     trim: true
   },
-  model: { 
+  deviceModel: { 
     type: String,
     trim: true
   },
@@ -362,8 +362,7 @@ const FDBSchema = new Schema<IFDB>({
 });
 
 // Indexes for better performance
-FDBSchema.index({ fdbId: 1 });
-FDBSchema.index({ fdbName: 1 });
+// Note: unique: true fields automatically create indexes, so we don't need to declare them again
 FDBSchema.index({ "input.id": 1 }); // Index for input connections
 FDBSchema.index({ "outputs.id": 1 }); // Index for output connections
 FDBSchema.index({ location: "2dsphere" }); // Geospatial index
@@ -430,13 +429,13 @@ FDBSchema.methods.addOutput = function(output: IFDBConnection) {
   return this.save();
 };
 
-// Method to remove output connection
-FDBSchema.methods.removeOutput = function(outputId: string) {
-  if (this.outputs) {
-    this.outputs = this.outputs.filter(output => output.id !== outputId);
-  }
-  return this.save();
-};
+  // Method to remove output connection
+  FDBSchema.methods.removeOutput = function(outputId: string) {
+    if (this.outputs) {
+      this.outputs = this.outputs.filter((output: IFDBConnection) => output.id !== outputId);
+    }
+    return this.save();
+  };
 
 // Method to get connected devices
 FDBSchema.methods.getConnectedDevices = function() {
@@ -450,7 +449,7 @@ FDBSchema.methods.getConnectedDevices = function() {
   }
   
   if (this.outputs) {
-    this.outputs.forEach(output => {
+    this.outputs.forEach((output: IFDBConnection) => {
       devices.push({
         type: 'output',
         connection: output

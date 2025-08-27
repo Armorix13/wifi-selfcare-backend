@@ -304,7 +304,7 @@ UserSchema.pre('save', function(next) {
 });
 
 // Indexes for customer queries
-UserSchema.index({ customerId: 1 });
+// Note: unique: true fields automatically create indexes, so we don't need to declare them again
 UserSchema.index({ role: 1 });
 UserSchema.index({ "networkInput.id": 1 });
 UserSchema.index({ "networkOutputs.id": 1 });

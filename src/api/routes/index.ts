@@ -25,6 +25,7 @@ import engineerRouter from "./engineer.route";
 import chatbotRouter from "./chatbot.route";
 import leadsRouter from "./leads.route";
 import oltRouter from "./olt.route";
+import locationRouter from "./location.route";
 const parentRouter = Router();
 
 parentRouter.post("/file-upload", multerUpload,handleMulterUpload);
@@ -53,6 +54,7 @@ parentRouter.use('/engineers', engineerRouter);
 parentRouter.use('/chatbot', chatbotRouter);
 parentRouter.use('/leads', leadsRouter);
 parentRouter.use('/network', oltRouter);
+parentRouter.use('/locations', locationRouter);
 
 export default parentRouter;
 

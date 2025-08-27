@@ -303,7 +303,7 @@ ComplaintSchema.index({ engineer: 1 });
 ComplaintSchema.index({ status: 1 });
 ComplaintSchema.index({ priority: 1 });
 ComplaintSchema.index({ createdAt: -1 });
-ComplaintSchema.index({ id: 1 }, { unique: true });
+// Note: unique: true fields automatically create indexes, so we don't need to declare them again
 
 
 ComplaintSchema.virtual('resolutionTimeInHours').get(function () {

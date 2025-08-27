@@ -3,6 +3,7 @@ import { Role, UserModel } from "../models/user.model";
 import { EngineerAttendanceModel, AttendanceStatus } from "../models/engineerAttendance.model";
 import { LeaveRequestModel, LeaveType, LeaveStatus, LeaveReason } from "../models/leaveRequest.model";
 import { sendSuccess, sendError, generateAccessToken, generateRefreshToken, generateRandomJti, comparePassword } from '../../utils/helper';
+import moment from 'moment-timezone';
 
 const engineerLogin = async (req: Request, res: Response): Promise<any> => {
     try {
@@ -190,21 +191,37 @@ const markAttendance = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "User ID is required", 400);
         }
 
-        // Get current date and time
-        const today = new Date();
-        const currentTime = today.getTime();
-        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        // Get current date and time in IST (India Standard Time)
+        const istTime = moment().tz('Asia/Kolkata');
+        const currentHour = istTime.hour();
+        const currentMinute = istTime.minute();
+        const todayStart = istTime.startOf('day').toDate();
         
-        // Define attendance time restrictions
-        const canMarkStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 5, 0, 0); // 5:00 AM
-        const canMarkEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 22, 0, 0); // 10:00 PM
+        // Debug log for time information
+        console.log(`Current IST time: ${istTime.format('YYYY-MM-DD HH:mm:ss')}`);
+        console.log(`Current hour: ${currentHour}, Current minute: ${currentMinute}`);
         
-        // Check if current time is within allowed attendance window
-        if (currentTime < canMarkStart.getTime()) {
+        // Define attendance time windows in IST
+        // Engineers can mark attendance from 5:00 AM to 10:00 PM
+        // Between 10:00 PM to 12:00 AM (next day) - Attendance marking closed
+        // Between 12:00 AM to 5:00 AM - Must wait until 5:00 AM
+        const morningStart = 5; // 5:00 AM
+        const eveningEnd = 22; // 10:00 PM (22:00)
+        const lateNightStart = 0; // 12:00 AM (00:00)
+        const lateNightEnd = 5; // 5:00 AM
+        
+        // Check current time and provide appropriate message
+        if (currentHour >= lateNightStart && currentHour < lateNightEnd) {
+            // Between 12:00 AM to 5:00 AM
+            console.log(`Attendance attempt at ${currentHour}:${currentMinute} - Too early, must wait until 5:00 AM`);
             return sendError(res, "You can only mark attendance after 5:00 AM", 400);
-        }
-        
-        if (currentTime > canMarkEnd.getTime()) {
+        } else if (currentHour >= morningStart && currentHour < eveningEnd) {
+            // Between 5:00 AM to 10:00 PM - Engineer can mark attendance
+            console.log(`Attendance attempt at ${currentHour}:${currentMinute} - Within allowed window (5:00 AM to 10:00 PM)`);
+            // Continue with attendance logic
+        } else {
+            // Between 10:00 PM to 12:00 AM - Attendance marking closed
+            console.log(`Attendance attempt at ${currentHour}:${currentMinute} - Too late, attendance marking closed for today`);
             return sendError(res, "Attendance marking is closed for today. You are too late to mark attendance.", 400);
         }
 
@@ -223,7 +240,7 @@ const markAttendance = async (req: Request, res: Response): Promise<any> => {
             engineer: userId,
             date: todayStart,
             status: 'present', // Default to present
-            checkInTime: new Date(), // Current time as check-in
+            checkInTime: istTime.toDate(), // Current IST time as check-in
             markedBy: userId
         };
 
@@ -232,6 +249,7 @@ const markAttendance = async (req: Request, res: Response): Promise<any> => {
         // Populate engineer details
         await attendance.populate('engineer', 'firstName lastName email phoneNumber');
 
+        console.log(`Attendance marked successfully for engineer ${userId} at ${istTime.format('HH:mm:ss')} IST`);
         return sendSuccess(res, attendance, "Attendance marked as present successfully");
     } catch (error: any) {
         console.error("Mark attendance error:", error);
@@ -260,9 +278,39 @@ const markAttendanceWithStatus = async (req: Request, res: Response): Promise<an
             return sendError(res, "Invalid attendance status", 400);
         }
 
-        // Get current date (start of day)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Get current date and time in IST (India Standard Time)
+        const istTime = moment().tz('Asia/Kolkata');
+        const currentHour = istTime.hour();
+        const currentMinute = istTime.minute();
+        const today = istTime.startOf('day').toDate();
+        
+        // Debug log for time information
+        console.log(`Mark attendance with status - Current IST time: ${istTime.format('YYYY-MM-DD HH:mm:ss')}`);
+        console.log(`Current hour: ${currentHour}, Current minute: ${currentMinute}`);
+        
+        // Define attendance time windows in IST
+        // Engineers can mark attendance from 5:00 AM to 10:00 PM
+        // Between 10:00 PM to 12:00 AM (next day) - Attendance marking closed
+        // Between 12:00 AM to 5:00 AM - Must wait until 5:00 AM
+        const morningStart = 5; // 5:00 AM
+        const eveningEnd = 22; // 10:00 PM (22:00)
+        const lateNightStart = 0; // 12:00 AM (00:00)
+        const lateNightEnd = 5; // 5:00 AM
+        
+        // Check current time and provide appropriate message
+        if (currentHour >= lateNightStart && currentHour < lateNightEnd) {
+            // Between 12:00 AM to 5:00 AM
+            console.log(`Attendance with status attempt at ${currentHour}:${currentMinute} - Too early, must wait until 5:00 AM`);
+            return sendError(res, "You can only mark attendance after 5:00 AM", 400);
+        } else if (currentHour >= morningStart && currentHour < eveningEnd) {
+            // Between 5:00 AM to 10:00 PM - Engineer can mark attendance
+            console.log(`Attendance with status attempt at ${currentHour}:${currentMinute} - Within allowed window (5:00 AM to 10:00 PM)`);
+            // Continue with attendance logic
+        } else {
+            // Between 10:00 PM to 12:00 AM - Attendance marking closed
+            console.log(`Attendance with status attempt at ${currentHour}:${currentMinute} - Too late, attendance marking closed for today`);
+            return sendError(res, "Attendance marking is closed for today. You are too late to mark attendance.", 400);
+        }
 
         // Check if attendance already marked for today
         const existingAttendance = await EngineerAttendanceModel.findOne({
@@ -284,7 +332,7 @@ const markAttendanceWithStatus = async (req: Request, res: Response): Promise<an
 
         // Add check-in time for present status
         if (status === 'present') {
-            attendanceData.checkInTime = new Date();
+            attendanceData.checkInTime = istTime.toDate();
         }
 
         // Add remark if provided
@@ -297,6 +345,7 @@ const markAttendanceWithStatus = async (req: Request, res: Response): Promise<an
         // Populate engineer details
         await attendance.populate('engineer', 'firstName lastName email phoneNumber');
 
+        console.log(`Attendance with status '${status}' marked successfully for engineer ${userId} at ${istTime.format('HH:mm:ss')} IST`);
         return sendSuccess(res, attendance, `Attendance marked as ${status} successfully`);
     } catch (error: any) {
         console.error("Mark attendance with status error:", error);
@@ -318,9 +367,9 @@ const markCheckOut = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "User ID is required", 400);
         }
 
-        // Get current date (start of day)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Get current date and time in IST (India Standard Time)
+        const istTime = moment().tz('Asia/Kolkata');
+        const today = istTime.startOf('day').toDate();
 
         // Find today's attendance record
         const attendance = await EngineerAttendanceModel.findOne({
@@ -336,13 +385,14 @@ const markCheckOut = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "Check-out time already marked for today", 400);
         }
 
-        // Mark check-out time
-        attendance.checkOutTime = new Date();
+        // Mark check-out time with IST time
+        attendance.checkOutTime = istTime.toDate();
         await attendance.save();
 
         // Populate engineer details
         await attendance.populate('engineer', 'firstName lastName email phoneNumber');
 
+        console.log(`Check-out time marked successfully for engineer ${userId} at ${istTime.format('HH:mm:ss')} IST`);
         return sendSuccess(res, attendance, "Check-out time marked successfully");
     } catch (error: any) {
         console.error("Mark check-out error:", error);
