@@ -24,6 +24,7 @@ enum SUBMSType {
   SPLITTER_1_4 = "1x4",
   SPLITTER_1_8 = "1x8",
   SPLITTER_1_16 = "1x16",
+  SPLITTER_1_32 = "1x32",
   OTHER = "other"
 }
 
@@ -41,7 +42,8 @@ interface IGeoPoint {
   coordinates: [number, number]; // [longitude, latitude]
 }
 
-export interface ISUBMS extends Document {
+export interface ISUBMS {
+  _id?: mongoose.Types.ObjectId;
   // Basic SUBMS Information
   submsId?: string; // SUBMS ID (e.g., SUBMS001) - Auto-generated if not provided
   submsName: string; // SUBMS Name
@@ -216,7 +218,7 @@ const SUBMSSchema = new Schema<ISUBMS>({
   powerStatus: { 
     type: String, 
     enum: Object.values(PowerStatus), 
-    default: PowerStatus.OFF
+    default: PowerStatus.ON
   },
   powerConsumption: { 
     type: Number,
@@ -235,7 +237,7 @@ const SUBMSSchema = new Schema<ISUBMS>({
   status: { 
     type: String, 
     enum: Object.values(SUBMSStatus), 
-    default: SUBMSStatus.INACTIVE
+    default: SUBMSStatus.ACTIVE
   },
   uptime: { 
     type: Number,
@@ -430,7 +432,7 @@ SUBMSSchema.methods.addOutput = function(output: ISUBMSConnection) {
 // Method to remove output connection
 SUBMSSchema.methods.removeOutput = function(outputId: string) {
   if (this.outputs) {
-    this.outputs = this.outputs.filter(output => output.id !== outputId);
+    this.outputs = this.outputs.filter((output: ISUBMSConnection) => output.id !== outputId);
   }
   return this.save();
 };
@@ -447,7 +449,7 @@ SUBMSSchema.methods.getConnectedDevices = function() {
   }
   
   if (this.outputs) {
-    this.outputs.forEach(output => {
+    this.outputs.forEach((output: ISUBMSConnection) => {
       devices.push({
         type: 'output',
         connection: output

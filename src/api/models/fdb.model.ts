@@ -224,7 +224,7 @@ const FDBSchema = new Schema<IFDB>({
   powerStatus: { 
     type: String, 
     enum: Object.values(PowerStatus), 
-    default: PowerStatus.OFF
+    default: PowerStatus.ON
   },
   powerConsumption: { 
     type: Number,
@@ -243,7 +243,7 @@ const FDBSchema = new Schema<IFDB>({
   status: { 
     type: String, 
     enum: Object.values(FDBStatus), 
-    default: FDBStatus.INACTIVE
+    default: FDBStatus.ACTIVE
   },
   uptime: { 
     type: Number,

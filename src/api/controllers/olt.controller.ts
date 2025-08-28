@@ -4,14 +4,14 @@ import { MSModel } from "../models/ms.model";
 import { SUBMSModel } from "../models/subms.model";
 import { FDBModel } from "../models/fdb.model";
 import { X2Model } from "../models/x2.model";
-import { 
-  calculateTopology, 
-  validateTopology, 
-  generateRecommendations, 
-  createTopologyDiagram, 
+import {
+  calculateTopology,
+  validateTopology,
+  generateRecommendations,
+  createTopologyDiagram,
   getSplitterLoss,
-  TOPOLOGY_RULES, 
-  TopologyType 
+  TOPOLOGY_RULES,
+  TopologyType
 } from "../services/topology.service";
 import { UserModel } from "../models/user.model";
 
@@ -23,7 +23,7 @@ export const createOLT = async (req: Request, res: Response): Promise<any> => {
     const oltData = req.body;
 
     console.log(req.body);
-    
+
     // Handle uploaded images
     if (req.files && Array.isArray(req.files)) {
       if (req.files.length < 4) {
@@ -32,10 +32,10 @@ export const createOLT = async (req: Request, res: Response): Promise<any> => {
           message: "At least 4 images are required for OLT"
         });
       }
-      
+
       // Convert uploaded files to attachment URLs
       const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
-      
+
       oltData.attachments = attachments;
     } else {
       return res.status(400).json({
@@ -43,17 +43,17 @@ export const createOLT = async (req: Request, res: Response): Promise<any> => {
         message: "Images are required for OLT creation"
       });
     }
-    
+
     // Extract location array if provided
     if (oltData.location && Array.isArray(oltData.location)) {
       oltData.latitude = oltData.location[0];
       oltData.longitude = oltData.location[1];
       delete oltData.location;
     }
-    
+
     const olt = new OLTModel(oltData);
     const savedOLT = await olt.save();
-    
+
     res.status(201).json({
       success: true,
       message: "OLT created successfully",
@@ -72,11 +72,48 @@ export const createOLT = async (req: Request, res: Response): Promise<any> => {
 export const getAllOLTs = async (req: Request, res: Response): Promise<any> => {
   try {
     const olts = await OLTModel.find().sort({ createdAt: -1 });
-    
+
+    // For each OLT, get all connected devices
+    const oltsWithTopology = await Promise.all(olts.map(async (olt) => {
+      // Get connected MS devices
+      const connectedMS = await MSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected FDB devices
+      const connectedFDB = await FDBModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected SUBMS devices
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected X2 devices
+      const connectedX2 = await X2Model.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      return {
+        ...olt.toObject(),
+        outputs: [
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId, data: ms })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+        ]
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      count: olts.length,
-      data: olts
+      count: oltsWithTopology.length,
+      data: oltsWithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -87,22 +124,305 @@ export const getAllOLTs = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
+// Get all OLTs with complete outputs format
+export const getAllOLTsWithOutputs = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const olts = await OLTModel.find().sort({ createdAt: -1 });
+    
+    // For each OLT, get all connected devices with complete topology
+    const oltsWithOutputs = await Promise.all(olts.map(async (olt) => {
+      // Get all connected devices
+      const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+        MSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        FDBModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        SUBMSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        X2Model.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        })
+      ]);
+
+      // Build complete topology for MS devices
+      const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+        // Get SUBMS devices connected to this MS
+        const connectedSUBMS = await SUBMSModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        // Get FDB devices connected to this MS
+        const connectedFDB = await FDBModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        // Build SUBMS topology
+        const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+          // Get X2 devices connected to this SUBMS
+          const connectedX2 = await X2Model.find({
+            "input.type": "subms",
+            "input.id": subms.submsId
+          });
+
+          // Get customers connected to X2 devices
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            subms_id: subms.submsId,
+            subms_name: subms.submsName,
+            subms_power: subms.submsPower || 0,
+            location: [subms.latitude, subms.longitude],
+            input: { type: "ms", id: ms.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2,
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        // Build FDB topology
+        const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+          // Get X2 devices connected to this FDB
+          const connectedX2 = await X2Model.find({
+            "input.type": "fdb",
+            "input.id": fdb.fdbId
+          });
+
+          // Get customers connected to X2 devices
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            fdb_id: fdb.fdbId,
+            fdb_name: fdb.fdbName,
+            fdb_power: fdb.fdbPower || 0,
+            location: [fdb.latitude, fdb.longitude],
+            input: { type: "ms", id: ms.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2,
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        return {
+          ms_id: ms.msId,
+          ms_name: ms.msName,
+          ms_power: ms.msPower || 0,
+          location: [ms.latitude, ms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+          ],
+          subms_devices: submsWithTopology,
+          fdb_devices: fdbWithTopology
+        };
+      }));
+
+      // Build complete topology for FDB devices
+      const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+        // Get X2 devices connected to this FDB
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          fdb_id: fdb.fdbId,
+          fdb_name: fdb.fdbName,
+          fdb_power: fdb.fdbPower || 0,
+          location: [fdb.latitude, fdb.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build complete topology for SUBMS devices
+      const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+        // Get X2 devices connected to this SUBMS
+        const connectedX2 = await X2Model.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          subms_id: subms.submsId,
+          subms_name: subms.submsName,
+          subms_power: subms.submsPower || 0,
+          location: [subms.latitude, subms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2.map((x2, index) => ({
+            x2_id: x2.x2Id,
+            x2_name: x2.x2Name,
+            x2_power: x2.x2Power || 0,
+            location: [x2.latitude, x2.longitude],
+            input: { type: "subms", id: subms.submsId },
+            outputs: [
+              ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+            ],
+            customers: customersFromX2[index]
+          })),
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build complete topology for X2 devices
+      const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
+        // Get customers connected to this X2
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2.x2Id
+        });
+
+        return {
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...customers.map(customer => ({ type: "customer", id: customer._id }))
+          ],
+          customers: customers
+        };
+      }));
+
+      // Format the response similar to your example
+      return {
+        olt_id: olt.oltId,
+        olt_model: olt.oltModel || olt.manufacturer,
+        ip_address: olt.oltIp,
+        mac_address: olt.macAddress,
+        serial_number: olt.serialNumber,
+        olt_power: olt.oltPower || 0,
+        location: [olt.latitude, olt.longitude],
+        outputs: [
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+        ],
+        // Include complete topology data for each device type
+        ms_devices: msWithTopology,
+        fdb_devices: fdbWithTopology,
+        subms_devices: submsWithTopology,
+        x2_devices: x2WithTopology
+      };
+    }));
+    
+    res.status(200).json({
+      success: true,
+      count: oltsWithOutputs.length,
+      data: oltsWithOutputs
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching OLTs with outputs",
+      error: error.message
+    });
+  }
+};
+
 // Get OLT by ID
 export const getOLTById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const olt = await OLTModel.findById(id);
-    
+
     if (!olt) {
       return res.status(404).json({
         success: false,
         message: "OLT not found"
       });
     }
-    
+
+    // Get all connected devices
+    const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+      MSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      FDBModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      SUBMSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      X2Model.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      })
+    ]);
+
+    const oltWithTopology = {
+      ...olt.toObject(),
+      outputs: [
+        ...connectedMS.map(ms => ({ type: "ms", id: ms.msId, data: ms })),
+        ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb })),
+        ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+        ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+      ]
+    };
+
     res.status(200).json({
       success: true,
-      data: olt
+      data: oltWithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -118,27 +438,27 @@ export const updateOLT = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     // Handle location update
     if (updateData.location && Array.isArray(updateData.location)) {
       updateData.latitude = updateData.location[0];
       updateData.longitude = updateData.location[1];
       delete updateData.location;
     }
-    
+
     const olt = await OLTModel.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
     );
-    
+
     if (!olt) {
       return res.status(404).json({
         success: false,
         message: "OLT not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "OLT updated successfully",
@@ -158,14 +478,14 @@ export const deleteOLT = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const olt = await OLTModel.findByIdAndDelete(id);
-    
+
     if (!olt) {
       return res.status(404).json({
         success: false,
         message: "OLT not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "OLT deleted successfully"
@@ -184,7 +504,7 @@ export const getOLTNetworkTopology = async (req: Request, res: Response): Promis
   try {
     const { id } = req.params;
     const olt = await OLTModel.findById(id);
-    
+
     if (!olt) {
       return res.status(404).json({
         success: false,
@@ -192,14 +512,78 @@ export const getOLTNetworkTopology = async (req: Request, res: Response): Promis
       });
     }
 
-    // Get connected MS devices
+    // Get connected MS devices with their nested devices
     const connectedMS = await MSModel.find({
       "input.type": "olt",
       "input.id": olt.oltId
     });
 
-    // Get connected FDB devices
+    const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+      // Get SUBMS devices connected to this MS
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+
+      // Get FDB devices connected to this MS
+      const connectedFDB = await FDBModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+
+      return {
+        ...ms.toObject(),
+        outputs: [
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb }))
+        ]
+      };
+    }));
+
+    // Get connected FDB devices with their nested devices
     const connectedFDB = await FDBModel.find({
+      "input.type": "olt",
+      "input.id": olt.oltId
+    });
+
+    const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+      // Get X2 devices connected to this FDB
+      const connectedX2 = await X2Model.find({
+        "input.type": "fdb",
+        "input.id": fdb.fdbId
+      });
+
+      return {
+        ...fdb.toObject(),
+        outputs: [
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+        ]
+      };
+    }));
+
+    // Get connected SUBMS devices with their nested devices
+    const connectedSUBMS = await SUBMSModel.find({
+      "input.type": "olt",
+      "input.id": olt.oltId
+    });
+
+    const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+      // Get X2 devices connected to this SUBMS
+      const connectedX2 = await X2Model.find({
+        "input.type": "subms",
+        "input.id": subms.submsId
+      });
+
+      return {
+        ...subms.toObject(),
+        outputs: [
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+        ]
+      };
+    }));
+
+    // Get connected X2 devices
+    const connectedX2 = await X2Model.find({
       "input.type": "olt",
       "input.id": olt.oltId
     });
@@ -207,8 +591,10 @@ export const getOLTNetworkTopology = async (req: Request, res: Response): Promis
     const topology = {
       olt,
       connectedDevices: {
-        ms: connectedMS,
-        fdb: connectedFDB
+        ms: msWithTopology,
+        fdb: fdbWithTopology,
+        subms: submsWithTopology,
+        x2: connectedX2
       }
     };
 
@@ -225,11 +611,280 @@ export const getOLTNetworkTopology = async (req: Request, res: Response): Promis
   }
 };
 
+// Get OLT with complete outputs data (MS, SUBMS, FDB, X2)
+export const getOLTWithOutputs = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const olt = await OLTModel.findById(id);
+    
+    if (!olt) {
+      return res.status(404).json({
+        success: false,
+        message: "OLT not found"
+      });
+    }
+
+    // Get all connected devices with complete topology
+    const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+      MSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      FDBModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      SUBMSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      X2Model.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      })
+    ]);
+
+    // Build complete topology for MS devices
+    const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+      // Get SUBMS devices connected to this MS
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+
+      // Get FDB devices connected to this MS
+      const connectedFDB = await FDBModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+
+      // Build SUBMS topology
+      const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+        // Get X2 devices connected to this SUBMS
+        const connectedX2 = await X2Model.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          subms_id: subms.submsId,
+          subms_name: subms.submsName,
+          subms_power: subms.submsPower || 0,
+          location: [subms.latitude, subms.longitude],
+          input: { type: "ms", id: ms.msId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build FDB topology
+      const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+        // Get X2 devices connected to this FDB
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          fdb_id: fdb.fdbId,
+          fdb_name: fdb.fdbName,
+          fdb_power: fdb.fdbPower || 0,
+          location: [fdb.latitude, fdb.longitude],
+          input: { type: "ms", id: ms.msId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      return {
+        ms_id: ms.msId,
+        ms_name: ms.msName,
+        ms_power: ms.msPower || 0,
+        location: [ms.latitude, ms.longitude],
+        input: { type: "olt", id: olt.oltId },
+        outputs: [
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+        ],
+        subms_devices: submsWithTopology,
+        fdb_devices: fdbWithTopology
+      };
+    }));
+
+    // Build complete topology for FDB devices
+    const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+      // Get X2 devices connected to this FDB
+      const connectedX2 = await X2Model.find({
+        "input.type": "fdb",
+        "input.id": fdb.fdbId
+      });
+
+      // Get customers connected to X2 devices
+      const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2.x2Id
+        });
+        return customers;
+      }));
+
+      return {
+        fdb_id: fdb.fdbId,
+        fdb_name: fdb.fdbName,
+        fdb_power: fdb.fdbPower || 0,
+        location: [fdb.latitude, fdb.longitude],
+        input: { type: "olt", id: olt.oltId },
+        outputs: [
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+        ],
+        x2_devices: connectedX2.map((x2, index) => ({
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "fdb", id: fdb.fdbId },
+          outputs: [
+            ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+          ],
+          customers: customersFromX2[index]
+        })),
+        customers: customersFromX2.flat()
+      };
+    }));
+
+    // Build complete topology for SUBMS devices
+    const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+      // Get X2 devices connected to this SUBMS
+      const connectedX2 = await X2Model.find({
+        "input.type": "subms",
+        "input.id": subms.submsId
+      });
+
+      // Get customers connected to X2 devices
+      const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2.x2Id
+        });
+        return customers;
+      }));
+
+      return {
+        subms_id: subms.submsId,
+        subms_name: subms.submsName,
+        subms_power: subms.submsPower || 0,
+        location: [subms.latitude, subms.longitude],
+        input: { type: "olt", id: olt.oltId },
+        outputs: [
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+        ],
+        x2_devices: connectedX2.map((x2, index) => ({
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "subms", id: subms.submsId },
+          outputs: [
+            ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+          ],
+          customers: customersFromX2[index]
+        })),
+        customers: customersFromX2.flat()
+      };
+    }));
+
+    // Build complete topology for X2 devices
+    const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
+      // Get customers connected to this X2
+      const customers = await UserModel.find({
+        role: "user",
+        "networkInput.type": "x2",
+        "networkInput.id": x2.x2Id
+      });
+
+      return {
+        x2_id: x2.x2Id,
+        x2_name: x2.x2Name,
+        x2_power: x2.x2Power || 0,
+        location: [x2.latitude, x2.longitude],
+        input: { type: "olt", id: olt.oltId },
+        outputs: [
+          ...customers.map(customer => ({ type: "customer", id: customer._id }))
+        ],
+        customers: customers
+      };
+    }));
+
+    // Format the response similar to your example
+    const oltWithOutputs = {
+      olt_id: olt.oltId,
+      olt_model: olt.oltModel || olt.manufacturer,
+      ip_address: olt.oltIp,
+      mac_address: olt.macAddress,
+      serial_number: olt.serialNumber,
+      olt_power: olt.oltPower || 0,
+      location: [olt.latitude, olt.longitude],
+      outputs: [
+        ...connectedMS.map(ms => ({ type: "ms", id: ms.msId })),
+        ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId })),
+        ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+        ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+      ],
+      // Include complete topology data for each device type
+      ms_devices: msWithTopology,
+      fdb_devices: fdbWithTopology,
+      subms_devices: submsWithTopology,
+      x2_devices: x2WithTopology
+    };
+
+    res.status(200).json({
+      success: true,
+      count: 1,
+      serialNumber: olt.serialNumber,
+      data: [oltWithOutputs]
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching OLT with outputs",
+      error: error.message
+    });
+  }
+};
+
 // Search OLTs by location
 export const searchOLTsByLocation = async (req: Request, res: Response): Promise<any> => {
   try {
     const { latitude, longitude, radius = 10000 } = req.query; // radius in meters
-    
+
     if (!latitude || !longitude) {
       return res.status(400).json({
         success: false,
@@ -281,11 +936,238 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
       serialNumber: { $regex: serialNumber, $options: 'i' }
     }).populate('ownedBy', 'name email company');
 
+    // For each OLT, get all connected devices with complete topology
+    const oltsWithTopology = await Promise.all(olts.map(async (olt) => {
+      // Get all connected devices
+      const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+        MSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        FDBModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        SUBMSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        X2Model.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        })
+      ]);
+
+      // Build complete topology for MS devices
+      const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+        // Get SUBMS devices connected to this MS
+        const connectedSUBMS = await SUBMSModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        // Get FDB devices connected to this MS
+        const connectedFDB = await FDBModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        // Build SUBMS topology
+        const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+          // Get X2 devices connected to this SUBMS
+          const connectedX2 = await X2Model.find({
+            "input.type": "subms",
+            "input.id": subms.submsId
+          });
+
+          // Get customers connected to X2 devices
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            subms_id: subms.submsId,
+            subms_name: subms.submsName,
+            subms_power: subms.submsPower || 0,
+            location: [subms.latitude, subms.longitude],
+            input: { type: "ms", id: ms.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2,
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        // Build FDB topology
+        const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+          // Get X2 devices connected to this FDB
+          const connectedX2 = await X2Model.find({
+            "input.type": "fdb",
+            "input.id": fdb.fdbId
+          });
+
+          // Get customers connected to X2 devices
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            fdb_id: fdb.fdbId,
+            fdb_name: fdb.fdbName,
+            fdb_power: fdb.fdbPower || 0,
+            location: [fdb.latitude, fdb.longitude],
+            input: { type: "ms", id: ms.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2,
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        return {
+          ms_id: ms.msId,
+          ms_name: ms.msName,
+          ms_power: ms.msPower || 0,
+          location: [ms.latitude, ms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+          ],
+          subms_devices: submsWithTopology,
+          fdb_devices: fdbWithTopology
+        };
+      }));
+
+      // Build complete topology for FDB devices
+      const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+        // Get X2 devices connected to this FDB
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          fdb_id: fdb.fdbId,
+          fdb_name: fdb.fdbName,
+          fdb_power: fdb.fdbPower || 0,
+          location: [fdb.latitude, fdb.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build complete topology for SUBMS devices
+      const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+        // Get X2 devices connected to this SUBMS
+        const connectedX2 = await X2Model.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          subms_id: subms.submsId,
+          subms_name: subms.submsName,
+          subms_power: subms.submsPower || 0,
+          location: [subms.latitude, subms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2.map((x2, index) => ({
+            x2_id: x2.x2Id,
+            x2_name: x2.x2Name,
+            x2_power: x2.x2Power || 0,
+            location: [x2.latitude, x2.longitude],
+            input: { type: "subms", id: subms.submsId },
+            outputs: [
+              ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+            ],
+            customers: customersFromX2[index]
+          })),
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build complete topology for X2 devices
+      const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
+        // Get customers connected to this X2
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2.x2Id
+        });
+
+        return {
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...customers.map(customer => ({ type: "customer", id: customer._id }))
+          ],
+          customers: customers
+        };
+      }));
+
+      return {
+        ...olt.toObject(),
+        outputs: [
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId, data: ms })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+        ],
+        // Include complete topology data for each device type
+        ms_devices: msWithTopology,
+        fdb_devices: fdbWithTopology,
+        subms_devices: submsWithTopology,
+        x2_devices: x2WithTopology
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      count: olts.length,
+      count: oltsWithTopology.length,
       serialNumber,
-      data: olts
+      data: oltsWithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -296,11 +1178,276 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
   }
 };
 
+// Search OLTs by Serial Number with complete outputs format
+export const searchOLTsBySerialNumberWithOutputs = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { serialNumber } = req.params;
+    
+    if (!serialNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Serial number is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      serialNumber: { $regex: serialNumber, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    // For each OLT, get all connected devices with complete topology
+    const oltsWithOutputs = await Promise.all(olts.map(async (olt) => {
+      // Get all connected devices
+      const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+        MSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        FDBModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        SUBMSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        X2Model.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        })
+      ]);
+
+      // Build complete topology for MS devices
+      const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+        // Get SUBMS devices connected to this MS
+        const connectedSUBMS = await SUBMSModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        // Get FDB devices connected to this MS
+        const connectedFDB = await FDBModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        // Build SUBMS topology
+        const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+          // Get X2 devices connected to this SUBMS
+          const connectedX2 = await X2Model.find({
+            "input.type": "subms",
+            "input.id": subms.submsId
+          });
+
+          // Get customers connected to X2 devices
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            subms_id: subms.submsId,
+            subms_name: subms.submsName,
+            subms_power: subms.submsPower,
+            location: [subms.latitude, subms.longitude],
+            input: { type: "ms", id: ms.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2,
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        // Build FDB topology
+        const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+          // Get X2 devices connected to this FDB
+          const connectedX2 = await X2Model.find({
+            "input.type": "fdb",
+            "input.id": fdb.fdbId
+          });
+
+          // Get customers connected to X2 devices
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            fdb_id: fdb.fdbId,
+            fdb_name: fdb.fdbName,
+            fdb_power: fdb.fdbPower,
+            location: [fdb.latitude, fdb.longitude],
+            input: { type: "ms", id: ms.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2,
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        return {
+          ms_id: ms.msId,
+          ms_name: ms.msName,
+          ms_power: ms.msPower || 0,
+          location: [ms.latitude, ms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+          ],
+          subms_devices: submsWithTopology,
+          fdb_devices: fdbWithTopology
+        };
+      }));
+
+      // Build complete topology for FDB devices
+      const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+        // Get X2 devices connected to this FDB
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          fdb_id: fdb.fdbId,
+          fdb_name: fdb.fdbName,
+          fdb_power: fdb.fdbPower || 0,
+          location: [fdb.latitude, fdb.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build complete topology for SUBMS devices
+      const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+        // Get X2 devices connected to this SUBMS
+        const connectedX2 = await X2Model.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          subms_id: subms.submsId,
+          subms_name: subms.submsName,
+          subms_power: subms.submsPower,
+          location: [subms.latitude, subms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2.map((x2, index) => ({
+            x2_id: x2.x2Id,
+            x2_name: x2.x2Name,
+            x2_power: x2.x2Power || 0,
+            location: [x2.latitude, x2.longitude],
+            input: { type: "subms", id: subms.submsId },
+            outputs: [
+              ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+            ],
+            customers: customersFromX2[index]
+          })),
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build complete topology for X2 devices
+      const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
+        // Get customers connected to this X2
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2.x2Id
+        });
+
+              return {
+        x2_id: x2.x2Id,
+        x2_name: x2.x2Name,
+        x2_power: x2.x2Power || 0,
+        location: [x2.latitude, x2.longitude],
+        input: { type: "olt", id: olt.oltId },
+        outputs: [
+          ...customers.map(customer => ({ type: "customer", id: customer._id }))
+        ],
+        customers: customers
+      };
+      }));
+
+      // Format the response similar to your example
+      return {
+        olt_id: olt.oltId,
+        olt_model: olt.oltModel || olt.manufacturer,
+        ip_address: olt.oltIp,
+        mac_address: olt.macAddress,
+        serial_number: olt.serialNumber,
+        olt_power: olt.oltPower || 0,
+        location: [olt.latitude, olt.longitude],
+        outputs: [
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+        ],
+        // Include complete topology data for each device type
+        ms_devices: msWithTopology,
+        fdb_devices: fdbWithTopology,
+        subms_devices: submsWithTopology,
+        x2_devices: x2WithTopology
+      };
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: oltsWithOutputs.length,
+      serialNumber,
+      data: oltsWithOutputs
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by serial number with outputs",
+      error: error.message
+    });
+  }
+};
+
 // Search OLTs by Name
 export const searchOLTsByName = async (req: Request, res: Response): Promise<any> => {
   try {
     const { name } = req.params;
-    
+
     if (!name) {
       return res.status(400).json({
         success: false,
@@ -331,7 +1478,7 @@ export const searchOLTsByName = async (req: Request, res: Response): Promise<any
 export const searchOLTsByOLTId = async (req: Request, res: Response): Promise<any> => {
   try {
     const { oltId } = req.params;
-    
+
     if (!oltId) {
       return res.status(400).json({
         success: false,
@@ -343,11 +1490,48 @@ export const searchOLTsByOLTId = async (req: Request, res: Response): Promise<an
       oltId: { $regex: oltId, $options: 'i' }
     }).populate('ownedBy', 'name email company');
 
+    // For each OLT, get all connected devices
+    const oltsWithTopology = await Promise.all(olts.map(async (olt) => {
+      // Get connected MS devices
+      const connectedMS = await MSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected FDB devices
+      const connectedFDB = await FDBModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected SUBMS devices
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected X2 devices
+      const connectedX2 = await X2Model.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      return {
+        ...olt.toObject(),
+        outputs: [
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId, data: ms })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+        ]
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      count: olts.length,
+      count: oltsWithTopology.length,
       oltId,
-      data: olts
+      data: oltsWithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -358,11 +1542,91 @@ export const searchOLTsByOLTId = async (req: Request, res: Response): Promise<an
   }
 };
 
+// Search OLTs by OLT ID with complete outputs format
+export const searchOLTsByOLTIdWithOutputs = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { oltId } = req.params;
+
+    if (!oltId) {
+      return res.status(400).json({
+        success: false,
+        message: "OLT ID is required"
+      });
+    }
+
+    const olts = await OLTModel.find({
+      oltId: { $regex: oltId, $options: 'i' }
+    }).populate('ownedBy', 'name email company');
+
+    // For each OLT, get all connected devices
+    const oltsWithOutputs = await Promise.all(olts.map(async (olt) => {
+      // Get connected MS devices
+      const connectedMS = await MSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected FDB devices
+      const connectedFDB = await FDBModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected SUBMS devices
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Get connected X2 devices
+      const connectedX2 = await X2Model.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      });
+
+      // Format the response similar to your example
+      return {
+        olt_id: olt.oltId,
+        olt_model: olt.oltModel || olt.manufacturer,
+        ip_address: olt.oltIp,
+        mac_address: olt.macAddress,
+        serial_number: olt.serialNumber,
+        olt_power: olt.oltPower || 0,
+        location: [olt.latitude, olt.longitude],
+        outputs: [
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+        ],
+        // Include full data for each device type
+        ms_devices: connectedMS,
+        fdb_devices: connectedFDB,
+        subms_devices: connectedSUBMS,
+        x2_devices: connectedX2
+      };
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: oltsWithOutputs.length,
+      oltId,
+      data: oltsWithOutputs
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by OLT ID with outputs",
+      error: error.message
+    });
+  }
+};
+
 // Search OLTs by IP Address
 export const searchOLTsByIP = async (req: Request, res: Response): Promise<any> => {
   try {
     const { ip } = req.params;
-    
+
     if (!ip) {
       return res.status(400).json({
         success: false,
@@ -393,7 +1657,7 @@ export const searchOLTsByIP = async (req: Request, res: Response): Promise<any> 
 export const searchOLTsByMAC = async (req: Request, res: Response): Promise<any> => {
   try {
     const { mac } = req.params;
-    
+
     if (!mac) {
       return res.status(400).json({
         success: false,
@@ -424,7 +1688,7 @@ export const searchOLTsByMAC = async (req: Request, res: Response): Promise<any>
 export const searchOLTsByManufacturer = async (req: Request, res: Response): Promise<any> => {
   try {
     const { manufacturer } = req.params;
-    
+
     if (!manufacturer) {
       return res.status(400).json({
         success: false,
@@ -455,7 +1719,7 @@ export const searchOLTsByManufacturer = async (req: Request, res: Response): Pro
 export const searchOLTsByModel = async (req: Request, res: Response): Promise<any> => {
   try {
     const { model } = req.params;
-    
+
     if (!model) {
       return res.status(400).json({
         success: false,
@@ -486,7 +1750,7 @@ export const searchOLTsByModel = async (req: Request, res: Response): Promise<an
 export const searchOLTsByStatus = async (req: Request, res: Response): Promise<any> => {
   try {
     const { status } = req.params;
-    
+
     if (!status) {
       return res.status(400).json({
         success: false,
@@ -517,7 +1781,7 @@ export const searchOLTsByStatus = async (req: Request, res: Response): Promise<a
 export const searchOLTsByPowerStatus = async (req: Request, res: Response): Promise<any> => {
   try {
     const { powerStatus } = req.params;
-    
+
     if (!powerStatus) {
       return res.status(400).json({
         success: false,
@@ -548,7 +1812,7 @@ export const searchOLTsByPowerStatus = async (req: Request, res: Response): Prom
 export const searchOLTsByCity = async (req: Request, res: Response): Promise<any> => {
   try {
     const { city } = req.params;
-    
+
     if (!city) {
       return res.status(400).json({
         success: false,
@@ -579,7 +1843,7 @@ export const searchOLTsByCity = async (req: Request, res: Response): Promise<any
 export const searchOLTsByState = async (req: Request, res: Response): Promise<any> => {
   try {
     const { state } = req.params;
-    
+
     if (!state) {
       return res.status(400).json({
         success: false,
@@ -714,7 +1978,7 @@ export const advancedSearchOLTs = async (req: Request, res: Response): Promise<a
 export const getOLTStatistics = async (req: Request, res: Response): Promise<any> => {
   try {
     const { ownedBy } = req.query;
-    
+
     const filter: any = {};
     if (ownedBy) filter.ownedBy = ownedBy;
 
@@ -790,7 +2054,7 @@ export const getOLTStatistics = async (req: Request, res: Response): Promise<any
 export const createMS = async (req: Request, res: Response): Promise<any> => {
   try {
     const msData = req.body;
-    
+
     // Handle uploaded images
     if (req.files && Array.isArray(req.files)) {
       if (req.files.length < 2) {
@@ -799,10 +2063,10 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
           message: "At least 2 images are required for MS"
         });
       }
-      
+
       // Convert uploaded files to attachment URLs
       const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
-      
+
       msData.attachments = attachments;
     } else {
       return res.status(400).json({
@@ -810,7 +2074,7 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
         message: "Images are required for MS creation"
       });
     }
-    
+
     // Handle nested input object from FormData
     if (req.body.inputType && req.body.inputId) {
       msData.input = {
@@ -819,7 +2083,7 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
         port: req.body.inputPort ? parseInt(req.body.inputPort) : undefined
       };
     }
-    
+
     // Validate required fields
     if (!msData.msName || !msData.msType || !msData.ownedBy) {
       return res.status(400).json({
@@ -827,7 +2091,7 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
         message: "msName, msType, and ownedBy are required fields"
       });
     }
-    
+
     // Validate input connection
     if (!msData.input || !msData.input.type || !msData.input.id) {
       return res.status(400).json({
@@ -835,28 +2099,28 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
         message: "Input connection with type and id is required"
       });
     }
-    
-    
+
+
     // Extract location array if provided
     if (msData.location && Array.isArray(msData.location)) {
       msData.latitude = msData.location[0];
       msData.longitude = msData.location[1];
       delete msData.location;
     }
-    
+
     // Ensure outputs is an aqqrray
     if (!msData.outputs) {
       msData.outputs = [];
     }
-    
+
     // Set default values if not provided
     if (!msData.addedBy) {
       msData.addedBy = msData.ownedBy;
     }
-    
+
     const ms = new MSModel(msData);
     const savedMS = await ms.save();
-    
+
     res.status(201).json({
       success: true,
       message: "MS created successfully",
@@ -875,7 +2139,7 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
 export const getAllMS = async (req: Request, res: Response): Promise<any> => {
   try {
     const msDevices = await MSModel.find().sort({ createdAt: -1 });
-    
+
     res.status(200).json({
       success: true,
       count: msDevices.length,
@@ -895,14 +2159,14 @@ export const getMSById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const ms = await MSModel.findById(id);
-    
+
     if (!ms) {
       return res.status(404).json({
         success: false,
         message: "MS not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: ms
@@ -921,27 +2185,27 @@ export const updateMS = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     // Handle location update
     if (updateData.location && Array.isArray(updateData.location)) {
       updateData.latitude = updateData.location[0];
       updateData.longitude = updateData.location[1];
       delete updateData.location;
     }
-    
+
     const ms = await MSModel.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
     );
-    
+
     if (!ms) {
       return res.status(404).json({
         success: false,
         message: "MS not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "MS updated successfully",
@@ -961,14 +2225,14 @@ export const deleteMS = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const ms = await MSModel.findByIdAndDelete(id);
-    
+
     if (!ms) {
       return res.status(404).json({
         success: false,
         message: "MS not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "MS deleted successfully"
@@ -987,7 +2251,7 @@ export const getMSNetworkTopology = async (req: Request, res: Response): Promise
   try {
     const { id } = req.params;
     const ms = await MSModel.findById(id);
-    
+
     if (!ms) {
       return res.status(404).json({
         success: false,
@@ -1043,7 +2307,7 @@ export const getMSNetworkTopology = async (req: Request, res: Response): Promise
 export const createSUBMS = async (req: Request, res: Response): Promise<any> => {
   try {
     const submsData = req.body;
-    
+
     // Handle uploaded images
     if (req.files && Array.isArray(req.files)) {
       if (req.files.length < 2) {
@@ -1052,10 +2316,10 @@ export const createSUBMS = async (req: Request, res: Response): Promise<any> => 
           message: "At least 2 images are required for SUBMS"
         });
       }
-      
+
       // Convert uploaded files to attachment URLs
       const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
-      
+
       submsData.attachments = attachments;
     } else {
       return res.status(400).json({
@@ -1063,17 +2327,17 @@ export const createSUBMS = async (req: Request, res: Response): Promise<any> => 
         message: "Images are required for SUBMS creation"
       });
     }
-    
+
     // Extract location array if provided
     if (submsData.location && Array.isArray(submsData.location)) {
       submsData.latitude = submsData.location[0];
       submsData.longitude = submsData.location[1];
       delete submsData.location;
     }
-    
+
     const subms = new SUBMSModel(submsData);
     const savedSUBMS = await subms.save();
-    
+
     res.status(201).json({
       success: true,
       message: "SUBMS created successfully",
@@ -1092,7 +2356,7 @@ export const createSUBMS = async (req: Request, res: Response): Promise<any> => 
 export const getAllSUBMS = async (req: Request, res: Response): Promise<any> => {
   try {
     const submsDevices = await SUBMSModel.find().sort({ createdAt: -1 });
-    
+
     res.status(200).json({
       success: true,
       count: submsDevices.length,
@@ -1112,14 +2376,14 @@ export const getSUBMSById = async (req: Request, res: Response): Promise<any> =>
   try {
     const { id } = req.params;
     const subms = await SUBMSModel.findById(id);
-    
+
     if (!subms) {
       return res.status(404).json({
         success: false,
         message: "SUBMS not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: subms
@@ -1138,27 +2402,27 @@ export const updateSUBMS = async (req: Request, res: Response): Promise<any> => 
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     // Handle location update
     if (updateData.location && Array.isArray(updateData.location)) {
       updateData.latitude = updateData.location[0];
       updateData.longitude = updateData.location[1];
       delete updateData.location;
     }
-    
+
     const subms = await SUBMSModel.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
     );
-    
+
     if (!subms) {
       return res.status(404).json({
         success: false,
         message: "SUBMS not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "SUBMS updated successfully",
@@ -1178,14 +2442,14 @@ export const deleteSUBMS = async (req: Request, res: Response): Promise<any> => 
   try {
     const { id } = req.params;
     const subms = await SUBMSModel.findByIdAndDelete(id);
-    
+
     if (!subms) {
       return res.status(404).json({
         success: false,
         message: "SUBMS not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "SUBMS deleted successfully"
@@ -1205,7 +2469,7 @@ export const deleteSUBMS = async (req: Request, res: Response): Promise<any> => 
 export const createFDB = async (req: Request, res: Response): Promise<any> => {
   try {
     const fdbData = req.body;
-    
+
     // Handle uploaded images
     if (req.files && Array.isArray(req.files)) {
       if (req.files.length < 2) {
@@ -1214,10 +2478,10 @@ export const createFDB = async (req: Request, res: Response): Promise<any> => {
           message: "At least 2 images are required for FDB"
         });
       }
-      
+
       // Convert uploaded files to attachment URLs
       const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
-      
+
       fdbData.attachments = attachments;
     } else {
       return res.status(400).json({
@@ -1225,17 +2489,17 @@ export const createFDB = async (req: Request, res: Response): Promise<any> => {
         message: "Images are required for FDB creation"
       });
     }
-    
+
     // Extract location array if provided
     if (fdbData.location && Array.isArray(fdbData.location)) {
       fdbData.latitude = fdbData.location[0];
       fdbData.longitude = fdbData.location[1];
       delete fdbData.location;
     }
-    
+
     const fdb = new FDBModel(fdbData);
     const savedFDB = await fdb.save();
-    
+
     res.status(201).json({
       success: true,
       message: "FDB created successfully",
@@ -1254,7 +2518,7 @@ export const createFDB = async (req: Request, res: Response): Promise<any> => {
 export const getAllFDB = async (req: Request, res: Response): Promise<any> => {
   try {
     const fdbDevices = await FDBModel.find().sort({ createdAt: -1 });
-    
+
     res.status(200).json({
       success: true,
       count: fdbDevices.length,
@@ -1274,14 +2538,14 @@ export const getFDBById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const fdb = await FDBModel.findById(id);
-    
+
     if (!fdb) {
       return res.status(404).json({
         success: false,
         message: "FDB not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: fdb
@@ -1300,27 +2564,27 @@ export const updateFDB = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     // Handle location update
     if (updateData.location && Array.isArray(updateData.location)) {
       updateData.latitude = updateData.location[0];
       updateData.longitude = updateData.location[1];
       delete updateData.location;
     }
-    
+
     const fdb = await FDBModel.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
     );
-    
+
     if (!fdb) {
       return res.status(404).json({
         success: false,
         message: "FDB not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "FDB updated successfully",
@@ -1340,14 +2604,14 @@ export const deleteFDB = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const fdb = await FDBModel.findByIdAndDelete(id);
-    
+
     if (!fdb) {
       return res.status(404).json({
         success: false,
         message: "FDB not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "FDB deleted successfully"
@@ -1366,7 +2630,7 @@ export const getFDBNetworkTopology = async (req: Request, res: Response): Promis
   try {
     const { id } = req.params;
     const fdb = await FDBModel.findById(id);
-    
+
     if (!fdb) {
       return res.status(404).json({
         success: false,
@@ -1415,7 +2679,7 @@ export const getFDBNetworkTopology = async (req: Request, res: Response): Promis
 export const createX2 = async (req: Request, res: Response): Promise<any> => {
   try {
     const x2Data = req.body;
-    
+
     // Handle uploaded images
     if (req.files && Array.isArray(req.files)) {
       if (req.files.length < 2) {
@@ -1424,10 +2688,10 @@ export const createX2 = async (req: Request, res: Response): Promise<any> => {
           message: "At least 2 images are required for X2"
         });
       }
-      
+
       // Convert uploaded files to attachment URLs
       const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
-      
+
       x2Data.attachments = attachments;
     } else {
       return res.status(400).json({
@@ -1435,17 +2699,17 @@ export const createX2 = async (req: Request, res: Response): Promise<any> => {
         message: "Images are required for X2 creation"
       });
     }
-    
+
     // Extract location array if provided
     if (x2Data.location && Array.isArray(x2Data.location)) {
       x2Data.latitude = x2Data.location[0];
       x2Data.longitude = x2Data.location[1];
       delete x2Data.location;
     }
-    
+
     const x2 = new X2Model(x2Data);
     const savedX2 = await x2.save();
-    
+
     res.status(201).json({
       success: true,
       message: "X2 created successfully",
@@ -1464,7 +2728,7 @@ export const createX2 = async (req: Request, res: Response): Promise<any> => {
 export const getAllX2 = async (req: Request, res: Response): Promise<any> => {
   try {
     const x2Devices = await X2Model.find().sort({ createdAt: -1 });
-    
+
     res.status(200).json({
       success: true,
       count: x2Devices.length,
@@ -1484,14 +2748,14 @@ export const getX2ById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const x2 = await X2Model.findById(id);
-    
+
     if (!x2) {
       return res.status(404).json({
         success: false,
         message: "X2 not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: x2
@@ -1510,27 +2774,27 @@ export const updateX2 = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     // Handle location update
     if (updateData.location && Array.isArray(updateData.location)) {
       updateData.latitude = updateData.location[0];
       updateData.longitude = updateData.location[1];
       delete updateData.location;
     }
-    
+
     const x2 = await X2Model.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
     );
-    
+
     if (!x2) {
       return res.status(404).json({
         success: false,
         message: "X2 not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "X2 updated successfully",
@@ -1550,14 +2814,14 @@ export const deleteX2 = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const x2 = await X2Model.findByIdAndDelete(id);
-    
+
     if (!x2) {
       return res.status(404).json({
         success: false,
         message: "X2 not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: "X2 deleted successfully"
@@ -1576,7 +2840,7 @@ export const getX2NetworkTopology = async (req: Request, res: Response): Promise
   try {
     const { id } = req.params;
     const x2 = await X2Model.findById(id);
-    
+
     if (!x2) {
       return res.status(404).json({
         success: false,
@@ -1657,7 +2921,7 @@ export const getCustomerById = async (req: Request, res: Response): Promise<any>
 export const updateCustomer = async (req: Request, res: Response): Promise<any> => {
   try {
     const customerData = req.body;
-    
+
     // Handle location array format
     if (Array.isArray(customerData.location)) {
       customerData.lat = customerData.location[0];
@@ -1669,14 +2933,14 @@ export const updateCustomer = async (req: Request, res: Response): Promise<any> 
       customerData,
       { new: true, runValidators: true }
     );
-    
+
     if (!customer) {
       return res.status(404).json({
         success: false,
         message: "Customer not found"
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: customer
@@ -1724,7 +2988,7 @@ export const getCustomerNetworkTopology = async (req: Request, res: Response): P
 export const searchCustomersByLocation = async (req: Request, res: Response): Promise<any> => {
   try {
     const { latitude, longitude, maxDistance = 10000 } = req.query;
-    
+
     if (!latitude || !longitude) {
       return res.status(400).json({
         success: false,
@@ -1755,7 +3019,7 @@ export const searchCustomersByStatus = async (req: Request, res: Response): Prom
   try {
     const { status } = req.params;
     const customers = await UserModel.findCustomersByStatus(status);
-    
+
     res.status(200).json({
       success: true,
       data: customers
@@ -1773,7 +3037,7 @@ export const searchCustomersByType = async (req: Request, res: Response): Promis
   try {
     const { type } = req.params;
     const customers = await UserModel.findCustomersByType(type);
-    
+
     res.status(200).json({
       success: true,
       data: customers
@@ -1792,7 +3056,7 @@ export const searchCustomersByType = async (req: Request, res: Response): Promis
 export const attachCustomerToNetwork = async (req: Request, res: Response): Promise<any> => {
   try {
     const { customerId, networkComponentType, networkComponentId } = req.body;
-    
+
     if (!customerId || !networkComponentType || !networkComponentId) {
       return res.status(400).json({
         success: false,
@@ -1869,7 +3133,7 @@ export const attachCustomerToNetwork = async (req: Request, res: Response): Prom
 export const detachCustomerFromNetwork = async (req: Request, res: Response): Promise<any> => {
   try {
     const { customerId } = req.params;
-    
+
     if (!customerId) {
       return res.status(400).json({
         success: false,
@@ -1913,7 +3177,7 @@ export const detachCustomerFromNetwork = async (req: Request, res: Response): Pr
 export const getCustomersByNetworkComponent = async (req: Request, res: Response): Promise<any> => {
   try {
     const { componentType, componentId } = req.params;
-    
+
     if (!componentType || !componentId) {
       return res.status(400).json({
         success: false,
@@ -1959,7 +3223,7 @@ export const getCustomersByNetworkComponent = async (req: Request, res: Response
 export const getCompleteNetworkTopology = async (req: Request, res: Response): Promise<any> => {
   try {
     const { oltId } = req.params;
-    
+
     // Find OLT
     const olt = await OLTModel.findOne({ oltId });
     if (!olt) {
@@ -1971,7 +3235,7 @@ export const getCompleteNetworkTopology = async (req: Request, res: Response): P
 
     // Get all connected devices recursively
     const topology = await buildNetworkTopology(olt);
-    
+
     res.status(200).json({
       success: true,
       data: topology
@@ -2002,7 +3266,7 @@ export const getNetworkStatistics = async (req: Request, res: Response): Promise
       activeX2: await X2Model.countDocuments({ status: "active" }),
       activeCustomers: await UserModel.countDocuments({ role: "user", status: "active" })
     };
-    
+
     res.status(200).json({
       success: true,
       data: stats
@@ -2132,7 +3396,7 @@ async function buildNetworkTopology(olt: any) {
 export const getOLTsByCompany = async (req: Request, res: Response): Promise<any> => {
   try {
     const { companyId } = req.params;
-    
+
     if (!companyId) {
       return res.status(400).json({
         success: false,
@@ -2146,11 +3410,228 @@ export const getOLTsByCompany = async (req: Request, res: Response): Promise<any
       .populate('assignedCompany', 'name email')
       .sort({ createdAt: -1 });
 
+    // For each OLT, get all connected devices with complete topology
+    const oltsWithTopology = await Promise.all(olts.map(async (olt) => {
+      // Get all connected devices
+      const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+        MSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        FDBModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        SUBMSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        X2Model.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        })
+      ]);
+
+      // Build complete topology for MS devices
+      const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+        // Get SUBMS devices connected to this MS
+        const connectedSUBMS = await SUBMSModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        // Get FDB devices connected to this MS
+        const connectedFDB = await FDBModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        // Build SUBMS topology
+        const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+          // Get X2 devices connected to this SUBMS
+          const connectedX2 = await X2Model.find({
+            "input.type": "subms",
+            "input.id": subms.submsId
+          });
+
+          // Get customers connected to X2 devices
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            subms_id: subms.submsId,
+            subms_name: subms.submsName,
+            subms_power: subms.submsPower || 0,
+            location: [subms.latitude, subms.longitude],
+            input: { type: "ms", id: ms.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2,
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        // Build FDB topology
+        const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+          // Get X2 devices connected to this FDB
+          const connectedX2 = await X2Model.find({
+            "input.type": "fdb",
+            "input.id": fdb.fdbId
+          });
+
+          // Get customers connected to X2 devices
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            fdb_id: fdb.fdbId,
+            fdb_name: fdb.fdbName,
+            fdb_power: fdb.fdbPower || 0,
+            location: [fdb.latitude, fdb.longitude],
+            input: { type: "ms", id: ms.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2,
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        return {
+          ms_id: ms.msId,
+          ms_name: ms.msName,
+          ms_power: ms.msPower || 0,
+          location: [ms.latitude, ms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+          ],
+          subms_devices: submsWithTopology,
+          fdb_devices: fdbWithTopology
+        };
+      }));
+
+      // Build complete topology for FDB devices
+      const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+        // Get X2 devices connected to this FDB
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          fdb_id: fdb.fdbId,
+          fdb_name: fdb.fdbName,
+          fdb_power: fdb.fdbPower || 0,
+          location: [fdb.latitude, fdb.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build complete topology for SUBMS devices
+      const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+        // Get X2 devices connected to this SUBMS
+        const connectedX2 = await X2Model.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          subms_id: subms.submsId,
+          subms_name: subms.submsName,
+          subms_power: subms.submsPower || 0,
+          location: [subms.latitude, subms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build complete topology for X2 devices
+      const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
+        // Get customers connected to this X2
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2.x2Id
+        });
+
+        return {
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...customers.map(customer => ({ type: "customer", id: customer._id }))
+          ],
+          customers: customers
+        };
+      }));
+
+      return {
+        ...olt.toObject(),
+        outputs: [
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId, data: ms })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+        ],
+        // Include complete topology data for each device type
+        ms_devices: msWithTopology,
+        fdb_devices: fdbWithTopology,
+        subms_devices: submsWithTopology,
+        x2_devices: x2WithTopology
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      count: olts.length,
+      count: oltsWithTopology.length,
       companyId,
-      data: olts
+      data: oltsWithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -2165,7 +3646,7 @@ export const getOLTsByCompany = async (req: Request, res: Response): Promise<any
 export const getFDBsByCompany = async (req: Request, res: Response): Promise<any> => {
   try {
     const { companyId } = req.params;
-    
+
     if (!companyId) {
       return res.status(400).json({
         success: false,
@@ -2179,11 +3660,60 @@ export const getFDBsByCompany = async (req: Request, res: Response): Promise<any
       .populate('assignedCompany', 'name email')
       .sort({ createdAt: -1 });
 
+    // For each FDB, get all connected devices with complete topology
+    const fdbsWithTopology = await Promise.all(fdbs.map(async (fdb) => {
+      // Get X2 devices connected to this FDB
+      const connectedX2 = await X2Model.find({
+        "input.type": "fdb",
+        "input.id": fdb.fdbId
+      });
+
+      // Get customers connected to X2 devices
+      const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2.x2Id
+        });
+        return customers;
+      }));
+
+      // Get input device (OLT or MS)
+      let inputDevice = null;
+      if (fdb.input && fdb.input.type && fdb.input.id) {
+        if (fdb.input.type === "olt") {
+          inputDevice = await OLTModel.findOne({ oltId: fdb.input.id });
+        } else if (fdb.input.type === "ms") {
+          inputDevice = await MSModel.findOne({ msId: fdb.input.id });
+        }
+      }
+
+      return {
+        ...fdb.toObject(),
+        input_device: inputDevice,
+        outputs: [
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+        ],
+        x2_devices: connectedX2.map((x2, index) => ({
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "fdb", id: fdb.fdbId },
+          outputs: [
+            ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+          ],
+          customers: customersFromX2[index]
+        })),
+        customers: customersFromX2.flat()
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      count: fdbs.length,
+      count: fdbsWithTopology.length,
       companyId,
-      data: fdbs
+      data: fdbsWithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -2198,7 +3728,7 @@ export const getFDBsByCompany = async (req: Request, res: Response): Promise<any
 export const getMSByCompany = async (req: Request, res: Response): Promise<any> => {
   try {
     const { companyId } = req.params;
-    
+
     if (!companyId) {
       return res.status(400).json({
         success: false,
@@ -2212,11 +3742,109 @@ export const getMSByCompany = async (req: Request, res: Response): Promise<any> 
       .populate('assignedCompany', 'name email')
       .sort({ createdAt: -1 });
 
+    // For each MS device, get all connected devices with complete topology
+    const msWithTopology = await Promise.all(msDevices.map(async (ms) => {
+      // Get SUBMS devices connected to this MS
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+
+      // Get FDB devices connected to this MS
+      const connectedFDB = await FDBModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+
+      // Build SUBMS topology
+      const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+        // Get X2 devices connected to this SUBMS
+        const connectedX2 = await X2Model.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          subms_id: subms.submsId,
+          subms_name: subms.submsName,
+          subms_power: subms.submsPower || 0,
+          location: [subms.latitude, subms.longitude],
+          input: { type: "ms", id: ms.msId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Build FDB topology
+      const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+        // Get X2 devices connected to this FDB
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+
+        // Get customers connected to X2 devices
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        return {
+          fdb_id: fdb.fdbId,
+          fdb_name: fdb.fdbName,
+          fdb_power: fdb.fdbPower || 0,
+          location: [fdb.latitude, fdb.longitude],
+          input: { type: "ms", id: ms.msId },
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ],
+          x2_devices: connectedX2,
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      // Get input device (OLT)
+      let inputDevice = null;
+      if (ms.input && ms.input.type && ms.input.id) {
+        if (ms.input.type === "olt") {
+          inputDevice = await OLTModel.findOne({ oltId: ms.input.id });
+        }
+      }
+
+      return {
+        ...ms.toObject(),
+        input_device: inputDevice,
+        outputs: [
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb }))
+        ],
+        subms_devices: submsWithTopology,
+        fdb_devices: fdbWithTopology
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      count: msDevices.length,
+      count: msWithTopology.length,
       companyId,
-      data: msDevices
+      data: msWithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -2231,7 +3859,7 @@ export const getMSByCompany = async (req: Request, res: Response): Promise<any> 
 export const getSUBMSByCompany = async (req: Request, res: Response): Promise<any> => {
   try {
     const { companyId } = req.params;
-    
+
     if (!companyId) {
       return res.status(400).json({
         success: false,
@@ -2245,11 +3873,60 @@ export const getSUBMSByCompany = async (req: Request, res: Response): Promise<an
       .populate('assignedCompany', 'name email')
       .sort({ createdAt: -1 });
 
+    // For each SUBMS device, get all connected devices with complete topology
+    const submsWithTopology = await Promise.all(submsDevices.map(async (subms) => {
+      // Get X2 devices connected to this SUBMS
+      const connectedX2 = await X2Model.find({
+        "input.type": "subms",
+        "input.id": subms.submsId
+      });
+
+      // Get customers connected to X2 devices
+      const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2.x2Id
+        });
+        return customers;
+      }));
+
+      // Get input device (OLT or MS)
+      let inputDevice = null;
+      if (subms.input && subms.input.type && subms.input.id) {
+        if (subms.input.type === "olt") {
+          inputDevice = await OLTModel.findOne({ oltId: subms.input.id });
+        } else if (subms.input.type === "ms") {
+          inputDevice = await MSModel.findOne({ msId: subms.input.id });
+        }
+      }
+
+      return {
+        ...subms.toObject(),
+        input_device: inputDevice,
+        outputs: [
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+        ],
+        x2_devices: connectedX2.map((x2, index) => ({
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "subms", id: subms.submsId },
+          outputs: [
+            ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+          ],
+          customers: customersFromX2[index]
+        })),
+        customers: customersFromX2.flat()
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      count: submsDevices.length,
+      count: submsWithTopology.length,
       companyId,
-      data: submsDevices
+      data: submsWithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -2264,7 +3941,7 @@ export const getSUBMSByCompany = async (req: Request, res: Response): Promise<an
 export const getX2ByCompany = async (req: Request, res: Response): Promise<any> => {
   try {
     const { companyId } = req.params;
-    
+
     if (!companyId) {
       return res.status(400).json({
         success: false,
@@ -2278,11 +3955,44 @@ export const getX2ByCompany = async (req: Request, res: Response): Promise<any> 
       .populate('assignedCompany', 'name email')
       .sort({ createdAt: -1 });
 
+    // For each X2 device, get all connected customers with complete topology
+    const x2WithTopology = await Promise.all(x2Devices.map(async (x2) => {
+      // Get customers connected to this X2
+      const customers = await UserModel.find({
+        role: "user",
+        "networkInput.type": "x2",
+        "networkInput.id": x2.x2Id
+      });
+
+      // Get input device (OLT, MS, SUBMS, or FDB)
+      let inputDevice = null;
+      if (x2.input && x2.input.type && x2.input.id) {
+        if (x2.input.type === "olt") {
+          inputDevice = await OLTModel.findOne({ oltId: x2.input.id });
+        } else if (x2.input.type === "ms") {
+          inputDevice = await MSModel.findOne({ msId: x2.input.id });
+        } else if (x2.input.type === "subms") {
+          inputDevice = await SUBMSModel.findOne({ submsId: x2.input.id });
+        } else if (x2.input.type === "fdb") {
+          inputDevice = await FDBModel.findOne({ fdbId: x2.input.id });
+        }
+      }
+
+      return {
+        ...x2.toObject(),
+        input_device: inputDevice,
+        outputs: [
+          ...customers.map(customer => ({ type: "customer", id: customer._id, data: customer }))
+        ],
+        customers: customers
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      count: x2Devices.length,
+      count: x2WithTopology.length,
       companyId,
-      data: x2Devices
+      data: x2WithTopology
     });
   } catch (error: any) {
     res.status(500).json({
@@ -2297,7 +4007,7 @@ export const getX2ByCompany = async (req: Request, res: Response): Promise<any> 
 export const getAllNetworkComponentsByCompany = async (req: Request, res: Response): Promise<any> => {
   try {
     const { companyId } = req.params;
-    
+
     if (!companyId) {
       return res.status(400).json({
         success: false,
@@ -2339,7 +4049,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
   try {
     const { companyId } = req.params;
     const { page = 1, limit = 50, type } = req.query;
-    
+
     if (!companyId) {
       return res.status(400).json({
         success: false,
@@ -2392,12 +4102,432 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
           .limit(parseInt(limit as string))
       ]);
 
+      // Build complete topology for each device type
+      const oltsWithTopology = await Promise.all(olts.map(async (olt) => {
+        const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+          MSModel.find({ "input.type": "olt", "input.id": olt.oltId }),
+          FDBModel.find({ "input.type": "olt", "input.id": olt.oltId }),
+          SUBMSModel.find({ "input.type": "olt", "input.id": olt.oltId }),
+          X2Model.find({ "input.type": "olt", "input.id": olt.oltId })
+        ]);
+
+        // Build MS topology
+        const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+          const [connectedSUBMS, connectedFDB] = await Promise.all([
+            SUBMSModel.find({ "input.type": "ms", "input.id": ms.msId }),
+            FDBModel.find({ "input.type": "ms", "input.id": ms.msId })
+          ]);
+
+          // Build SUBMS topology
+          const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+            const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": subms.submsId });
+            const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+              const customers = await UserModel.find({
+                role: "user",
+                "networkInput.type": "x2",
+                "networkInput.id": x2.x2Id
+              });
+              return customers;
+            }));
+
+            return {
+              subms_id: subms.submsId,
+              subms_name: subms.submsName,
+              subms_power: subms.submsPower || 0,
+              location: [subms.latitude, subms.longitude],
+              input: { type: "ms", id: ms.msId },
+              outputs: [
+                ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+              ],
+              x2_devices: connectedX2.map((x2, index) => ({
+                x2_id: x2.x2Id,
+                x2_name: x2.x2Name,
+                x2_power: x2.x2Power || 0,
+                location: [x2.latitude, x2.longitude],
+                input: { type: "subms", id: subms.submsId },
+                outputs: [
+                  ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                ],
+                customers: customersFromX2[index]
+              })),
+              customers: customersFromX2.flat()
+            };
+          }));
+
+          // Build FDB topology
+          const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+            const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
+            const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+              const customers = await UserModel.find({
+                role: "user",
+                "networkInput.type": "x2",
+                "networkInput.id": x2.x2Id
+              });
+              return customers;
+            }));
+
+            return {
+              fdb_id: fdb.fdbId,
+              fdb_name: fdb.fdbName,
+              fdb_power: fdb.fdbPower || 0,
+              location: [fdb.latitude, fdb.longitude],
+              input: { type: "ms", id: ms.msId },
+              outputs: [
+                ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+              ],
+              x2_devices: connectedX2.map((x2, index) => ({
+                x2_id: x2.x2Id,
+                x2_name: x2.x2Name,
+                x2_power: x2.x2Power || 0,
+                location: [x2.latitude, x2.longitude],
+                input: { type: "fdb", id: fdb.fdbId },
+                outputs: [
+                  ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                ],
+                customers: customersFromX2[index]
+              })),
+              customers: customersFromX2.flat()
+            };
+          }));
+
+          return {
+            ms_id: ms.msId,
+            ms_name: ms.msName,
+            ms_power: ms.msPower || 0,
+            location: [ms.latitude, ms.longitude],
+            input: { type: "olt", id: olt.oltId },
+            outputs: [
+              ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+              ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+            ],
+            subms_devices: submsWithTopology,
+            fdb_devices: fdbWithTopology
+          };
+        }));
+
+        // Build FDB topology
+        const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+          const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            fdb_id: fdb.fdbId,
+            fdb_name: fdb.fdbName,
+            fdb_power: fdb.fdbPower || 0,
+            location: [fdb.latitude, fdb.longitude],
+            input: { type: "olt", id: olt.oltId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2.map((x2, index) => ({
+              x2_id: x2.x2Id,
+              x2_name: x2.x2Name,
+              x2_power: x2.x2Power || 0,
+              location: [x2.latitude, x2.longitude],
+              input: { type: "fdb", id: fdb.fdbId },
+              outputs: [
+                ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+              ],
+              customers: customersFromX2[index]
+            })),
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        // Build SUBMS topology
+        const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+          const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": subms.submsId });
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            subms_id: subms.submsId,
+            subms_name: subms.submsName,
+            subms_power: subms.submsPower || 0,
+            location: [subms.latitude, subms.longitude],
+            input: { type: "olt", id: olt.oltId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2.map((x2, index) => ({
+              x2_id: x2.x2Id,
+              x2_name: x2.x2Name,
+              x2_power: x2.x2Power || 0,
+              location: [x2.latitude, x2.longitude],
+              input: { type: "subms", id: subms.submsId },
+              outputs: [
+                ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+              ],
+              customers: customersFromX2[index]
+            })),
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        // Build X2 topology
+        const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+
+          return {
+            x2_id: x2.x2Id,
+            x2_name: x2.x2Name,
+            x2_power: x2.x2Power || 0,
+            location: [x2.latitude, x2.longitude],
+            input: { type: "olt", id: olt.oltId },
+            outputs: [
+              ...customers.map(customer => ({ type: "customer", id: customer._id }))
+            ],
+            customers: customers
+          };
+        }));
+
+        return {
+          ...olt.toObject(),
+          outputs: [
+            ...connectedMS.map(ms => ({ type: "ms", id: ms.msId, data: ms })),
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb })),
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+          ],
+          ms_devices: msWithTopology,
+          fdb_devices: fdbWithTopology,
+          subms_devices: submsWithTopology,
+          x2_devices: x2WithTopology
+        };
+      }));
+
+      const fdbsWithTopology = await Promise.all(fdbs.map(async (fdb) => {
+        const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        let inputDevice = null;
+        if (fdb.input && fdb.input.type && fdb.input.id) {
+          if (fdb.input.type === "olt") {
+            inputDevice = await OLTModel.findOne({ oltId: fdb.input.id });
+          } else if (fdb.input.type === "ms") {
+            inputDevice = await MSModel.findOne({ msId: fdb.input.id });
+          }
+        }
+
+        return {
+          ...fdb.toObject(),
+          input_device: inputDevice,
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+          ],
+          x2_devices: connectedX2.map((x2, index) => ({
+            x2_id: x2.x2Id,
+            x2_name: x2.x2Name,
+            x2_power: x2.x2Power || 0,
+            location: [x2.latitude, x2.longitude],
+            input: { type: "fdb", id: fdb.fdbId },
+            outputs: [
+              ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+            ],
+            customers: customersFromX2[index]
+          })),
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      const msWithTopology = await Promise.all(ms.map(async (msDevice) => {
+        const [connectedSUBMS, connectedFDB] = await Promise.all([
+          SUBMSModel.find({ "input.type": "ms", "input.id": msDevice.msId }),
+          FDBModel.find({ "input.type": "ms", "input.id": msDevice.msId })
+        ]);
+
+        // Build SUBMS topology
+        const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+          const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": subms.submsId });
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            subms_id: subms.submsId,
+            subms_name: subms.submsName,
+            subms_power: subms.submsPower || 0,
+            location: [subms.latitude, subms.longitude],
+            input: { type: "ms", id: msDevice.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2.map((x2, index) => ({
+              x2_id: x2.x2Id,
+              x2_name: x2.x2Name,
+              x2_power: x2.x2Power || 0,
+              location: [x2.latitude, x2.longitude],
+              input: { type: "subms", id: subms.submsId },
+              outputs: [
+                ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+              ],
+              customers: customersFromX2[index]
+            })),
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        // Build FDB topology
+        const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+          const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
+          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+            return customers;
+          }));
+
+          return {
+            fdb_id: fdb.fdbId,
+            fdb_name: fdb.fdbName,
+            fdb_power: fdb.fdbPower || 0,
+            location: [fdb.latitude, fdb.longitude],
+            input: { type: "ms", id: msDevice.msId },
+            outputs: [
+              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ],
+            x2_devices: connectedX2.map((x2, index) => ({
+              x2_id: x2.x2Id,
+              x2_name: x2.x2Name,
+              x2_power: x2.x2Power || 0,
+              location: [x2.latitude, fdb.longitude],
+              input: { type: "fdb", id: fdb.fdbId },
+              outputs: [
+                ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+              ],
+              customers: customersFromX2[index]
+            })),
+            customers: customersFromX2.flat()
+          };
+        }));
+
+        let inputDevice = null;
+        if (msDevice.input && msDevice.input.type && msDevice.input.id) {
+          if (msDevice.input.type === "olt") {
+            inputDevice = await OLTModel.findOne({ oltId: msDevice.input.id });
+          }
+        }
+
+        return {
+          ...msDevice.toObject(),
+          input_device: inputDevice,
+          outputs: [
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb }))
+          ],
+          subms_devices: submsWithTopology,
+          fdb_devices: fdbWithTopology
+        };
+      }));
+
+      const submsWithTopology = await Promise.all(subms.map(async (submsDevice) => {
+        const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": submsDevice.submsId });
+        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+          const customers = await UserModel.find({
+            role: "user",
+            "networkInput.type": "x2",
+            "networkInput.id": x2.x2Id
+          });
+          return customers;
+        }));
+
+        let inputDevice = null;
+        if (submsDevice.input && submsDevice.input.type && submsDevice.input.id) {
+          if (submsDevice.input.type === "olt") {
+            inputDevice = await OLTModel.findOne({ oltId: submsDevice.input.id });
+          } else if (submsDevice.input.type === "ms") {
+            inputDevice = await MSModel.findOne({ msId: submsDevice.input.id });
+          }
+        }
+
+        return {
+          ...submsDevice.toObject(),
+          input_device: inputDevice,
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+          ],
+          x2_devices: connectedX2.map((x2, index) => ({
+            x2_id: x2.x2Id,
+            x2_name: x2.x2Name,
+            x2_power: x2.x2Power || 0,
+            location: [x2.latitude, x2.longitude],
+            input: { type: "subms", id: submsDevice.submsId },
+            outputs: [
+              ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+            ],
+            customers: customersFromX2[index]
+          })),
+          customers: customersFromX2.flat()
+        };
+      }));
+
+      const x2WithTopology = await Promise.all(x2.map(async (x2Device) => {
+        const customers = await UserModel.find({
+          role: "user",
+          "networkInput.type": "x2",
+          "networkInput.id": x2Device.x2Id
+        });
+
+        let inputDevice = null;
+        if (x2Device.input && x2Device.input.type && x2Device.input.id) {
+          if (x2Device.input.type === "olt") {
+            inputDevice = await OLTModel.findOne({ oltId: x2Device.input.id });
+          } else if (x2Device.input.type === "ms") {
+            inputDevice = await MSModel.findOne({ msId: x2Device.input.id });
+          } else if (x2Device.input.type === "subms") {
+            inputDevice = await SUBMSModel.findOne({ submsId: x2Device.input.id });
+          } else if (x2Device.input.type === "fdb") {
+            inputDevice = await FDBModel.findOne({ fdbId: x2Device.input.id });
+          }
+        }
+
+        return {
+          ...x2Device.toObject(),
+          input_device: inputDevice,
+          outputs: [
+            ...customers.map(customer => ({ type: "customer", id: customer._id, data: customer }))
+          ],
+          customers: customers
+        };
+      }));
+
       result = {
-        olts: { count: olts.length, data: olts },
-        fdbs: { count: fdbs.length, data: fdbs },
-        ms: { count: ms.length, data: ms },
-        subms: { count: subms.length, data: subms },
-        x2: { count: x2.length, data: x2 }
+        olts: { count: oltsWithTopology.length, data: oltsWithTopology },
+        fdbs: { count: fdbsWithTopology.length, data: fdbsWithTopology },
+        ms: { count: msWithTopology.length, data: msWithTopology },
+        subms: { count: submsWithTopology.length, data: submsWithTopology },
+        x2: { count: x2WithTopology.length, data: x2WithTopology }
       };
     } else {
       // Get specific type with pagination
@@ -2440,11 +4570,445 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
         .skip(skip)
         .limit(parseInt(limit as string));
 
+      // Build complete topology for the specific device type
+      let devicesWithTopology: any[] = [];
+
+      switch (type) {
+        case 'olt':
+          devicesWithTopology = await Promise.all(devices.map(async (olt:any) => {
+            const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+              MSModel.find({ "input.type": "olt", "input.id": olt.oltId }),
+              FDBModel.find({ "input.type": "olt", "input.id": olt.oltId }),
+              SUBMSModel.find({ "input.type": "olt", "input.id": olt.oltId }),
+              X2Model.find({ "input.type": "olt", "input.id": olt.oltId })
+            ]);
+
+            // Build MS topology
+            const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+              const [connectedSUBMS, connectedFDB] = await Promise.all([
+                SUBMSModel.find({ "input.type": "ms", "input.id": ms.msId }),
+                FDBModel.find({ "input.type": "ms", "input.id": ms.msId })
+              ]);
+
+              // Build SUBMS topology
+              const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+                const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": subms.submsId });
+                const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+                  const customers = await UserModel.find({
+                    role: "user",
+                    "networkInput.type": "x2",
+                    "networkInput.id": x2.x2Id
+                  });
+                  return customers;
+                }));
+
+                return {
+                  subms_id: subms.submsId,
+                  subms_name: subms.submsName,
+                  subms_power: subms.submsPower || 0,
+                  location: [subms.latitude, subms.longitude],
+                  input: { type: "ms", id: ms.msId },
+                  outputs: [
+                    ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+                  ],
+                  x2_devices: connectedX2.map((x2, index) => ({
+                    x2_id: x2.x2Id,
+                    x2_name: x2.x2Name,
+                    x2_power: x2.x2Power || 0,
+                    location: [x2.latitude, x2.longitude],
+                    input: { type: "subms", id: subms.submsId },
+                    outputs: [
+                      ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                    ],
+                    customers: customersFromX2[index]
+                  })),
+                  customers: customersFromX2.flat()
+                };
+              }));
+
+              // Build FDB topology
+              const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+                const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
+                const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+                  const customers = await UserModel.find({
+                    role: "user",
+                    "networkInput.type": "x2",
+                    "networkInput.id": x2.x2Id
+                  });
+                  return customers;
+                }));
+
+                return {
+                  fdb_id: fdb.fdbId,
+                  fdb_name: fdb.fdbName,
+                  fdb_power: fdb.fdbPower || 0,
+                  location: [fdb.latitude, fdb.longitude],
+                  input: { type: "ms", id: ms.msId },
+                  outputs: [
+                    ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+                  ],
+                  x2_devices: connectedX2.map((x2, index) => ({
+                    x2_id: x2.x2Id,
+                    x2_name: x2.x2Name,
+                    x2_power: x2.x2Power || 0,
+                    location: [x2.latitude, x2.longitude],
+                    input: { type: "fdb", id: fdb.fdbId },
+                    outputs: [
+                      ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                    ],
+                    customers: customersFromX2[index]
+                  })),
+                  customers: customersFromX2.flat()
+                };
+              }));
+
+              return {
+                ms_id: ms.msId,
+                ms_name: ms.msName,
+                ms_power: ms.msPower || 0,
+                location: [ms.latitude, ms.longitude],
+                input: { type: "olt", id: olt.oltId },
+                outputs: [
+                  ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+                  ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+                ],
+                subms_devices: submsWithTopology,
+                fdb_devices: fdbWithTopology
+              };
+            }));
+
+            // Build FDB topology
+            const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+              const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
+              const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+                const customers = await UserModel.find({
+                  role: "user",
+                  "networkInput.type": "x2",
+                  "networkInput.id": x2.x2Id
+                });
+                return customers;
+              }));
+
+              return {
+                fdb_id: fdb.fdbId,
+                fdb_name: fdb.fdbName,
+                fdb_power: fdb.fdbPower || 0,
+                location: [fdb.latitude, fdb.longitude],
+                input: { type: "olt", id: olt.oltId },
+                outputs: [
+                  ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+                ],
+                x2_devices: connectedX2.map((x2, index) => ({
+                  x2_id: x2.x2Id,
+                  x2_name: x2.x2Name,
+                  x2_power: x2.x2Power || 0,
+                  location: [x2.latitude, x2.longitude],
+                  input: { type: "fdb", id: fdb.fdbId },
+                  outputs: [
+                    ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                  ],
+                  customers: customersFromX2[index]
+                })),
+                customers: customersFromX2.flat()
+              };
+            }));
+
+            // Build SUBMS topology
+            const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+              const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": subms.submsId });
+              const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+                const customers = await UserModel.find({
+                  role: "user",
+                  "networkInput.type": "x2",
+                  "networkInput.id": x2.x2Id
+                });
+                return customers;
+              }));
+
+              return {
+                subms_id: subms.submsId,
+                subms_name: subms.submsName,
+                subms_power: subms.submsPower || 0,
+                location: [subms.latitude, subms.longitude],
+                input: { type: "olt", id: olt.oltId },
+                outputs: [
+                  ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+                ],
+                x2_devices: connectedX2.map((x2, index) => ({
+                  x2_id: x2.x2Id,
+                  x2_name: x2.x2Name,
+                  x2_power: x2.x2Power || 0,
+                  location: [x2.latitude, x2.longitude],
+                  input: { type: "subms", id: subms.submsId },
+                  outputs: [
+                    ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                  ],
+                  customers: customersFromX2[index]
+                })),
+                customers: customersFromX2.flat()
+              };
+            }));
+
+            // Build X2 topology
+            const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
+              const customers = await UserModel.find({
+                role: "user",
+                "networkInput.type": "x2",
+                "networkInput.id": x2.x2Id
+              });
+
+              return {
+                x2_id: x2.x2Id,
+                x2_name: x2.x2Name,
+                x2_power: x2.x2Power || 0,
+                location: [x2.latitude, x2.longitude],
+                input: { type: "olt", id: olt.oltId },
+                outputs: [
+                  ...customers.map(customer => ({ type: "customer", id: customer._id }))
+                ],
+                customers: customers
+              };
+            }));
+
+            return {
+              ...olt.toObject(),
+              outputs: [
+                ...connectedMS.map(ms => ({ type: "ms", id: ms.msId, data: ms })),
+                ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb })),
+                ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+                ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+              ],
+              ms_devices: msWithTopology,
+              fdb_devices: fdbWithTopology,
+              subms_devices: submsWithTopology,
+              x2_devices: x2WithTopology
+            };
+          }));
+          break;
+
+        case 'fdb':
+          devicesWithTopology = await Promise.all(devices.map(async (fdb:any) => {
+            const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
+            const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+              const customers = await UserModel.find({
+                role: "user",
+                "networkInput.type": "x2",
+                "networkInput.id": x2.x2Id
+              });
+              return customers;
+            }));
+
+            let inputDevice = null;
+            if (fdb.input && fdb.input.type && fdb.input.id) {
+              if (fdb.input.type === "olt") {
+                inputDevice = await OLTModel.findOne({ oltId: fdb.input.id });
+              } else if (fdb.input.type === "ms") {
+                inputDevice = await MSModel.findOne({ msId: fdb.input.id });
+              }
+            }
+
+            return {
+              ...fdb.toObject(),
+              input_device: inputDevice,
+              outputs: [
+                ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+              ],
+              x2_devices: connectedX2.map((x2, index) => ({
+                x2_id: x2.x2Id,
+                x2_name: x2.x2Name,
+                x2_power: x2.x2Power || 0,
+                location: [x2.latitude, x2.longitude],
+                input: { type: "fdb", id: fdb.fdbId },
+                outputs: [
+                  ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                ],
+                customers: customersFromX2[index]
+              })),
+              customers: customersFromX2.flat()
+            };
+          }));
+          break;
+
+        case 'ms':
+          devicesWithTopology = await Promise.all(devices.map(async (ms:any) => {
+            const [connectedSUBMS, connectedFDB] = await Promise.all([
+              SUBMSModel.find({ "input.type": "ms", "input.id": ms.msId }),
+              FDBModel.find({ "input.type": "ms", "input.id": ms.msId })
+            ]);
+
+            // Build SUBMS topology
+            const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+              const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": subms.submsId });
+              const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+                const customers = await UserModel.find({
+                  role: "user",
+                  "networkInput.type": "x2",
+                  "networkInput.id": x2.x2Id
+                });
+                return customers;
+              }));
+
+              return {
+                subms_id: subms.submsId,
+                subms_name: subms.submsName,
+                subms_power: subms.submsPower || 0,
+                location: [subms.latitude, subms.longitude],
+                input: { type: "ms", id: ms.msId },
+                outputs: [
+                  ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+                ],
+                x2_devices: connectedX2.map((x2, index) => ({
+                  x2_id: x2.x2Id,
+                  x2_name: x2.x2Name,
+                  x2_power: x2.x2Power || 0,
+                  location: [x2.latitude, x2.longitude],
+                  input: { type: "subms", id: subms.submsId },
+                  outputs: [
+                    ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                  ],
+                  customers: customersFromX2[index]
+                })),
+                customers: customersFromX2.flat()
+              };
+            }));
+
+            // Build FDB topology
+            const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+              const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
+              const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+                const customers = await UserModel.find({
+                  role: "user",
+                  "networkInput.type": "x2",
+                  "networkInput.id": x2.x2Id
+                });
+                return customers;
+              }));
+
+              return {
+                fdb_id: fdb.fdbId,
+                fdb_name: fdb.fdbName,
+                fdb_power: fdb.fdbPower || 0,
+                location: [fdb.latitude, fdb.longitude],
+                input: { type: "ms", id: ms.msId },
+                outputs: [
+                  ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+                ],
+                x2_devices: connectedX2.map((x2, index) => ({
+                  x2_id: x2.x2Id,
+                  x2_name: x2.x2Name,
+                  x2_power: x2.x2Power || 0,
+                  location: [x2.latitude, x2.longitude],
+                  input: { type: "fdb", id: fdb.fdbId },
+                  outputs: [
+                    ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                  ],
+                  customers: customersFromX2[index]
+                })),
+                customers: customersFromX2.flat()
+              };
+            }));
+
+            let inputDevice = null;
+            if (ms.input && ms.input.type && ms.input.id) {
+              if (ms.input.type === "olt") {
+                inputDevice = await OLTModel.findOne({ oltId: ms.input.id });
+              }
+            }
+
+            return {
+              ...ms.toObject(),
+              input_device: inputDevice,
+              outputs: [
+                ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
+                ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb }))
+              ],
+              subms_devices: submsWithTopology,
+              fdb_devices: fdbWithTopology
+            };
+          }));
+          break;
+
+        case 'subms':
+          devicesWithTopology = await Promise.all(devices.map(async (subms:any) => {
+            const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": subms.submsId });
+            const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
+              const customers = await UserModel.find({
+                role: "user",
+                "networkInput.type": "x2",
+                "networkInput.id": x2.x2Id
+              });
+              return customers;
+            }));
+
+            let inputDevice = null;
+            if (subms.input && subms.input.type && subms.input.id) {
+              if (subms.input.type === "olt") {
+                inputDevice = await OLTModel.findOne({ oltId: subms.input.id });
+              } else if (subms.input.type === "ms") {
+                inputDevice = await MSModel.findOne({ msId: subms.input.id });
+              }
+            }
+
+            return {
+              ...subms.toObject(),
+              input_device: inputDevice,
+              outputs: [
+                ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+              ],
+              x2_devices: connectedX2.map((x2, index) => ({
+                x2_id: x2.x2Id,
+                x2_name: x2.x2Name,
+                x2_power: x2.x2Power || 0,
+                location: [x2.latitude, x2.longitude],
+                input: { type: "subms", id: subms.submsId },
+                outputs: [
+                  ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
+                ],
+                customers: customersFromX2[index]
+              })),
+              customers: customersFromX2.flat()
+            };
+          }));
+          break;
+
+        case 'x2':
+          devicesWithTopology = await Promise.all(devices.map(async (x2:any) => {
+            const customers = await UserModel.find({
+              role: "user",
+              "networkInput.type": "x2",
+              "networkInput.id": x2.x2Id
+            });
+
+            let inputDevice = null;
+            if (x2.input && x2.input.type && x2.input.id) {
+              if (x2.input.type === "olt") {
+                inputDevice = await OLTModel.findOne({ oltId: x2.input.id });
+              } else if (x2.input.type === "ms") {
+                inputDevice = await MSModel.findOne({ msId: x2.input.id });
+              } else if (x2.input.type === "subms") {
+                inputDevice = await SUBMSModel.findOne({ submsId: x2.input.id });
+              } else if (x2.input.type === "fdb") {
+                inputDevice = await FDBModel.findOne({ fdbId: x2.input.id });
+              }
+            }
+
+            return {
+              ...x2.toObject(),
+              input_device: inputDevice,
+              outputs: [
+                ...customers.map(customer => ({ type: "customer", id: customer._id, data: customer }))
+              ],
+              customers: customers
+            };
+          }));
+          break;
+      }
+
       result = {
         type,
         typeName,
-        count: devices.length,
-        data: devices
+        count: devicesWithTopology.length,
+        data: devicesWithTopology
       };
     }
 
@@ -2473,7 +5037,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
 export const planTopology = async (req: Request, res: Response): Promise<any> => {
   try {
     const { subscriberCount, oltType } = req.body;
-    
+
     if (!subscriberCount || !oltType) {
       return res.status(400).json({
         success: false,
@@ -2490,13 +5054,13 @@ export const planTopology = async (req: Request, res: Response): Promise<any> =>
 
     // Calculate topology using EXACT rules
     const topology = calculateTopology(subscriberCount, oltType);
-    
+
     // Validate topology
     const validation = validateTopology(topology);
-    
+
     // Generate recommendations
     const recommendations = generateRecommendations(subscriberCount, oltType);
-    
+
     // Create topology diagram
     const diagram = createTopologyDiagram(topology);
 
@@ -2542,7 +5106,7 @@ export const getTopologyRules = async (req: Request, res: Response): Promise<any
 export const validateExistingTopology = async (req: Request, res: Response): Promise<any> => {
   try {
     const { oltId } = req.params;
-    
+
     if (!oltId) {
       return res.status(400).json({
         success: false,
@@ -2563,7 +5127,7 @@ export const validateExistingTopology = async (req: Request, res: Response): Pro
 
     // Analyze existing topology
     const topologyAnalysis = await analyzeExistingTopology(olt);
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -2623,7 +5187,7 @@ async function analyzeExistingTopology(olt: any) {
             const loss = getSplitterLoss(ms.msType);
             currentLoss += loss;
             stageCount++;
-            
+
             analysis.stages.push({
               stage: stageCount,
               deviceType: 'ms',
@@ -2639,7 +5203,7 @@ async function analyzeExistingTopology(olt: any) {
             const loss = getSplitterLoss(subms.submsType);
             currentLoss += loss;
             stageCount++;
-            
+
             analysis.stages.push({
               stage: stageCount,
               deviceType: 'subms',
@@ -2676,15 +5240,15 @@ async function analyzeExistingTopology(olt: any) {
     // Check topology type compliance
     if (stageCount === 0) {
       analysis.recommendations.push('Direct topology - no passive elements');
-    } else if (stageCount === 2 && 
-               analysis.stages[0]?.splitterType === '1x16' && 
-               analysis.stages[1]?.splitterType === '1x4') {
+    } else if (stageCount === 2 &&
+      analysis.stages[0]?.splitterType === '1x16' &&
+      analysis.stages[1]?.splitterType === '1x4') {
       analysis.recommendations.push('Tube system topology detected - compliant with rules');
     } else {
       analysis.compliance.warnings.push('Topology does not follow standard tube system pattern');
     }
 
-  } catch (error:any) {
+  } catch (error: any) {
     analysis.compliance.errors.push(`Error analyzing topology: ${error.message}`);
     analysis.compliance.isValid = false;
   }

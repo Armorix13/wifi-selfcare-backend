@@ -42,7 +42,8 @@ interface IGeoPoint {
   coordinates: [number, number]; // [longitude, latitude]
 }
 
-export interface IX2 extends Document {
+export interface IX2 {
+  _id?: mongoose.Types.ObjectId;
   // Basic X2 Information
   x2Id?: string; // X2 ID (e.g., X2001) - Auto-generated if not provided
   x2Name: string; // X2 Name
@@ -446,7 +447,7 @@ X2Schema.methods.addOutput = function(output: IX2Connection) {
 // Method to remove output connection
 X2Schema.methods.removeOutput = function(outputId: string) {
   if (this.outputs) {
-    this.outputs = this.outputs.filter(output => output.id !== outputId);
+    this.outputs = this.outputs.filter((output: IX2Connection) => output.id !== outputId);
   }
   return this.save();
 };
@@ -463,7 +464,7 @@ X2Schema.methods.getConnectedDevices = function() {
   }
   
   if (this.outputs) {
-    this.outputs.forEach(output => {
+    this.outputs.forEach((output: IX2Connection) => {
       devices.push({
         type: 'output',
         connection: output
