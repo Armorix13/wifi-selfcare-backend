@@ -11,6 +11,13 @@ import { ComplaintModel, ComplaintStatus } from '../models/complaint.model';
 import { EngineerAttendanceModel } from '../models/engineerAttendance.model';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
+import { ApplicationForm } from '../models/applicationform.model';
+import moment from 'moment-timezone';
+import { WifiInstallationRequest } from '../models/wifiInstallationRequest.model';
+import { IptvInstallationRequest } from '../models/iptvInstallationRequest.model';
+import { OttInstallationRequest } from '../models/ottInstallationRequest.model';
+import { FibreInstallationRequest } from '../models/fibreInstallationRequest.model';
+import { Leads } from '../models/leads.model';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -1228,8 +1235,20 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
       return sendError(res, 'Engineer not found', 404);
     }
 
+    // Set timezone to India (Asia/Kolkata)
+    moment.tz.setDefault('Asia/Kolkata');
+    
+    // Get current month start and end dates in India timezone
+    const currentMonthStart = moment().startOf('month').toDate();
+    const currentMonthEnd = moment().endOf('month').toDate();
+
     // Get all complaints for engineer
-    const complaints = await ComplaintModel.find({ engineer: userId }).select('_id id title status priority createdAt');
+    const complaints = await ComplaintModel.find({ engineer: userId }).select('_id id title status priority createdAt user');
+    
+    // Get monthly complaints for current month
+    const monthlyComplaints = complaints.filter(c => 
+      c.createdAt && c.createdAt >= currentMonthStart && c.createdAt <= currentMonthEnd
+    );
     
     // Calculate complaint statistics for all statuses
     const totalComplaints = complaints.length;
@@ -1268,6 +1287,72 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
       { $match: { count: { $gt: 1 } } }
     ]);
     const repeatedComplaints = userComplaintCounts.length;
+
+    // Calculate monthly repeated complaints for current month
+    const monthlyRepeatedComplaints = await ComplaintModel.aggregate([
+      { 
+        $match: { 
+          engineer: engineer._id,
+          createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
+        } 
+      },
+      { $group: { _id: '$user', count: { $sum: 1 } } },
+      { $match: { count: { $gt: 1 } } }
+    ]);
+
+    // Get monthly complaint summary for current month
+    const monthlyComplaintSummary = {
+      total: monthlyComplaints.length,
+      done: monthlyComplaints.filter(c => c.status === 'resolved').length,
+      pending: monthlyComplaints.filter(c => 
+        ['pending', 'assigned', 'in_progress', 'visited'].includes(c.status)
+      ).length,
+      repeated: monthlyRepeatedComplaints.length
+    };
+
+    // Get all types of installation requests assigned to this engineer for current month
+    const [wifiInstallations, iptvInstallations, ottInstallations, fibreInstallations] = await Promise.all([
+      WifiInstallationRequest.find({
+        assignedEngineer: userId,
+        createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
+      }),
+      IptvInstallationRequest.find({
+        assignedEngineer: userId,
+        createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
+      }),
+      OttInstallationRequest.find({
+        assignedEngineer: userId,
+        createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
+      }),
+      FibreInstallationRequest.find({
+        assignedEngineer: userId,
+        createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
+      })
+    ]);
+
+    // Combine all installations
+    const monthlyInstallations = [
+      ...wifiInstallations,
+      ...iptvInstallations,
+      ...ottInstallations,
+      ...fibreInstallations
+    ];
+
+    // Get leads created by this engineer for current month
+    const monthlyLeads = await Leads.find({
+      byEngineerId: userId,
+      createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
+    });
+
+    // Calculate monthly installation summary
+    const monthlyInstallationSummary = {
+      total: monthlyInstallations.length,
+      done: monthlyInstallations.filter(inst => inst.status === 'approved').length,
+      pending: monthlyInstallations.filter(inst => 
+        ['inreview'].includes(inst.status)
+      ).length,
+      newLead: monthlyLeads.length
+    };
 
     let isTodayAttendance = false;
     let attendanceMessage = '';
@@ -1323,6 +1408,13 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
     
 
     const dashboardData = {      
+      // Current month information
+      currentMonth: {
+        name: moment().format('MMMM YYYY'),
+        startDate: currentMonthStart,
+        endDate: currentMonthEnd,
+        timezone: 'Asia/Kolkata'
+      },
       engineer: {
         _id: engineer._id,
         name: `${engineer.firstName} ${engineer.lastName}`,
@@ -1337,6 +1429,26 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
         mode: engineer.mode,
         lastLogin: engineer.lastLogin,
         profileImage: engineer.profileImage
+      },
+      // Monthly Installation Summary
+      monthlyInstallationSummary: {
+        total: monthlyInstallationSummary.total,
+        done: monthlyInstallationSummary.done,
+        pending: monthlyInstallationSummary.pending,
+        newLead: monthlyInstallationSummary.newLead,
+        breakdown: {
+          wifi: wifiInstallations.length,
+          iptv: iptvInstallations.length,
+          ott: ottInstallations.length,
+          fibre: fibreInstallations.length
+        }
+      },
+      // Monthly Complaint Summary
+      monthlyComplaintSummary: {
+        total: monthlyComplaintSummary.total,
+        done: monthlyComplaintSummary.done,
+        pending: monthlyComplaintSummary.pending,
+        repeated: monthlyComplaintSummary.repeated
       },
       complaints: {
         total: totalComplaints,
@@ -1363,7 +1475,7 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
 
 
 
-    return sendSuccess(res, dashboardData, 'Engineer dashboard analytics retrieved successfully');
+    return sendSuccess(res, dashboardData, 'Engineer dashboard analytics retrieved successfully with monthly summaries');
   } catch (error: any) {
     console.error('Get engineer dashboard analytics error:', error);
     return sendError(res, 'Failed to get engineer dashboard analytics', 500, error);
@@ -1883,6 +1995,8 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
 
   return fileResult;
 };
+
+
 
 
 
