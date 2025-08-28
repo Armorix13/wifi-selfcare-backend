@@ -229,7 +229,7 @@ const X2Schema = new Schema<IX2>({
   powerStatus: { 
     type: String, 
     enum: Object.values(PowerStatus), 
-    default: PowerStatus.OFF
+    default: PowerStatus.ON
   },
   powerConsumption: { 
     type: Number,
@@ -248,7 +248,7 @@ const X2Schema = new Schema<IX2>({
   status: { 
     type: String, 
     enum: Object.values(X2Status), 
-    default: X2Status.INACTIVE
+    default: X2Status.ACTIVE
   },
   uptime: { 
     type: Number,
