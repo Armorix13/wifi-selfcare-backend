@@ -1229,7 +1229,9 @@ export const deleteEngineer = async (req: Request, res: Response, next: NextFunc
 export const getEngineerDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const userId = (req as any).userId;
-    const engineer = await UserModel.findById(userId).select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName');
+    const engineer:any = await UserModel.findById(userId).select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName').populate("parentCompany",
+      "_id companyName companyAddress companyPhone companyEmail companyWebsite companyLogo companyDescription"
+    );
     
     if (!engineer) {
       return sendError(res, 'Engineer not found', 404);
@@ -1414,6 +1416,16 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
         startDate: currentMonthStart,
         endDate: currentMonthEnd,
         timezone: 'Asia/Kolkata'
+      },
+      company:{
+        _id: engineer?.parentCompany?._id,
+        companyName: engineer?.parentCompany?.companyName,
+        companyAddress: engineer?.parentCompany?.companyAddress,
+        companyPhone: engineer?.parentCompany?.companyPhone,
+        companyEmail: engineer?.parentCompany?.companyEmail,
+        companyWebsite: engineer?.parentCompany?.companyWebsite,
+        companyLogo: engineer?.parentCompany?.companyLogo,
+        companyDescription: engineer?.parentCompany?.companyDescription
       },
       engineer: {
         _id: engineer._id,
@@ -1996,6 +2008,20 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
   return fileResult;
 };
 
+const getAllLeaveRequests = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    // as i am admin(company)
+   const userId = (req as any).userId;
+
+   const ourEngineer = await UserModel.find({
+    role: 'engineer',
+
+   })
+    
+  } catch (error) {
+    
+  }
+}
 
 
 
