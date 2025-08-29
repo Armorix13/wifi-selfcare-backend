@@ -68,7 +68,8 @@ import {
   planTopology,
   getTopologyRules,
   validateExistingTopology,
-  getTopologyExamples
+  getTopologyExamples,
+  fdbInput
 } from "../controllers/olt.controller";
 import { OLTModel } from "../models/olt.model";
 import { MSModel } from "../models/ms.model";
@@ -609,5 +610,7 @@ router.get("/topology/validate/:oltId", validateExistingTopology);
 
 // Get topology examples for different scenarios
 router.get("/topology/examples", getTopologyExamples);
+
+router.get("/fdb/input/:companyId", fdbInput);
 
 export default router;

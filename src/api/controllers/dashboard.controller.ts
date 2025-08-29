@@ -18,6 +18,7 @@ import { IptvInstallationRequest } from '../models/iptvInstallationRequest.model
 import { OttInstallationRequest } from '../models/ottInstallationRequest.model';
 import { FibreInstallationRequest } from '../models/fibreInstallationRequest.model';
 import { Leads } from '../models/leads.model';
+import { LeaveRequestModel } from '../models/leaveRequest.model';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -2008,20 +2009,468 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
   return fileResult;
 };
 
-const getAllLeaveRequests = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+export const getAllLeaveRequests = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     // as i am admin(company)
-   const userId = (req as any).userId;
+    const userId = (req as any).userId;
 
-   const ourEngineer = await UserModel.find({
-    role: 'engineer',
+    // Get pagination parameters from query
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
 
-   })
-    
+    const ourEngineerIds = await UserModel.find({
+      role: 'engineer',
+      parentCompany: userId
+    }).select("_id");
+
+    // Get total count for pagination
+    const totalCount = await LeaveRequestModel.countDocuments({
+      engineer: { $in: ourEngineerIds }
+    });
+
+    // Get leave requests with pagination and sort by latest first
+    const leaveRequests = await LeaveRequestModel.find({
+      engineer: { $in: ourEngineerIds }
+    })
+      .sort({ createdAt: -1 }) // Latest first
+      .skip(skip)
+      .limit(limit)
+      .populate('engineer', '_id firstName lastName email phoneNumber')
+      .populate('approvedBy', '_id firstName lastName email phoneNumber companyName companyAddress companyPhone companyEmail companyWebsite companyLogo companyDescription')
+      .lean();
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        leaveRequests,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          limit,
+          hasNextPage,
+          hasPrevPage
+        }
+      }
+    });
+
   } catch (error) {
-    
+    next(error);
   }
 }
+
+export const getLeaveRequestAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    // as i am admin(company)
+    // This function returns all leave request data by default
+    // Filters are only applied when specifically provided in query parameters
+    const userId = (req as any).userId;
+
+    // Get filter parameters from query
+    const { 
+      dateRange, 
+      status, 
+      leaveType, 
+      reason, 
+      engineerId,
+      month,
+      year
+    } = req.query;
+
+    // Build date filter - only apply if specific filters are provided
+    let dateFilter = {};
+    if (dateRange) {
+      const [startDate, endDate] = (dateRange as string).split(',');
+      if (startDate && endDate) {
+        dateFilter = {
+          createdAt: {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate)
+          }
+        };
+      }
+    } else if (month && year) {
+      // Filter by specific month and year
+      const startDate = new Date(parseInt(year as string), parseInt(month as string) - 1, 1);
+      const endDate = new Date(parseInt(year as string), parseInt(month as string), 0, 23, 59, 59, 999);
+      dateFilter = {
+        createdAt: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      };
+    }
+    // If no date filters provided, don't apply any date restriction (get all data)
+
+    // Build status filter
+    let statusFilter = {};
+    if (status && status !== 'all') {
+      statusFilter = { status: status };
+    }
+
+    // Build leave type filter
+    let leaveTypeFilter = {};
+    if (leaveType && leaveType !== 'all') {
+      leaveTypeFilter = { leaveType: leaveType };
+    }
+
+    // Build reason filter
+    let reasonFilter = {};
+    if (reason && reason !== 'all') {
+      reasonFilter = { reason: reason };
+    }
+
+    // Build engineer filter
+    let engineerFilter = {};
+    if (engineerId && engineerId !== 'all') {
+      engineerFilter = { engineer: engineerId };
+    }
+
+    // Get our engineer IDs
+    const ourEngineerIds = await UserModel.find({
+      role: 'engineer',
+      parentCompany: userId
+    }).select("_id");
+
+    // Combine all filters
+    const combinedFilter = {
+      engineer: { $in: ourEngineerIds },
+      ...dateFilter,
+      ...statusFilter,
+      ...leaveTypeFilter,
+      ...reasonFilter,
+      ...engineerFilter
+    };
+
+    // Get total count for current filters
+    const totalCount = await LeaveRequestModel.countDocuments(combinedFilter);
+
+    // Get leave requests with current filters
+    const leaveRequests = await LeaveRequestModel.find(combinedFilter)
+      .sort({ createdAt: -1 })
+      .populate('engineer', '_id firstName lastName email phoneNumber')
+      .populate('approvedBy', '_id firstName lastName email phoneNumber companyName')
+      .lean();
+
+    // Calculate analytics
+    const totalRequests = totalCount;
+    const pendingRequests = leaveRequests.filter(lr => lr.status === 'pending').length;
+    const approvedRequests = leaveRequests.filter(lr => lr.status === 'approved').length;
+    const rejectedRequests = leaveRequests.filter(lr => lr.status === 'rejected').length;
+    const cancelledRequests = leaveRequests.filter(lr => lr.status === 'cancelled').length;
+
+    // Calculate approval rate and other percentages
+    const approvalRate = totalRequests > 0 ? (approvedRequests / totalRequests) * 100 : 0;
+    const rejectionRate = totalRequests > 0 ? (rejectedRequests / totalRequests) * 100 : 0;
+    const pendingRate = totalRequests > 0 ? (pendingRequests / totalRequests) * 100 : 0;
+
+    // Calculate total days
+    const totalDays = leaveRequests.reduce((sum, lr) => sum + (lr.totalDays || 0), 0);
+    const approvedDays = leaveRequests
+      .filter(lr => lr.status === 'approved')
+      .reduce((sum, lr) => sum + (lr.totalDays || 0), 0);
+
+    // Calculate average processing time (days from creation to approval/rejection)
+    const processedRequests = leaveRequests.filter(lr => 
+      lr.status === 'approved' || lr.status === 'rejected'
+    );
+    
+    let avgProcessingDays = 0;
+    if (processedRequests.length > 0) {
+      const totalProcessingTime = processedRequests.reduce((sum, lr) => {
+        if (lr.approvedAt) {
+          const created = new Date(lr.createdAt);
+          const processed = new Date(lr.approvedAt);
+          const diffTime = Math.abs(processed.getTime() - created.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return sum + diffDays;
+        }
+        return sum;
+      }, 0);
+      avgProcessingDays = totalProcessingTime / processedRequests.length;
+    }
+
+    // Status distribution
+    const statusDistribution = {
+      pending: pendingRequests,
+      approved: approvedRequests,
+      rejected: rejectedRequests,
+      cancelled: cancelledRequests
+    };
+
+    // Leave type distribution
+    const leaveTypeDistribution = leaveRequests.reduce((acc, lr) => {
+      acc[lr.leaveType] = (acc[lr.leaveType] || 0) + 1;
+      return acc;
+    }, {} as any);
+
+    // Reason distribution
+    const reasonDistribution = leaveRequests.reduce((acc, lr) => {
+      acc[lr.reason] = (acc[lr.reason] || 0) + 1;
+      return acc;
+    }, {} as any);
+
+    // Monthly trend (last 6 months)
+    const monthlyTrend = [];
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+      
+      const monthCount = await LeaveRequestModel.countDocuments({
+        engineer: { $in: ourEngineerIds },
+        createdAt: { $gte: monthStart, $lte: monthEnd }
+      });
+      
+      monthlyTrend.push({
+        month: date.toLocaleString('default', { month: 'short' }),
+        year: date.getFullYear(),
+        count: monthCount
+      });
+    }
+
+    // Yearly trend (last 3 years) - useful for global analytics
+    const yearlyTrend = [];
+    for (let i = 2; i >= 0; i--) {
+      const year = new Date().getFullYear() - i;
+      const yearStart = new Date(year, 0, 1);
+      const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+      
+      const yearCount = await LeaveRequestModel.countDocuments({
+        engineer: { $in: ourEngineerIds },
+        createdAt: { $gte: yearStart, $lte: yearEnd }
+      });
+      
+      yearlyTrend.push({
+        year: year,
+        count: yearCount
+      });
+    }
+
+    // Engineer-wise statistics
+    const engineerStats = await LeaveRequestModel.aggregate([
+      {
+        $match: {
+          engineer: { $in: ourEngineerIds },
+          ...(Object.keys(dateFilter).length > 0 ? dateFilter : {})
+        }
+      },
+      {
+        $group: {
+          _id: '$engineer',
+          totalRequests: { $sum: 1 },
+          approvedRequests: { 
+            $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
+          },
+          totalDays: { $sum: '$totalDays' },
+          approvedDays: { 
+            $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$totalDays', 0] }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'engineerData'
+        }
+      },
+      {
+        $project: {
+          engineerId: '$_id',
+          engineerName: { 
+            $concat: [
+              { $arrayElemAt: ['$engineerData.firstName', 0] },
+              ' ',
+              { $arrayElemAt: ['$engineerData.lastName', 0] }
+            ]
+          },
+          totalRequests: 1,
+          approvedRequests: 1,
+          totalDays: 1,
+          approvedDays: 1,
+          approvalRate: {
+            $cond: [
+              { $gt: ['$totalRequests', 0] },
+              { $multiply: [{ $divide: ['$approvedRequests', '$totalRequests'] }, 100] },
+              0
+            ]
+          }
+        }
+      },
+      {
+        $sort: { totalRequests: -1 }
+      }
+    ]);
+
+    // Response data
+    const analyticsData = {
+      overview: {
+        totalRequests,
+        pendingRequests,
+        approvedRequests,
+        rejectedRequests,
+        cancelledRequests,
+        totalDays,
+        approvedDays,
+        avgProcessingDays: Math.round(avgProcessingDays * 10) / 10,
+        approvalRate: Math.round(approvalRate * 10) / 10,
+        rejectionRate: Math.round(rejectionRate * 10) / 10,
+        pendingRate: Math.round(pendingRate * 10) / 10
+      },
+      distribution: {
+        status: statusDistribution,
+        leaveType: leaveTypeDistribution,
+        reason: reasonDistribution
+      },
+      trends: {
+        monthly: monthlyTrend,
+        yearly: yearlyTrend
+      },
+      engineerStats,
+      filters: {
+        dateRange: Object.keys(dateFilter).length > 0 ? dateFilter : 'all',
+        status: status || 'all',
+        leaveType: leaveType || 'all',
+        reason: reason || 'all',
+        engineerId: engineerId || 'all',
+        month: month || 'all',
+        year: year || 'all'
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: analyticsData
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const approveRejectLeaveRequest = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    // as i am admin(company)
+    const userId = (req as any).userId;
+    const { leaveRequestId, type, remarks, rejectionReason } = req.body;
+
+    // Validate required fields
+    if (!leaveRequestId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Leave request ID is required'
+      });
+    }
+
+    if (!type || ![1, 2].includes(Number(type))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Type must be 1 (approve) or 2 (reject)'
+      });
+    }
+
+    // Get our engineer IDs to ensure we can only manage our engineers' requests
+    const ourEngineerIds = await UserModel.find({
+      role: 'engineer',
+      parentCompany: userId
+    }).select("_id");
+
+    // Find the leave request
+    const leaveRequest = await LeaveRequestModel.findOne({
+      _id: leaveRequestId,
+      engineer: { $in: ourEngineerIds }
+    }).populate('engineer', 'firstName lastName email phoneNumber');
+
+    if (!leaveRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave request not found or you are not authorized to manage this request'
+      });
+    }
+
+    // Check if request is already processed
+    if (leaveRequest.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Leave request is already ${leaveRequest.status}`
+      });
+    }
+
+    let updateData: any = {
+      updatedAt: new Date()
+    };
+
+    if (Number(type) === 1) {
+      // Approve the request
+      updateData.status = 'approved';
+      updateData.approvedBy = userId;
+      updateData.approvedAt = new Date();
+      if (remarks) {
+        updateData.remarks = remarks;
+      }
+    } else if (Number(type) === 2) {
+      // Reject the request
+      if (!rejectionReason) {
+        return res.status(400).json({
+          success: false,
+          message: 'Rejection reason is required when rejecting a leave request'
+        });
+      }
+      updateData.status = 'rejected';
+      updateData.approvedBy = userId;
+      updateData.approvedAt = new Date();
+      updateData.rejectionReason = rejectionReason;
+      if (remarks) {
+        updateData.remarks = remarks;
+      }
+    }
+
+    // Update the leave request
+    const updatedLeaveRequest = await LeaveRequestModel.findByIdAndUpdate(
+      leaveRequestId,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('engineer', 'firstName lastName email phoneNumber')
+     .populate('approvedBy', 'firstName lastName email companyName');
+
+    if (!updatedLeaveRequest) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update leave request'
+      });
+    }
+
+    // Prepare response message
+    const action = Number(type) === 1 ? 'approved' : 'rejected';
+    const message = `Leave request has been ${action} successfully`;
+
+    // You can add email notification logic here if needed
+    // await sendLeaveRequestNotification(updatedLeaveRequest, action);
+
+    return res.status(200).json({
+      success: true,
+      message,
+      data: {
+        leaveRequest: updatedLeaveRequest,
+        action: action,
+        processedAt: updatedLeaveRequest.approvedAt,
+        processedBy: updatedLeaveRequest.approvedBy
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
 
 
 

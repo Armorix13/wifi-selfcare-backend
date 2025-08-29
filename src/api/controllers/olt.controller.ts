@@ -5312,3 +5312,401 @@ export const getTopologyExamples = async (req: Request, res: Response): Promise<
     });
   }
 };
+
+export const fdbInput = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const companyId = req.params.companyId;
+
+    const [olt, ms, subms] = await Promise.all([
+      OLTModel.find({ ownedBy: companyId }).populate("_id name oltIp macAddress serialNumber oltType oltPower oltId"),
+      MSModel.find({ ownedBy: companyId }).populate("_id msName msType msId"),
+      SUBMSModel.find({ ownedBy: companyId }).populate("_id submsName submsType submsId")
+    ]);
+
+    // Add type key for each device and calculate available slots
+                const processedOlt = olt.map(oltDevice => {
+              const availableSlots = calculateAvailableSlots(oltDevice);
+              // Calculate totalPorts using the same logic as calculateAvailableSlots
+              let totalPorts = oltDevice.totalPorts || 0;
+              if (totalPorts === 0) {
+                if (oltDevice.oltType === "epon") {
+                  totalPorts = 8;
+                } else if (oltDevice.oltType === "gpon") {
+                  totalPorts = 16;
+                } else if (oltDevice.oltType === "xgpon" || oltDevice.oltType === "xgspon") {
+                  totalPorts = 16;
+                }
+              }
+              
+              return {
+                ...oltDevice.toObject(),
+                type: "olt",
+                availableSlots: availableSlots,
+                deviceInfo: {
+                  id: oltDevice.oltId || oltDevice._id,
+                  name: oltDevice.name,
+                  type: oltDevice.oltType,
+                  power: oltDevice.oltPower,
+                  totalPorts: totalPorts,
+                  activePorts: oltDevice.activePorts || 0,
+                  availablePorts: availableSlots
+                }
+              };
+            });
+
+    const processedMS = ms.map(msDevice => {
+      const availableSlots = calculateAvailableSlots(msDevice);
+      // Calculate totalPorts using the same logic as calculateAvailableSlots
+      let totalPorts = msDevice.totalPorts || 0;
+      if (totalPorts === 0) {
+        if (msDevice.msType === "1x8") {
+          totalPorts = 8;
+        } else if (msDevice.msType === "1x16") {
+          totalPorts = 16;
+        } else if (msDevice.msType === "1x32") {
+          totalPorts = 32;
+        }
+      }
+      
+      return {
+        ...msDevice.toObject(),
+        type: "ms",
+        availableSlots: availableSlots,
+        deviceInfo: {
+          id: msDevice.msId || msDevice._id,
+          name: msDevice.msName,
+          type: msDevice.msType,
+          power: msDevice.msPower,
+          totalPorts: totalPorts,
+          activePorts: msDevice.activePorts || 0,
+          availablePorts: availableSlots
+        }
+      };
+    });
+
+    const processedSUBMS = subms.map(submsDevice => {
+      const availableSlots = calculateAvailableSlots(submsDevice);
+      // Calculate totalPorts using the same logic as calculateAvailableSlots
+      let totalPorts = submsDevice.totalPorts || 0;
+      if (totalPorts === 0) {
+        if (submsDevice.submsType === "1x4") {
+          totalPorts = 4;
+        } else if (submsDevice.submsType === "1x8") {
+          totalPorts = 8;
+        } else if (submsDevice.submsType === "1x16") {
+          totalPorts = 16;
+        }
+      }
+      
+      return {
+        ...submsDevice.toObject(),
+        type: "subms",
+        availableSlots: availableSlots,
+        deviceInfo: {
+          id: submsDevice.submsId || submsDevice._id,
+          name: submsDevice.submsName,
+          type: submsDevice.submsType,
+          power: submsDevice.submsPower,
+          totalPorts: totalPorts,
+          activePorts: submsDevice.activePorts || 0,
+          availablePorts: availableSlots
+        }
+      };
+    });
+
+    // Combine all devices for FDB input analysis with proper type mapping
+    const allDevices = [
+      ...processedOlt.map(olt => ({ ...olt, deviceType: "olt" })),
+      ...processedMS.map(ms => ({ ...ms, deviceType: "ms" })),
+      ...processedSUBMS.map(subms => ({ ...subms, deviceType: "subms" }))
+    ];
+
+    // Calculate total capacity and utilization
+    const totalCapacity = allDevices.reduce((sum, device) => sum + (device.deviceInfo.totalPorts || 0), 0);
+    const totalActive = allDevices.reduce((sum, device) => sum + (device.deviceInfo.activePorts || 0), 0);
+    const totalAvailable = allDevices.reduce((sum, device) => sum + (device.deviceInfo.availablePorts || 0), 0);
+    const utilizationPercentage = totalCapacity > 0 ? Math.round((totalActive / totalCapacity) * 100) : 0;
+
+    // Group devices by type for better organization
+    const devicesByType = {
+      olt: processedOlt,
+      ms: processedMS,
+      subms: processedSUBMS
+    };
+
+    // Find devices with available slots for FDB connections
+    const devicesWithAvailableSlots = allDevices.filter(device => 
+      device.deviceInfo.availablePorts > 0
+    );
+
+    // Calculate FDB input recommendations
+    const fdbInputRecommendations = calculateFDBInputRecommendations(allDevices);
+
+    const result = {
+      success: true,
+      message: "FDB input analysis completed successfully",
+      data: {
+        summary: {
+          totalDevices: allDevices.length,
+          totalCapacity,
+          totalActive,
+          totalAvailable,
+          utilizationPercentage,
+          devicesByType: {
+            olt: processedOlt.length,
+            ms: processedMS.length,
+            subms: processedSUBMS.length
+          }
+        },
+        devices: {
+          olt: processedOlt,
+          ms: processedMS,
+          subms: processedSUBMS
+        },
+        devicesByType,
+        devicesWithAvailableSlots,
+        fdbInputRecommendations,
+        combinedData: allDevices.map(device => {
+          const deviceAny = device as any;
+          const deviceType = deviceAny.deviceType || device.type;
+          
+          // Base device data
+          const baseDevice = {
+            _id: device._id,
+            type: deviceType,
+            deviceInfo: device.deviceInfo,
+            availableSlots: device.availableSlots,
+            status: device.status,
+            powerStatus: device.powerStatus,
+            latitude: device.latitude,
+            longitude: device.longitude,
+            location: device.location,
+            ownedBy: device.ownedBy,
+            createdAt: device.createdAt,
+            updatedAt: device.updatedAt,
+            outputs: device.outputs || []
+          };
+
+          // Add device-specific fields based on type
+          if (deviceType === "olt") {
+            return {
+              ...baseDevice,
+              name: deviceAny.name,
+              oltId: deviceAny.oltId,
+              oltIp: deviceAny.oltIp,
+              macAddress: deviceAny.macAddress,
+              serialNumber: deviceAny.serialNumber,
+              oltType: deviceAny.oltType,
+              oltPower: deviceAny.oltPower,
+              dnsServers: deviceAny.dnsServers || [],
+              attachments: deviceAny.attachments || []
+            };
+          } else if (deviceType === "ms") {
+            return {
+              ...baseDevice,
+              msName: deviceAny.msName,
+              msId: deviceAny.msId,
+              msType: deviceAny.msType,
+              msPower: deviceAny.msPower,
+              input: deviceAny.input,
+              addedBy: deviceAny.addedBy,
+              attachments: deviceAny.attachments || []
+            };
+          } else if (deviceType === "subms") {
+            return {
+              ...baseDevice,
+              submsName: deviceAny.submsName,
+              submsId: deviceAny.submsId,
+              submsType: deviceAny.submsType,
+              submsPower: deviceAny.submsPower,
+              input: deviceAny.input,
+              attachments: deviceAny.attachments || []
+            };
+          }
+
+          return baseDevice;
+        })
+      }
+    };
+
+    res.status(200).json(result);
+
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching fdb input",
+      error: error.message
+    });
+  }
+};
+
+        // Helper function to calculate available slots for a device
+        const calculateAvailableSlots = (device: any): number => {
+          let totalPorts = device.totalPorts || 0;
+          const activePorts = device.activePorts || 0;
+          
+          // If totalPorts is not set, try to infer from device type/model
+          if (totalPorts === 0) {
+            if (device.type === "olt" || device.oltType) {
+              // For OLT devices, infer ports based on type or model
+              if (device.oltType === "epon") {
+                totalPorts = 8; // Most EPON OLTs have 8 ports
+              } else if (device.oltType === "gpon") {
+                totalPorts = 16; // Most GPON OLTs have 16 ports
+              } else if (device.oltType === "xgpon" || device.oltType === "xgspon") {
+                totalPorts = 16; // XG-PON typically has 16 ports
+              }
+            } else if (device.type === "ms" || device.msType) {
+              // For MS devices, infer from msType
+              if (device.msType === "1x8") {
+                totalPorts = 8;
+              } else if (device.msType === "1x16") {
+                totalPorts = 16;
+              } else if (device.msType === "1x32") {
+                totalPorts = 32;
+              }
+            } else if (device.type === "subms" || device.submsType) {
+              // For SUBMS devices, infer from submsType
+              if (device.submsType === "1x4") {
+                totalPorts = 4;
+              } else if (device.submsType === "1x8") {
+                totalPorts = 8;
+              } else if (device.submsType === "1x16") {
+                totalPorts = 16;
+              }
+            }
+          }
+          
+          // Always calculate based on totalPorts - activePorts
+          return Math.max(0, totalPorts - activePorts);
+        };
+
+// Helper function to calculate FDB input recommendations
+const calculateFDBInputRecommendations = (allDevices: any[]): {
+  bestOLTConnections: Array<{
+    deviceId: any;
+    deviceName: any;
+    availablePorts: any;
+    recommendation: string;
+  }>;
+  bestMSConnections: Array<{
+    deviceId: any;
+    deviceName: any;
+    availablePorts: any;
+    recommendation: string;
+  }>;
+  bestSUBMSConnections: Array<{
+    deviceId: any;
+    deviceName: any;
+    availablePorts: any;
+    recommendation: string;
+  }>;
+  optimalPath: Array<{
+    stage: number;
+    deviceType: string;
+    deviceId: any;
+    deviceName: any;
+    availablePorts: any;
+  }>;
+} => {
+  const recommendations = {
+    bestOLTConnections: [] as Array<{
+      deviceId: any;
+      deviceName: any;
+      availablePorts: any;
+      recommendation: string;
+    }>,
+    bestMSConnections: [] as Array<{
+      deviceId: any;
+      deviceName: any;
+      availablePorts: any;
+      recommendation: string;
+    }>,
+    bestSUBMSConnections: [] as Array<{
+      deviceId: any;
+      deviceName: any;
+      availablePorts: any;
+      recommendation: string;
+    }>,
+    optimalPath: [] as Array<{
+      stage: number;
+      deviceType: string;
+      deviceId: any;
+      deviceName: any;
+      availablePorts: any;
+    }>
+  };
+
+  // Find OLTs with most available ports for primary connections
+  const oltDevices = allDevices.filter(device => device.type === "olt");
+  const bestOLTs = oltDevices
+    .sort((a, b) => (b.deviceInfo.availablePorts || 0) - (a.deviceInfo.availablePorts || 0))
+    .slice(0, 3);
+
+  recommendations.bestOLTConnections = bestOLTs.map(olt => ({
+    deviceId: olt.deviceInfo.id,
+    deviceName: olt.deviceInfo.name,
+    availablePorts: olt.deviceInfo.availablePorts,
+    recommendation: "Primary FDB connection point"
+  }));
+
+  // Find MS devices with available ports for secondary connections
+  const msDevices = allDevices.filter(device => device.type === "ms");
+  const bestMS = msDevices
+    .sort((a, b) => (b.deviceInfo.availablePorts || 0) - (a.deviceInfo.availablePorts || 0))
+    .slice(0, 5);
+
+  recommendations.bestMSConnections = bestMS.map(ms => ({
+    deviceId: ms.deviceInfo.id,
+    deviceName: ms.deviceInfo.name,
+    availablePorts: ms.deviceInfo.availablePorts,
+    recommendation: "Secondary FDB connection point"
+  }));
+
+  // Find SUBMS devices with available ports for tertiary connections
+  const submsDevices = allDevices.filter(device => device.type === "subms");
+  const bestSUBMS = submsDevices
+    .sort((a, b) => (b.deviceInfo.availablePorts || 0) - (a.deviceInfo.availablePorts || 0))
+    .slice(0, 5);
+
+  recommendations.bestSUBMSConnections = bestSUBMS.map(subms => ({
+    deviceId: subms.deviceInfo.id,
+    deviceName: subms.deviceInfo.name,
+    availablePorts: subms.deviceInfo.availablePorts,
+    recommendation: "Tertiary FDB connection point"
+  }));
+
+  // Calculate optimal path for FDB input
+  if (bestOLTs.length > 0 && bestMS.length > 0) {
+    const pathItem1 = {
+      stage: 1,
+      deviceType: "olt",
+      deviceId: bestOLTs[0].deviceInfo.id,
+      deviceName: bestOLTs[0].deviceInfo.name,
+      availablePorts: bestOLTs[0].deviceInfo.availablePorts
+    };
+    
+    const pathItem2 = {
+      stage: 2,
+      deviceType: "ms",
+      deviceId: bestMS[0].deviceInfo.id,
+      deviceName: bestMS[0].deviceInfo.name,
+      availablePorts: bestMS[0].deviceInfo.availablePorts
+    };
+
+    recommendations.optimalPath = [pathItem1, pathItem2];
+
+    if (bestSUBMS.length > 0) {
+      const pathItem3 = {
+        stage: 3,
+        deviceType: "subms",
+        deviceId: bestSUBMS[0].deviceInfo.id,
+        deviceName: bestSUBMS[0].deviceInfo.name,
+        availablePorts: bestSUBMS[0].deviceInfo.availablePorts
+      };
+      recommendations.optimalPath.push(pathItem3);
+    }
+  }
+
+  return recommendations;
+};
