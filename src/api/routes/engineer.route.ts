@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { engineerController } from "../controllers/engineer.controller";
 import authenticate from "../../middleware/auth.middleware";
+import { getAllUserInstallationRequests } from "../controllers/wifiInstallationRequest.controller";
 
 const router = Router();
 
@@ -26,5 +27,8 @@ router.get("/leave/all", authenticate, engineerController.getAllMyLeaves);
 // Leave Approval routes (for managers, agents, admins)
 router.post("/leave/approve", authenticate, engineerController.approveLeaveRequest);
 router.get("/leave/pending", authenticate, engineerController.getAllPendingLeaveRequests);
+
+// Get all customer who have installation requests
+router.get("/get-customer", authenticate,getAllUserInstallationRequests);
 
 export default router;
