@@ -380,8 +380,15 @@ export const getAllOLTsWithOutputs = async (req: Request, res: Response): Promis
 // Get OLT by ID
 export const getOLTById = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
-    const olt = await OLTModel.findById(id);
+    const { id } = req.params; //id can be mongoose_id or oltId : "OLT8280"
+    
+    // Try to find OLT by _id first, then by oltId if not found
+    let olt = await OLTModel.findById(id);
+    
+    if (!olt) {
+      // If not found by _id, try to find by oltId
+      olt = await OLTModel.findOne({ oltId: id });
+    }
 
     if (!olt) {
       return res.status(404).json({
@@ -966,12 +973,6 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           "input.id": ms.msId
         });
 
-        // Get FDB devices connected to this MS
-        const connectedFDB = await FDBModel.find({
-          "input.type": "ms",
-          "input.id": ms.msId
-        });
-
         return {
           ms_id: ms.msId,
           ms_name: ms.msName,
@@ -979,44 +980,71 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           location: [ms.latitude, ms.longitude],
           input: { type: "olt", id: olt.oltId },
           outputs: [
-            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
-            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId }))
           ]
         };
       }));
 
       // Build simplified topology for FDB devices
       const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+        // Get X2 devices connected to this FDB
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+
         return {
           fdb_id: fdb.fdbId,
           fdb_name: fdb.fdbName,
           fdb_power: fdb.fdbPower || 0,
           location: [fdb.latitude, fdb.longitude],
           input: { type: "olt", id: olt.oltId },
-          outputs: []
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ]
         };
       }));
 
+      // Get all SUBMS devices connected to any MS of this OLT
+      const allConnectedSUBMS = await Promise.all(connectedMS.map(async (ms) => {
+        const connectedSUBMS = await SUBMSModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+        return connectedSUBMS;
+      }));
+      const flattenedSUBMS = allConnectedSUBMS.flat();
+
       // Build simplified topology for SUBMS devices
-      const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
+      const submsWithTopology = await Promise.all(flattenedSUBMS.map(async (subms) => {
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
           subms_power: subms.submsPower || 0,
           location: [subms.latitude, subms.longitude],
-          input: { type: "olt", id: olt.oltId },
+          input: { type: "ms", id: subms.input.id },
           outputs: []
         };
       }));
 
+      // Get all X2 devices connected to any FDB of this OLT
+      const allConnectedX2 = await Promise.all(connectedFDB.map(async (fdb) => {
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+        return connectedX2;
+      }));
+      const flattenedX2 = allConnectedX2.flat();
+
       // Build simplified topology for X2 devices
-      const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
+      const x2WithTopology = await Promise.all(flattenedX2.map(async (x2) => {
         return {
           x2_id: x2.x2Id,
           x2_name: x2.x2Name,
           x2_power: x2.x2Power || 0,
           location: [x2.latitude, x2.longitude],
-          input: { type: "olt", id: olt.oltId },
+          input: { type: "fdb", id: x2.input.id },
           outputs: []
         };
       }));
