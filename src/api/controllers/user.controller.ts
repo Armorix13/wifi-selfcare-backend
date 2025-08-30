@@ -454,6 +454,12 @@ const updateUser = async (req: Request, res: Response): Promise<any> => {
         if (Object.keys(updateData).length === 0) {
             return sendError(res, "No valid fields to update", 400);
         }
+        if(req.body.longitude && req.body.latitude){
+            updateData.location = {
+                type: "Point",
+                coordinates: [req.body.longitude, req.body.latitude]
+            };
+        }
         const updatedUser = await UserModel.findByIdAndUpdate(
             userId,
             { $set: updateData },

@@ -13,6 +13,7 @@ export interface IApplicationForm extends Document {
   name: string;
   village: string;
   address: string;
+  assignedCompany?: mongoose.Types.ObjectId;
   rejectedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -68,6 +69,10 @@ const ApplicationFormSchema: Schema = new Schema(
       type: String,
       required: true
     },
+    assignedCompany: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    },
     rejectedAt: {
       type: Date
     }
@@ -83,6 +88,13 @@ ApplicationFormSchema.pre('save', function(next) {
   }
   next();
 });
+
+// Indexes for better performance
+ApplicationFormSchema.index({ userId: 1 });
+ApplicationFormSchema.index({ status: 1 });
+ApplicationFormSchema.index({ assignedCompany: 1 });
+ApplicationFormSchema.index({ createdAt: 1 });
+ApplicationFormSchema.index({ userId: 1, status: 1 });
 
 const ApplicationForm = mongoose.model<IApplicationForm>('ApplicationForm', ApplicationFormSchema);
 

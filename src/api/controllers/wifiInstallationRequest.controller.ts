@@ -192,8 +192,14 @@ export const getUserInstallationRequests = async (req: Request, res: Response): 
   }
 };
 
+/**
+ * Get all WiFi installation requests for the authenticated company
+ * Only returns requests where applicationId.assignedCompany == companyId
+ * Supports pagination and status filtering
+ */
 export const getAllWifiInstallationRequests = async (req: Request, res: Response): Promise<any> => {
   try {
+    const companyId = (req as any).userId;
     
     const { status, page = 1, limit = 10, getAll = false } = req.query;
     
@@ -202,11 +208,23 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
       filter.status = status;
     }
     
+    // Filter requests by company - only show requests where applicationId.assignedCompany == companyId
+    filter['applicationId.assignedCompany'] = companyId;
+    
+    console.log(`🔍 Filtering WiFi installation requests for company: ${companyId}`);
+    console.log(`🔍 Applied filter:`, JSON.stringify(filter, null, 2));
+    
     // If getAll is true, return all data without pagination
     if (getAll === 'true' || getAll === '1') {
       const requests = await WifiInstallationRequest.find(filter)
         .populate('userId', 'firstName lastName email phoneNumber countryCode profileImage')
-        .populate('applicationId')
+        .populate({
+          path: 'applicationId',
+          populate: {
+            path: 'assignedCompany',
+            select: 'companyName companyAddress companyPhone companyEmail'
+          }
+        })
         .populate('assignedEngineer', 'firstName lastName email phoneNumber')
         .sort({ createdAt: -1 });
         
@@ -224,7 +242,13 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
     
     const requests = await WifiInstallationRequest.find(filter)
       .populate('userId', 'firstName lastName email phoneNumber countryCode profileImage')
-      .populate('applicationId')
+      .populate({
+        path: 'applicationId',
+        populate: {
+          path: 'assignedCompany',
+          select: 'companyName companyAddress companyPhone companyEmail'
+        }
+      })
       .populate('assignedEngineer', 'firstName lastName email phoneNumber')
       .sort({ createdAt: -1 })
       .skip(skip)
