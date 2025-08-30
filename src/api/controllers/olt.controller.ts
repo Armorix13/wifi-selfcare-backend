@@ -979,6 +979,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           ms_power: ms.msType || 0,
           location: [ms.latitude, ms.longitude],
           input: { type: "olt", id: olt.oltId },
+          attachments:ms.attachments,
           outputs: [
             ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId }))
           ]
@@ -999,6 +1000,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           fdb_power: fdb.fdbPower || 0,
           location: [fdb.latitude, fdb.longitude],
           input: { type: "olt", id: olt.oltId },
+          attachments:fdb.attachments,
           outputs: [
             ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
           ]
@@ -1023,6 +1025,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           subms_power: subms.submsType || 0,
           location: [subms.latitude, subms.longitude],
           input: { type: "ms", id: subms.input.id },
+          attachments:subms.attachments,
           outputs: []
         };
       }));
@@ -1045,6 +1048,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           x2_power: x2.x2Power || 0,
           location: [x2.latitude, x2.longitude],
           input: { type: "fdb", id: x2.input.id },
+          attachments:x2.attachments,
           outputs: []
         };
       }));
