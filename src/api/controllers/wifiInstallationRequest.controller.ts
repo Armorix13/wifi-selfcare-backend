@@ -501,7 +501,8 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
           email: '$userDetails.email',
           phoneNumber: '$userDetails.phoneNumber',
           countryCode: '$userDetails.countryCode',
-          profileImage: '$userDetails.profileImage'
+          profileImage: '$userDetails.profileImage',
+          location: '$userDetails.location'
         }
       },
       {
