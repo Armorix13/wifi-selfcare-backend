@@ -936,7 +936,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
       serialNumber: { $regex: serialNumber, $options: 'i' }
     }).populate('ownedBy', 'name email company');
 
-    // For each OLT, get all connected devices with complete topology
+    // For each OLT, get all connected devices with simplified topology
     const oltsWithTopology = await Promise.all(olts.map(async (olt) => {
       // Get all connected devices
       const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
@@ -958,7 +958,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         })
       ]);
 
-      // Build complete topology for MS devices
+      // Build simplified topology for MS devices
       const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
         // Get SUBMS devices connected to this MS
         const connectedSUBMS = await SUBMSModel.find({
@@ -972,70 +972,6 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           "input.id": ms.msId
         });
 
-        // Build SUBMS topology
-        const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
-          // Get X2 devices connected to this SUBMS
-          const connectedX2 = await X2Model.find({
-            "input.type": "subms",
-            "input.id": subms.submsId
-          });
-
-          // Get customers connected to X2 devices
-          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
-            const customers = await UserModel.find({
-              role: "user",
-              "networkInput.type": "x2",
-              "networkInput.id": x2.x2Id
-            });
-            return customers;
-          }));
-
-          return {
-            subms_id: subms.submsId,
-            subms_name: subms.submsName,
-            subms_power: subms.submsPower || 0,
-            location: [subms.latitude, subms.longitude],
-            input: { type: "ms", id: ms.msId },
-            outputs: [
-              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
-            ],
-            x2_devices: connectedX2,
-            customers: customersFromX2.flat()
-          };
-        }));
-
-        // Build FDB topology
-        const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
-          // Get X2 devices connected to this FDB
-          const connectedX2 = await X2Model.find({
-            "input.type": "fdb",
-            "input.id": fdb.fdbId
-          });
-
-          // Get customers connected to X2 devices
-          const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
-            const customers = await UserModel.find({
-              role: "user",
-              "networkInput.type": "x2",
-              "networkInput.id": x2.x2Id
-            });
-            return customers;
-          }));
-
-          return {
-            fdb_id: fdb.fdbId,
-            fdb_name: fdb.fdbName,
-            fdb_power: fdb.fdbPower || 0,
-            location: [fdb.latitude, fdb.longitude],
-            input: { type: "ms", id: ms.msId },
-            outputs: [
-              ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
-            ],
-            x2_devices: connectedX2,
-            customers: customersFromX2.flat()
-          };
-        }));
-
         return {
           ms_id: ms.msId,
           ms_name: ms.msName,
@@ -1045,117 +981,55 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           outputs: [
             ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
             ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
-          ],
-          subms_devices: submsWithTopology,
-          fdb_devices: fdbWithTopology
+          ]
         };
       }));
 
-      // Build complete topology for FDB devices
+      // Build simplified topology for FDB devices
       const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
-        // Get X2 devices connected to this FDB
-        const connectedX2 = await X2Model.find({
-          "input.type": "fdb",
-          "input.id": fdb.fdbId
-        });
-
-        // Get customers connected to X2 devices
-        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
-          const customers = await UserModel.find({
-            role: "user",
-            "networkInput.type": "x2",
-            "networkInput.id": x2.x2Id
-          });
-          return customers;
-        }));
-
         return {
           fdb_id: fdb.fdbId,
           fdb_name: fdb.fdbName,
           fdb_power: fdb.fdbPower || 0,
           location: [fdb.latitude, fdb.longitude],
           input: { type: "olt", id: olt.oltId },
-          outputs: [
-            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
-          ],
-          x2_devices: connectedX2,
-          customers: customersFromX2.flat()
+          outputs: []
         };
       }));
 
-      // Build complete topology for SUBMS devices
+      // Build simplified topology for SUBMS devices
       const submsWithTopology = await Promise.all(connectedSUBMS.map(async (subms) => {
-        // Get X2 devices connected to this SUBMS
-        const connectedX2 = await X2Model.find({
-          "input.type": "subms",
-          "input.id": subms.submsId
-        });
-
-        // Get customers connected to X2 devices
-        const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
-          const customers = await UserModel.find({
-            role: "user",
-            "networkInput.type": "x2",
-            "networkInput.id": x2.x2Id
-          });
-          return customers;
-        }));
-
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
           subms_power: subms.submsPower || 0,
           location: [subms.latitude, subms.longitude],
           input: { type: "olt", id: olt.oltId },
-          outputs: [
-            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
-          ],
-          x2_devices: connectedX2.map((x2, index) => ({
-            x2_id: x2.x2Id,
-            x2_name: x2.x2Name,
-            x2_power: x2.x2Power || 0,
-            location: [x2.latitude, x2.longitude],
-            input: { type: "subms", id: subms.submsId },
-            outputs: [
-              ...customersFromX2[index].map(customer => ({ type: "customer", id: customer._id }))
-            ],
-            customers: customersFromX2[index]
-          })),
-          customers: customersFromX2.flat()
+          outputs: []
         };
       }));
 
-      // Build complete topology for X2 devices
+      // Build simplified topology for X2 devices
       const x2WithTopology = await Promise.all(connectedX2.map(async (x2) => {
-        // Get customers connected to this X2
-        const customers = await UserModel.find({
-          role: "user",
-          "networkInput.type": "x2",
-          "networkInput.id": x2.x2Id
-        });
-
         return {
           x2_id: x2.x2Id,
           x2_name: x2.x2Name,
           x2_power: x2.x2Power || 0,
           location: [x2.latitude, x2.longitude],
           input: { type: "olt", id: olt.oltId },
-          outputs: [
-            ...customers.map(customer => ({ type: "customer", id: customer._id }))
-          ],
-          customers: customers
+          outputs: []
         };
       }));
 
       return {
         ...olt.toObject(),
         outputs: [
-          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId, data: ms })),
-          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId, data: fdb })),
-          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId, data: subms })),
-          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id, data: x2 }))
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
         ],
-        // Include complete topology data for each device type
+        // Include simplified topology data for each device type
         ms_devices: msWithTopology,
         fdb_devices: fdbWithTopology,
         subms_devices: submsWithTopology,
@@ -3216,6 +3090,8 @@ export const getCustomersByNetworkComponent = async (req: Request, res: Response
     });
   }
 };
+
+
 
 // ==================== NETWORK TOPOLOGY FUNCTIONS ====================
 
