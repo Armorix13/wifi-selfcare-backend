@@ -186,7 +186,7 @@ export const getAllOLTsWithOutputs = async (req: Request, res: Response): Promis
           return {
             subms_id: subms.submsId,
             subms_name: subms.submsName,
-            subms_power: subms.submsPower || 0,
+            subms_power: subms.submsType || 0,
             location: [subms.latitude, subms.longitude],
             input: { type: "ms", id: ms.msId },
             outputs: [
@@ -232,7 +232,7 @@ export const getAllOLTsWithOutputs = async (req: Request, res: Response): Promis
         return {
           ms_id: ms.msId,
           ms_name: ms.msName,
-          ms_power: ms.msPower || 0,
+          ms_power: ms.msType || 0,
           location: [ms.latitude, ms.longitude],
           input: { type: "olt", id: olt.oltId },
           outputs: [
@@ -297,7 +297,7 @@ export const getAllOLTsWithOutputs = async (req: Request, res: Response): Promis
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
-          subms_power: subms.submsPower || 0,
+          subms_power: subms.submsType || 0,
           location: [subms.latitude, subms.longitude],
           input: { type: "olt", id: olt.oltId },
           outputs: [
@@ -686,7 +686,7 @@ export const getOLTWithOutputs = async (req: Request, res: Response): Promise<an
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
-          subms_power: subms.submsPower || 0,
+          subms_power: subms.submsType || 0,
           location: [subms.latitude, subms.longitude],
           input: { type: "ms", id: ms.msId },
           outputs: [
@@ -732,7 +732,7 @@ export const getOLTWithOutputs = async (req: Request, res: Response): Promise<an
       return {
         ms_id: ms.msId,
         ms_name: ms.msName,
-        ms_power: ms.msPower || 0,
+        ms_power: ms.msType || 0,
         location: [ms.latitude, ms.longitude],
         input: { type: "olt", id: olt.oltId },
         outputs: [
@@ -807,7 +807,7 @@ export const getOLTWithOutputs = async (req: Request, res: Response): Promise<an
       return {
         subms_id: subms.submsId,
         subms_name: subms.submsName,
-        subms_power: subms.submsPower || 0,
+        subms_power: subms.submsType || 0,
         location: [subms.latitude, subms.longitude],
         input: { type: "olt", id: olt.oltId },
         outputs: [
@@ -976,7 +976,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         return {
           ms_id: ms.msId,
           ms_name: ms.msName,
-          ms_power: ms.msPower || 0,
+          ms_power: ms.msType || 0,
           location: [ms.latitude, ms.longitude],
           input: { type: "olt", id: olt.oltId },
           outputs: [
@@ -1020,7 +1020,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
-          subms_power: subms.submsPower || 0,
+          subms_power: subms.submsType || 0,
           location: [subms.latitude, subms.longitude],
           input: { type: "ms", id: subms.input.id },
           outputs: []
@@ -1153,7 +1153,7 @@ export const searchOLTsBySerialNumberWithOutputs = async (req: Request, res: Res
           return {
             subms_id: subms.submsId,
             subms_name: subms.submsName,
-            subms_power: subms.submsPower,
+            subms_power: subms.submsType,
             location: [subms.latitude, subms.longitude],
             input: { type: "ms", id: ms.msId },
             outputs: [
@@ -1199,7 +1199,7 @@ export const searchOLTsBySerialNumberWithOutputs = async (req: Request, res: Res
         return {
           ms_id: ms.msId,
           ms_name: ms.msName,
-          ms_power: ms.msPower || 0,
+          ms_power: ms.msType || 0,
           location: [ms.latitude, ms.longitude],
           input: { type: "olt", id: olt.oltId },
           outputs: [
@@ -1264,7 +1264,7 @@ export const searchOLTsBySerialNumberWithOutputs = async (req: Request, res: Res
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
-          subms_power: subms.submsPower,
+          subms_power: subms.submsType,
           location: [subms.latitude, subms.longitude],
           input: { type: "olt", id: olt.oltId },
           outputs: [
@@ -3371,7 +3371,7 @@ export const getOLTsByCompany = async (req: Request, res: Response): Promise<any
           return {
             subms_id: subms.submsId,
             subms_name: subms.submsName,
-            subms_power: subms.submsPower || 0,
+            subms_power: subms.submsType || 0,
             location: [subms.latitude, subms.longitude],
             input: { type: "ms", id: ms.msId },
             outputs: [
@@ -3417,7 +3417,7 @@ export const getOLTsByCompany = async (req: Request, res: Response): Promise<any
         return {
           ms_id: ms.msId,
           ms_name: ms.msName,
-          ms_power: ms.msPower || 0,
+          ms_power: ms.msType || 0,
           location: [ms.latitude, ms.longitude],
           input: { type: "olt", id: olt.oltId },
           outputs: [
@@ -3482,7 +3482,7 @@ export const getOLTsByCompany = async (req: Request, res: Response): Promise<any
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
-          subms_power: subms.submsPower || 0,
+          subms_power: subms.submsType || 0,
           location: [subms.latitude, subms.longitude],
           input: { type: "olt", id: olt.oltId },
           outputs: [
@@ -3681,7 +3681,7 @@ export const getMSByCompany = async (req: Request, res: Response): Promise<any> 
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
-          subms_power: subms.submsPower || 0,
+          subms_power: subms.submsType || 0,
           location: [subms.latitude, subms.longitude],
           input: { type: "ms", id: ms.msId },
           outputs: [
@@ -4037,7 +4037,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
             return {
               subms_id: subms.submsId,
               subms_name: subms.submsName,
-              subms_power: subms.submsPower || 0,
+              subms_power: subms.submsType || 0,
               location: [subms.latitude, subms.longitude],
               input: { type: "ms", id: ms.msId },
               outputs: [
@@ -4097,7 +4097,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
           return {
             ms_id: ms.msId,
             ms_name: ms.msName,
-            ms_power: ms.msPower || 0,
+            ms_power: ms.msType || 0,
             location: [ms.latitude, ms.longitude],
             input: { type: "olt", id: olt.oltId },
             outputs: [
@@ -4160,7 +4160,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
           return {
             subms_id: subms.submsId,
             subms_name: subms.submsName,
-            subms_power: subms.submsPower || 0,
+            subms_power: subms.submsType || 0,
             location: [subms.latitude, subms.longitude],
             input: { type: "olt", id: olt.oltId },
             outputs: [
@@ -4279,7 +4279,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
           return {
             subms_id: subms.submsId,
             subms_name: subms.submsName,
-            subms_power: subms.submsPower || 0,
+            subms_power: subms.submsType || 0,
             location: [subms.latitude, subms.longitude],
             input: { type: "ms", id: msDevice.msId },
             outputs: [
@@ -4509,7 +4509,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
                 return {
                   subms_id: subms.submsId,
                   subms_name: subms.submsName,
-                  subms_power: subms.submsPower || 0,
+                  subms_power: subms.submsType || 0,
                   location: [subms.latitude, subms.longitude],
                   input: { type: "ms", id: ms.msId },
                   outputs: [
@@ -4569,7 +4569,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
               return {
                 ms_id: ms.msId,
                 ms_name: ms.msName,
-                ms_power: ms.msPower || 0,
+                ms_power: ms.msType || 0,
                 location: [ms.latitude, ms.longitude],
                 input: { type: "olt", id: olt.oltId },
                 outputs: [
@@ -4632,7 +4632,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
               return {
                 subms_id: subms.submsId,
                 subms_name: subms.submsName,
-                subms_power: subms.submsPower || 0,
+                subms_power: subms.submsType || 0,
                 location: [subms.latitude, subms.longitude],
                 input: { type: "olt", id: olt.oltId },
                 outputs: [
@@ -4755,7 +4755,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
               return {
                 subms_id: subms.submsId,
                 subms_name: subms.submsName,
-                subms_power: subms.submsPower || 0,
+                subms_power: subms.submsType || 0,
                 location: [subms.latitude, subms.longitude],
                 input: { type: "ms", id: ms.msId },
                 outputs: [
@@ -5280,7 +5280,7 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
           id: msDevice.msId || msDevice._id,
           name: msDevice.msName,
           type: msDevice.msType,
-          power: msDevice.msPower,
+          power: msDevice.msType,
           totalPorts: totalPorts,
           activePorts: msDevice.activePorts || 0,
           availablePorts: availableSlots
@@ -5310,7 +5310,7 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
           id: submsDevice.submsId || submsDevice._id,
           name: submsDevice.submsName,
           type: submsDevice.submsType,
-          power: submsDevice.submsPower,
+          power: submsDevice.submsType,
           totalPorts: totalPorts,
           activePorts: submsDevice.activePorts || 0,
           availablePorts: availableSlots
@@ -5411,7 +5411,7 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
               msName: deviceAny.msName,
               msId: deviceAny.msId,
               msType: deviceAny.msType,
-              msPower: deviceAny.msPower,
+              msPower: deviceAny.msType,
               input: deviceAny.input,
               addedBy: deviceAny.addedBy,
               attachments: deviceAny.attachments || []
@@ -5422,7 +5422,6 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
               submsName: deviceAny.submsName,
               submsId: deviceAny.submsId,
               submsType: deviceAny.submsType,
-              submsPower: deviceAny.submsPower,
               input: deviceAny.input,
               attachments: deviceAny.attachments || []
             };
