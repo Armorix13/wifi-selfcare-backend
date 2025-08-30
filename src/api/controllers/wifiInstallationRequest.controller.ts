@@ -254,10 +254,37 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
       filter.status = status;
     }
 
-    // Filter requests by company - only show requests where applicationId.assignedCompany == companyId
-    filter['applicationId.assignedCompany'] = companyId;
-
     console.log(`🔍 Filtering WiFi installation requests for company: ${companyId}`);
+
+    // First, get all ApplicationForm IDs that belong to this company
+    const companyApplications = await ApplicationForm.find({
+      assignedCompany: companyId
+    }).select('_id');
+
+    if (!companyApplications.length) {
+      console.log(`🔍 No applications found for company: ${companyId}`);
+      return sendSuccess(res, {
+        requests: [],
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total: 0,
+          pages: 0
+        }
+      }, 'No installation requests found for this company');
+    }
+
+    const applicationIds = companyApplications.map(app => app._id);
+    console.log(`🔍 Found ${applicationIds.length} applications for company: ${companyId}`);
+
+    // Add status filter if provided
+    if (status && ['inreview', 'approved', 'rejected'].includes(status as string)) {
+      filter.status = status;
+    }
+
+    // Filter by the application IDs that belong to this company
+    filter.applicationId = { $in: applicationIds };
+
     console.log(`🔍 Applied filter:`, JSON.stringify(filter, null, 2));
 
     // If getAll is true, return all data without pagination
@@ -274,7 +301,7 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
         .populate('assignedEngineer', 'firstName lastName email phoneNumber')
         .sort({ createdAt: -1 });
 
-      const total = await WifiInstallationRequest.countDocuments(filter);
+      const total = requests.length;
 
       return sendSuccess(res, {
         requests,
@@ -312,6 +339,7 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
       }
     }, 'All installation requests fetched successfully');
   } catch (error: any) {
+    console.error('Error in getAllWifiInstallationRequests:', error);
     return sendError(res, 'Failed to fetch installation requests', 500, error.message || error);
   }
 };
