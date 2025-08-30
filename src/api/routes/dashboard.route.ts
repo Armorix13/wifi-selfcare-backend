@@ -2,6 +2,7 @@ import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload, excelUpload } from '../services/upload.service';
 import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest } from '../controllers/dashboard.controller';
+import { getAllOltTOAdminPanel } from '../controllers/olt.controller';
 
 const dashboardRoute = Router();
 
@@ -26,5 +27,8 @@ dashboardRoute.post('/leave-requests/approve-reject', authenticate, approveRejec
 
 // Excel Upload Routes
 dashboardRoute.post('/upload-users-excel', authenticate, excelUpload.array('files', 10), addUserFromExcel);
+
+// OLT Routes
+dashboardRoute.get('/olts', authenticate, getAllOltTOAdminPanel);
 
 export default dashboardRoute; 

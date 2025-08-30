@@ -5613,3 +5613,207 @@ const calculateFDBInputRecommendations = (allDevices: any[]): {
 
   return recommendations;
 };
+
+
+export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const ownerId = (req as any).userId;
+    
+    // Get all OLTs for the owner
+    const olts = await OLTModel.find({ ownedBy: ownerId }).sort({ createdAt: -1 });
+    
+    // Get detailed information for each OLT including connected devices
+    const detailedOlts = await Promise.all(olts.map(async (olt) => {
+      // Get MS devices connected to this OLT
+      const msDevices = await MSModel.find({ 
+        "input.id": olt.oltId,
+        ownedBy: ownerId 
+      }).select('msId msName msType location input outputs latitude longitude');
+      
+      // Get FDB devices connected to this OLT
+      const fdbDevices = await FDBModel.find({ 
+        "input.id": olt.oltId,
+        ownedBy: ownerId 
+      }).select('fdbId fdbName fdbPower location input outputs latitude longitude');
+      
+      // Get SUBMS devices connected to MS devices (find all SUBMS that have MS devices as input)
+      const msIds = msDevices.map(ms => ms.msId);
+      const submsDevices = await SUBMSModel.find({ 
+        "input.type": "ms",
+        "input.id": { $in: msIds },
+        ownedBy: ownerId 
+      }).select('submsId submsName submsType location input outputs latitude longitude');
+      
+      // Get X2 devices connected to FDB devices (find all X2 that have FDB devices as input)
+      const fdbIds = fdbDevices.map(fdb => fdb.fdbId);
+      const x2Devices = await X2Model.find({ 
+        "input.type": "fdb",
+        "input.id": { $in: fdbIds },
+        ownedBy: ownerId 
+      }).select('x2Id x2Name x2Power location input outputs latitude longitude');
+      
+      // Get owner details
+      const owner = await UserModel.findById(olt.ownedBy).select('email');
+      
+      // Calculate OLT ports based on oltPower and actual connected devices
+      const oltTotalPorts = olt.oltPower || 0;
+      const oltActivePorts = msDevices.length + fdbDevices.length; // Count actual connected MS and FDB devices
+      const oltAvailablePorts = Math.max(0, oltTotalPorts - oltActivePorts);
+      
+      // Create detailed OLT object
+      const detailedOlt = {
+        _id: olt._id,
+        oltIp: olt.oltIp,
+        macAddress: olt.macAddress,
+        serialNumber: olt.serialNumber,
+        latitude: olt.latitude,
+        longitude: olt.longitude,
+        oltType: olt.oltType,
+        powerStatus: olt.powerStatus,
+        oltPower: olt.oltPower,
+        status: olt.status,
+        dnsServers: olt.dnsServers || [],
+        ownedBy: {
+          _id: owner?._id,
+          email: owner?.email
+        },
+        attachments: olt.attachments || [],
+        outputs: olt.outputs || [],
+        createdAt: olt.createdAt,
+        updatedAt: olt.updatedAt,
+        oltId: olt.oltId,
+        location: olt.location,
+        __v: olt.__v,
+        name: olt.name,
+        totalPorts: oltTotalPorts,
+        activePorts: oltActivePorts,
+        availablePorts: oltAvailablePorts,
+        ms_devices: msDevices.map(ms => {
+          // Calculate MS ports based on msType (1x2=2, 1x4=4, 1x8=8, 1x16=16, 1x32=32, 1x64=64)
+          let msTotalPorts = 0;
+          switch (ms.msType) {
+            case "1x2": msTotalPorts = 2; break;
+            case "1x4": msTotalPorts = 4; break;
+            case "1x8": msTotalPorts = 8; break;
+            case "1x16": msTotalPorts = 16; break;
+            case "1x32": msTotalPorts = 32; break;
+            case "1x64": msTotalPorts = 64; break;
+            default: msTotalPorts = 0;
+          }
+          
+          // Count SUBMS devices connected to this MS
+          const connectedSubms = submsDevices.filter(subms => subms.input.id === ms.msId);
+          const msActivePorts = connectedSubms.length;
+          const msAvailablePorts = Math.max(0, msTotalPorts - msActivePorts);
+          
+          return {
+            ms_id: ms.msId,
+            ms_name: ms.msName,
+            ms_type: ms.msType,
+            location: ms.location?.coordinates ? [ms.location.coordinates[1], ms.location.coordinates[0]] : [ms.latitude, ms.longitude],
+            input: {
+              type: ms.input.type,
+              id: ms.input.id
+            },
+            outputs: ms.outputs || [],
+            totalPorts: msTotalPorts,
+            activePorts: msActivePorts,
+            availablePorts: msAvailablePorts
+          };
+        }),
+        fdb_devices: fdbDevices.map(fdb => {
+          // Calculate FDB ports based on fdbPower (power = total ports)
+          const fdbTotalPorts = fdb.fdbPower || 0;
+          
+          // Count X2 devices connected to this FDB
+          const connectedX2s = x2Devices.filter(x2 => x2.input.id === fdb.fdbId);
+          const fdbActivePorts = connectedX2s.length;
+          const fdbAvailablePorts = Math.max(0, fdbTotalPorts - fdbActivePorts);
+          
+          return {
+            fdb_id: fdb.fdbId,
+            fdb_name: fdb.fdbName,
+            fdb_power: fdb.fdbPower,
+            location: fdb.location?.coordinates ? [fdb.location.coordinates[1], fdb.location.coordinates[0]] : [fdb.latitude, fdb.longitude],
+            input: {
+              type: fdb.input.type,
+              id: fdb.input.id
+            },
+            outputs: fdb.outputs || [],
+            totalPorts: fdbTotalPorts,
+            activePorts: fdbActivePorts,
+            availablePorts: fdbAvailablePorts
+          };
+        }),
+        subms_devices: submsDevices.map(subms => {
+          // Calculate SUBMS ports based on submsType (1x2=2, 1x4=4, 1x8=8, 1x16=16, 1x32=32)
+          let submsTotalPorts = 0;
+          switch (subms.submsType) {
+            case "1x2": submsTotalPorts = 2; break;
+            case "1x4": submsTotalPorts = 4; break;
+            case "1x8": submsTotalPorts = 8; break;
+            case "1x16": submsTotalPorts = 16; break;
+            case "1x32": submsTotalPorts = 32; break;
+            default: submsTotalPorts = 0;
+          }
+          
+          // Count actual outputs (connected devices) for SUBMS
+          const submsActivePorts = subms.outputs ? subms.outputs.length : 0;
+          const submsAvailablePorts = Math.max(0, submsTotalPorts - submsActivePorts);
+          
+          return {
+            subms_id: subms.submsId,
+            subms_name: subms.submsName,
+            subms_type: subms.submsType,
+            location: subms.location?.coordinates ? [subms.location.coordinates[1], subms.location.coordinates[0]] : [subms.latitude, subms.longitude],
+            input: {
+              type: subms.input.type,
+              id: subms.input.id
+            },
+            outputs: subms.outputs || [],
+            totalPorts: submsTotalPorts,
+            activePorts: submsActivePorts,
+            availablePorts: submsAvailablePorts
+          };
+        }),
+        x2_devices: x2Devices.map(x2 => {
+          // Calculate X2 ports based on x2Power (power = total ports)
+          const x2TotalPorts = x2.x2Power || 0;
+          
+          // Count actual outputs (connected devices/customers) for X2
+          const x2ActivePorts = x2.outputs ? x2.outputs.length : 0;
+          const x2AvailablePorts = Math.max(0, x2TotalPorts - x2ActivePorts);
+          
+          return {
+            x2_id: x2.x2Id,
+            x2_name: x2.x2Name,
+            x2_power: x2.x2Power,
+            location: x2.location?.coordinates ? [x2.location.coordinates[1], x2.location.coordinates[0]] : [x2.latitude, x2.longitude],
+            input: {
+              type: x2.input.type,
+              id: x2.input.id
+            },
+            outputs: x2.outputs || [],
+            totalPorts: x2TotalPorts,
+            activePorts: x2ActivePorts,
+            availablePorts: x2AvailablePorts
+          };
+        })
+      };
+      
+      return detailedOlt;
+    }));
+    
+    res.status(200).json({
+      success: true,
+      message: "OLTs fetched successfully with detailed information",
+      data: detailedOlts
+    });
+  } catch (error:any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching OLTs to admin panel",
+      error: error.message
+    });
+  }
+}
