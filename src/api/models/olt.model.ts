@@ -130,20 +130,40 @@ const OLTSchema = new Schema<IOLT>({
   },
   name: { 
     type: String, 
+    required: [true, 'OLT name is required'],
     trim: true
   },
   oltIp: { 
     type: String, 
+    required: [true, 'OLT IP address is required'],
     unique: true,
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(v: string) {
+        // IPv4 address format validation
+        const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        return ipRegex.test(v);
+      },
+      message: 'IP address must be a valid IPv4 address (e.g., 192.168.1.1)'
+    }
   },
   macAddress: { 
     type: String, 
+    required: [true, 'MAC address is required'],
     unique: true,
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(v: string) {
+        // MAC address format: XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX
+        const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
+        return macRegex.test(v);
+      },
+      message: 'MAC address must be in format XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX'
+    }
   },
   serialNumber: { 
     type: String, 
+    required: [true, 'Serial number is required'],
     unique: true,
     trim: true
   },

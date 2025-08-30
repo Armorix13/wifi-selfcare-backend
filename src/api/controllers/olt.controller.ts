@@ -15,6 +15,82 @@ import {
 } from "../services/topology.service";
 import { UserModel } from "../models/user.model";
 
+// ==================== UTILITY FUNCTIONS ====================
+
+// Helper function to handle MongoDB duplicate key errors
+const handleDuplicateKeyError = (error: any, entityType: string) => {
+  const field = Object.keys(error.keyPattern)[0];
+  const value = error.keyValue[field];
+  
+  let fieldName = field;
+  let message = '';
+  
+  // Map common field names to user-friendly names
+  const fieldNameMap: { [key: string]: string } = {
+    oltId: 'OLT ID',
+    oltIp: 'IP Address',
+    macAddress: 'MAC Address',
+    serialNumber: 'Serial Number',
+    msId: 'MS ID',
+    msName: 'MS Name',
+    submsId: 'SUBMS ID',
+    submsName: 'SUBMS Name',
+    fdbId: 'FDB ID',
+    fdbName: 'FDB Name',
+    x2Id: 'X2 ID',
+    x2Name: 'X2 Name'
+  };
+  
+  fieldName = fieldNameMap[field] || field.charAt(0).toUpperCase() + field.slice(1);
+  message = `${fieldName} "${value}" is already in use by another ${entityType}. Please use a different ${fieldName.toLowerCase()}.`;
+  
+  return {
+    status: 400,
+    response: {
+      success: false,
+      message: message,
+      error: {
+        type: 'DUPLICATE_KEY',
+        field: fieldName,
+        value: value,
+        details: `This ${fieldName.toLowerCase()} is already in use by another ${entityType} device.`
+      }
+    }
+  };
+};
+
+// Helper function to handle validation errors
+const handleValidationError = (error: any) => {
+  const validationErrors = Object.values(error.errors).map((err: any) => err.message);
+  return {
+    status: 400,
+    response: {
+      success: false,
+      message: "Validation failed. Please check your input.",
+      error: {
+        type: 'VALIDATION_ERROR',
+        details: validationErrors
+      }
+    }
+  };
+};
+
+// Helper function to handle general errors
+const handleGeneralError = (error: any, operation: string) => {
+  console.error(`Error ${operation}:`, error);
+  return {
+    status: 500,
+    response: {
+      success: false,
+      message: `Error ${operation}. Please try again later.`,
+      error: {
+        type: 'INTERNAL_ERROR',
+        message: process.env.NODE_ENV === 'development' ? error.message : 'An internal server error occurred.'
+      }
+    }
+  };
+};
+
 // ==================== OLT FUNCTIONS ====================
 
 // Create OLT
@@ -60,11 +136,21 @@ export const createOLT = async (req: Request, res: Response): Promise<any> => {
       data: savedOLT
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error creating OLT",
-      error: error.message
-    });
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const errorInfo = handleDuplicateKeyError(error, 'OLT');
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errorInfo = handleValidationError(error);
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle other errors
+    const errorInfo = handleGeneralError(error, 'creating OLT');
+    res.status(errorInfo.status).json(errorInfo.response);
   }
 };
 
@@ -116,11 +202,8 @@ export const getAllOLTs = async (req: Request, res: Response): Promise<any> => {
       data: oltsWithTopology
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching OLTs",
-      error: error.message
-    });
+    const errorInfo = handleGeneralError(error, 'fetching OLTs');
+    res.status(errorInfo.status).json(errorInfo.response);
   }
 };
 
@@ -2033,11 +2116,21 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
       data: savedMS
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error creating MS",
-      error: error.message
-    });
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const errorInfo = handleDuplicateKeyError(error, 'MS');
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errorInfo = handleValidationError(error);
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle other errors
+    const errorInfo = handleGeneralError(error, 'creating MS');
+    res.status(errorInfo.status).json(errorInfo.response);
   }
 };
 
@@ -2250,11 +2343,21 @@ export const createSUBMS = async (req: Request, res: Response): Promise<any> => 
       data: savedSUBMS
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error creating SUBMS",
-      error: error.message
-    });
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const errorInfo = handleDuplicateKeyError(error, 'SUBMS');
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errorInfo = handleValidationError(error);
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle other errors
+    const errorInfo = handleGeneralError(error, 'creating SUBMS');
+    res.status(errorInfo.status).json(errorInfo.response);
   }
 };
 
@@ -2412,11 +2515,21 @@ export const createFDB = async (req: Request, res: Response): Promise<any> => {
       data: savedFDB
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error creating FDB",
-      error: error.message
-    });
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const errorInfo = handleDuplicateKeyError(error, 'FDB');
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errorInfo = handleValidationError(error);
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle other errors
+    const errorInfo = handleGeneralError(error, 'creating FDB');
+    res.status(errorInfo.status).json(errorInfo.response);
   }
 };
 
@@ -2622,11 +2735,21 @@ export const createX2 = async (req: Request, res: Response): Promise<any> => {
       data: savedX2
     });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error creating X2",
-      error: error.message
-    });
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const errorInfo = handleDuplicateKeyError(error, 'X2');
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errorInfo = handleValidationError(error);
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+    
+    // Handle other errors
+    const errorInfo = handleGeneralError(error, 'creating X2');
+    res.status(errorInfo.status).json(errorInfo.response);
   }
 };
 
