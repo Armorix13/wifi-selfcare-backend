@@ -1117,6 +1117,10 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
 
       // Build simplified topology for SUBMS devices
       const submsWithTopology = await Promise.all(flattenedSUBMS.map(async (subms) => {
+        const connectedFDB = await FDBModel.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
         return {
           subms_id: subms.submsId,
           subms_name: subms.submsName,
@@ -1124,7 +1128,9 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           location: [subms.latitude, subms.longitude],
           input: { type: "ms", id: subms.input.id },
           attachments:subms.attachments,
-          outputs: []
+          outputs: [
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+          ]
         };
       }));
 
