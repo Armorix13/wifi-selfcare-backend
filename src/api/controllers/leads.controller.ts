@@ -78,7 +78,7 @@ export const createLead = async (req: Request, res: Response): Promise<any> => {
       source,
       priority,
       estimatedCost,
-      status: LeadStatus.INREVIEW,
+      status: LeadStatus.UNTRACKED,
       isTracked: false,
       contactAttempts: 0,
     });

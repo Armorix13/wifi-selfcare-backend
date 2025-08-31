@@ -229,6 +229,7 @@ const UserSchema = new Schema<IUser>({
     type: Schema.Types.ObjectId,
     ref: "User"
   },
+  //This key is only for which company he come
   assignedCompany: {
     type: Schema.Types.ObjectId,
     ref: "User"
@@ -238,14 +239,14 @@ const UserSchema = new Schema<IUser>({
   networkInput: {
     type: {
       type: String,
-      enum: ["x2", "fdb", "subms"]
+      enum: ["x2", "fdb", "subms","ms"]
     },
     id: { type: String }
   },
   networkOutputs: [{
     type: {
       type: String,
-      enum: ["x2", "fdb", "subms"]
+      enum: ["x2", "fdb", "subms","ms"]
     },
     id: { type: String }
   }],

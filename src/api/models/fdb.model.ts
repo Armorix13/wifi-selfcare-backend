@@ -47,7 +47,7 @@ export interface IFDB extends Document {
   fdbId?: string; // FDB ID (e.g., FDB001) - Auto-generated if not provided
   fdbName: string; // FDB Name
   fdbType: FDBType; // Type of FDB
-  fdbPower?: number; // FDB Power (e.g., 8)
+  fdbPower?: number; // FDB Power (e.g., 2,4,8,16,32)
   
   // Location Information
   latitude: number; // Separate latitude field
