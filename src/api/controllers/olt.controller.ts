@@ -1075,8 +1075,18 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         };
       }));
 
-      // Build simplified topology for FDB devices
-      const fdbWithTopology = await Promise.all(connectedFDB.map(async (fdb) => {
+      // Get all FDB devices connected to any MS of this OLT
+      const allConnectedFDB = await Promise.all(connectedMS.map(async (ms) => {
+        const connectedFDB = await FDBModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+        return connectedFDB;
+      }));
+      const flattenedFDB = allConnectedFDB.flat();
+
+      // Build simplified topology for FDB devices (both direct OLT connections and MS connections)
+      const fdbWithTopology = await Promise.all([...connectedFDB, ...flattenedFDB].map(async (fdb) => {
         // Get X2 devices connected to this FDB
         const connectedX2 = await X2Model.find({
           "input.type": "fdb",
@@ -1087,7 +1097,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           fdb_name: fdb.fdbName,
           fdb_power: fdb.fdbPower || 0,
           location: [fdb.latitude, fdb.longitude],
-          input: { type: "olt", id: olt.oltId },
+          input: fdb.input, // Keep the original input (either "olt" or "ms")
           attachments:fdb.attachments,
           outputs: [
             ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
@@ -1118,8 +1128,8 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         };
       }));
 
-      // Get all X2 devices connected to any FDB of this OLT
-      const allConnectedX2 = await Promise.all(connectedFDB.map(async (fdb) => {
+      // Get all X2 devices connected to any FDB of this OLT (both direct and MS-connected FDBs)
+      const allConnectedX2 = await Promise.all([...connectedFDB, ...flattenedFDB].map(async (fdb) => {
         const connectedX2 = await X2Model.find({
           "input.type": "fdb",
           "input.id": fdb.fdbId
