@@ -1055,6 +1055,11 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           "input.type": "ms",
           "input.id": ms.msId
         });
+        //get FDB devices connected to this MS
+        const connectedFDB = await FDBModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
 
         return {
           ms_id: ms.msId,
@@ -1064,7 +1069,8 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           input: { type: "olt", id: olt.oltId },
           attachments:ms.attachments,
           outputs: [
-            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId }))
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
           ]
         };
       }));
@@ -1075,8 +1081,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         const connectedX2 = await X2Model.find({
           "input.type": "fdb",
           "input.id": fdb.fdbId
-        });
-
+        })
         return {
           fdb_id: fdb.fdbId,
           fdb_name: fdb.fdbName,
@@ -1135,6 +1140,9 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           outputs: []
         };
       }));
+
+      console.log("fdbWithTopology",fdbWithTopology);
+      
 
       return {
         ...olt.toObject(),
