@@ -21,10 +21,10 @@ import { UserModel } from "../models/user.model";
 const handleDuplicateKeyError = (error: any, entityType: string) => {
   const field = Object.keys(error.keyPattern)[0];
   const value = error.keyValue[field];
-  
+
   let fieldName = field;
   let message = '';
-  
+
   // Map common field names to user-friendly names
   const fieldNameMap: { [key: string]: string } = {
     oltId: 'OLT ID',
@@ -40,10 +40,10 @@ const handleDuplicateKeyError = (error: any, entityType: string) => {
     x2Id: 'X2 ID',
     x2Name: 'X2 Name'
   };
-  
+
   fieldName = fieldNameMap[field] || field.charAt(0).toUpperCase() + field.slice(1);
   message = `${fieldName} "${value}" is already in use by another ${entityType}. Please use a different ${fieldName.toLowerCase()}.`;
-  
+
   return {
     status: 400,
     response: {
@@ -141,13 +141,13 @@ export const createOLT = async (req: Request, res: Response): Promise<any> => {
       const errorInfo = handleDuplicateKeyError(error, 'OLT');
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const errorInfo = handleValidationError(error);
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle other errors
     const errorInfo = handleGeneralError(error, 'creating OLT');
     res.status(errorInfo.status).json(errorInfo.response);
@@ -211,7 +211,7 @@ export const getAllOLTs = async (req: Request, res: Response): Promise<any> => {
 export const getAllOLTsWithOutputs = async (req: Request, res: Response): Promise<any> => {
   try {
     const olts = await OLTModel.find().sort({ createdAt: -1 });
-    
+
     // For each OLT, get all connected devices with complete topology
     const oltsWithOutputs = await Promise.all(olts.map(async (olt) => {
       // Get all connected devices
@@ -445,7 +445,7 @@ export const getAllOLTsWithOutputs = async (req: Request, res: Response): Promis
         x2_devices: x2WithTopology
       };
     }));
-    
+
     res.status(200).json({
       success: true,
       count: oltsWithOutputs.length,
@@ -464,10 +464,10 @@ export const getAllOLTsWithOutputs = async (req: Request, res: Response): Promis
 export const getOLTById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params; //id can be mongoose_id or oltId : "OLT8280"
-    
+
     // Try to find OLT by _id first, then by oltId if not found
     let olt = await OLTModel.findById(id);
-    
+
     if (!olt) {
       // If not found by _id, try to find by oltId
       olt = await OLTModel.findOne({ oltId: id });
@@ -706,7 +706,7 @@ export const getOLTWithOutputs = async (req: Request, res: Response): Promise<an
   try {
     const { id } = req.params;
     const olt = await OLTModel.findById(id);
-    
+
     if (!olt) {
       return res.status(404).json({
         success: false,
@@ -1014,7 +1014,7 @@ export const searchOLTsByLocation = async (req: Request, res: Response): Promise
 export const searchOLTsBySerialNumber = async (req: Request, res: Response): Promise<any> => {
   try {
     const { serialNumber } = req.params;
-    
+
     if (!serialNumber) {
       return res.status(400).json({
         success: false,
@@ -1067,7 +1067,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           ms_power: ms.msType || 0,
           location: [ms.latitude, ms.longitude],
           input: { type: "olt", id: olt.oltId },
-          attachments:ms.attachments,
+          attachments: ms.attachments,
           outputs: [
             ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
             ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
@@ -1118,7 +1118,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           fdb_power: fdb.fdbPower || 0,
           location: [fdb.latitude, fdb.longitude],
           input: fdb.input, // Keep the original input (either "olt", "ms", or "subms")
-          attachments:fdb.attachments,
+          attachments: fdb.attachments,
           outputs: [
             ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
           ]
@@ -1137,7 +1137,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           subms_power: subms.submsType || 0,
           location: [subms.latitude, subms.longitude],
           input: { type: "ms", id: subms.input.id },
-          attachments:subms.attachments,
+          attachments: subms.attachments,
           outputs: [
             ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
           ]
@@ -1162,13 +1162,13 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           x2_power: x2.x2Power || 0,
           location: [x2.latitude, x2.longitude],
           input: { type: "fdb", id: x2.input.id },
-          attachments:x2.attachments,
+          attachments: x2.attachments,
           outputs: []
         };
       }));
 
-      console.log("fdbWithTopology",fdbWithTopology);
-      
+      console.log("fdbWithTopology", fdbWithTopology);
+
 
       return {
         ...olt.toObject(),
@@ -1205,7 +1205,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
 export const searchOLTsBySerialNumberWithOutputs = async (req: Request, res: Response): Promise<any> => {
   try {
     const { serialNumber } = req.params;
-    
+
     if (!serialNumber) {
       return res.status(400).json({
         success: false,
@@ -1415,17 +1415,17 @@ export const searchOLTsBySerialNumberWithOutputs = async (req: Request, res: Res
           "networkInput.id": x2.x2Id
         });
 
-              return {
-        x2_id: x2.x2Id,
-        x2_name: x2.x2Name,
-        x2_power: x2.x2Power || 0,
-        location: [x2.latitude, x2.longitude],
-        input: { type: "olt", id: olt.oltId },
-        outputs: [
-          ...customers.map(customer => ({ type: "customer", id: customer._id }))
-        ],
-        customers: customers
-      };
+        return {
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "olt", id: olt.oltId },
+          outputs: [
+            ...customers.map(customer => ({ type: "customer", id: customer._id }))
+          ],
+          customers: customers
+        };
       }));
 
       // Format the response similar to your example
@@ -2155,13 +2155,13 @@ export const createMS = async (req: Request, res: Response): Promise<any> => {
       const errorInfo = handleDuplicateKeyError(error, 'MS');
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const errorInfo = handleValidationError(error);
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle other errors
     const errorInfo = handleGeneralError(error, 'creating MS');
     res.status(errorInfo.status).json(errorInfo.response);
@@ -2382,13 +2382,13 @@ export const createSUBMS = async (req: Request, res: Response): Promise<any> => 
       const errorInfo = handleDuplicateKeyError(error, 'SUBMS');
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const errorInfo = handleValidationError(error);
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle other errors
     const errorInfo = handleGeneralError(error, 'creating SUBMS');
     res.status(errorInfo.status).json(errorInfo.response);
@@ -2554,13 +2554,13 @@ export const createFDB = async (req: Request, res: Response): Promise<any> => {
       const errorInfo = handleDuplicateKeyError(error, 'FDB');
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const errorInfo = handleValidationError(error);
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle other errors
     const errorInfo = handleGeneralError(error, 'creating FDB');
     res.status(errorInfo.status).json(errorInfo.response);
@@ -2774,13 +2774,13 @@ export const createX2 = async (req: Request, res: Response): Promise<any> => {
       const errorInfo = handleDuplicateKeyError(error, 'X2');
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const errorInfo = handleValidationError(error);
       return res.status(errorInfo.status).json(errorInfo.response);
     }
-    
+
     // Handle other errors
     const errorInfo = handleGeneralError(error, 'creating X2');
     res.status(errorInfo.status).json(errorInfo.response);
@@ -4640,7 +4640,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
 
       switch (type) {
         case 'olt':
-          devicesWithTopology = await Promise.all(devices.map(async (olt:any) => {
+          devicesWithTopology = await Promise.all(devices.map(async (olt: any) => {
             const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
               MSModel.find({ "input.type": "olt", "input.id": olt.oltId }),
               FDBModel.find({ "input.type": "olt", "input.id": olt.oltId }),
@@ -4852,7 +4852,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
           break;
 
         case 'fdb':
-          devicesWithTopology = await Promise.all(devices.map(async (fdb:any) => {
+          devicesWithTopology = await Promise.all(devices.map(async (fdb: any) => {
             const connectedX2 = await X2Model.find({ "input.type": "fdb", "input.id": fdb.fdbId });
             const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
               const customers = await UserModel.find({
@@ -4895,7 +4895,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
           break;
 
         case 'ms':
-          devicesWithTopology = await Promise.all(devices.map(async (ms:any) => {
+          devicesWithTopology = await Promise.all(devices.map(async (ms: any) => {
             const [connectedSUBMS, connectedFDB] = await Promise.all([
               SUBMSModel.find({ "input.type": "ms", "input.id": ms.msId }),
               FDBModel.find({ "input.type": "ms", "input.id": ms.msId })
@@ -4994,7 +4994,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
           break;
 
         case 'subms':
-          devicesWithTopology = await Promise.all(devices.map(async (subms:any) => {
+          devicesWithTopology = await Promise.all(devices.map(async (subms: any) => {
             const connectedX2 = await X2Model.find({ "input.type": "subms", "input.id": subms.submsId });
             const customersFromX2 = await Promise.all(connectedX2.map(async (x2) => {
               const customers = await UserModel.find({
@@ -5037,7 +5037,7 @@ export const getDetailedNetworkComponentsByCompany = async (req: Request, res: R
           break;
 
         case 'x2':
-          devicesWithTopology = await Promise.all(devices.map(async (x2:any) => {
+          devicesWithTopology = await Promise.all(devices.map(async (x2: any) => {
             const customers = await UserModel.find({
               role: "user",
               "networkInput.type": "x2",
@@ -5389,35 +5389,35 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
     ]);
 
     // Add type key for each device and calculate available slots
-                const processedOlt = olt.map(oltDevice => {
-              const availableSlots = calculateAvailableSlots(oltDevice);
-              // Calculate totalPorts using the same logic as calculateAvailableSlots
-              let totalPorts = oltDevice.totalPorts || 0;
-              if (totalPorts === 0) {
-                if (oltDevice.oltType === "epon") {
-                  totalPorts = 8;
-                } else if (oltDevice.oltType === "gpon") {
-                  totalPorts = 16;
-                } else if (oltDevice.oltType === "xgpon" || oltDevice.oltType === "xgspon") {
-                  totalPorts = 16;
-                }
-              }
-              
-              return {
-                ...oltDevice.toObject(),
-                type: "olt",
-                availableSlots: availableSlots,
-                deviceInfo: {
-                  id: oltDevice.oltId || oltDevice._id,
-                  name: oltDevice.name,
-                  type: oltDevice.oltType,
-                  power: oltDevice.oltPower,
-                  totalPorts: totalPorts,
-                  activePorts: oltDevice.activePorts || 0,
-                  availablePorts: availableSlots
-                }
-              };
-            });
+    const processedOlt = olt.map(oltDevice => {
+      const availableSlots = calculateAvailableSlots(oltDevice);
+      // Calculate totalPorts using the same logic as calculateAvailableSlots
+      let totalPorts = oltDevice.totalPorts || 0;
+      if (totalPorts === 0) {
+        if (oltDevice.oltType === "epon") {
+          totalPorts = 8;
+        } else if (oltDevice.oltType === "gpon") {
+          totalPorts = 16;
+        } else if (oltDevice.oltType === "xgpon" || oltDevice.oltType === "xgspon") {
+          totalPorts = 16;
+        }
+      }
+
+      return {
+        ...oltDevice.toObject(),
+        type: "olt",
+        availableSlots: availableSlots,
+        deviceInfo: {
+          id: oltDevice.oltId || oltDevice._id,
+          name: oltDevice.name,
+          type: oltDevice.oltType,
+          power: oltDevice.oltPower,
+          totalPorts: totalPorts,
+          activePorts: oltDevice.activePorts || 0,
+          availablePorts: availableSlots
+        }
+      };
+    });
 
     const processedMS = ms.map(msDevice => {
       const availableSlots = calculateAvailableSlots(msDevice);
@@ -5432,7 +5432,7 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
           totalPorts = 32;
         }
       }
-      
+
       return {
         ...msDevice.toObject(),
         type: "ms",
@@ -5462,7 +5462,7 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
           totalPorts = 16;
         }
       }
-      
+
       return {
         ...submsDevice.toObject(),
         type: "subms",
@@ -5500,7 +5500,7 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
     };
 
     // Find devices with available slots for FDB connections
-    const devicesWithAvailableSlots = allDevices.filter(device => 
+    const devicesWithAvailableSlots = allDevices.filter(device =>
       device.deviceInfo.availablePorts > 0
     );
 
@@ -5534,7 +5534,7 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
         combinedData: allDevices.map(device => {
           const deviceAny = device as any;
           const deviceType = deviceAny.deviceType || device.type;
-          
+
           // Base device data
           const baseDevice = {
             _id: device._id,
@@ -5604,46 +5604,46 @@ export const fdbInput = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
-        // Helper function to calculate available slots for a device
-        const calculateAvailableSlots = (device: any): number => {
-          let totalPorts = device.totalPorts || 0;
-          const activePorts = device.activePorts || 0;
-          
-          // If totalPorts is not set, try to infer from device type/model
-          if (totalPorts === 0) {
-            if (device.type === "olt" || device.oltType) {
-              // For OLT devices, infer ports based on type or model
-              if (device.oltType === "epon") {
-                totalPorts = 8; // Most EPON OLTs have 8 ports
-              } else if (device.oltType === "gpon") {
-                totalPorts = 16; // Most GPON OLTs have 16 ports
-              } else if (device.oltType === "xgpon" || device.oltType === "xgspon") {
-                totalPorts = 16; // XG-PON typically has 16 ports
-              }
-            } else if (device.type === "ms" || device.msType) {
-              // For MS devices, infer from msType
-              if (device.msType === "1x8") {
-                totalPorts = 8;
-              } else if (device.msType === "1x16") {
-                totalPorts = 16;
-              } else if (device.msType === "1x32") {
-                totalPorts = 32;
-              }
-            } else if (device.type === "subms" || device.submsType) {
-              // For SUBMS devices, infer from submsType
-              if (device.submsType === "1x4") {
-                totalPorts = 4;
-              } else if (device.submsType === "1x8") {
-                totalPorts = 8;
-              } else if (device.submsType === "1x16") {
-                totalPorts = 16;
-              }
-            }
-          }
-          
-          // Always calculate based on totalPorts - activePorts
-          return Math.max(0, totalPorts - activePorts);
-        };
+// Helper function to calculate available slots for a device
+const calculateAvailableSlots = (device: any): number => {
+  let totalPorts = device.totalPorts || 0;
+  const activePorts = device.activePorts || 0;
+
+  // If totalPorts is not set, try to infer from device type/model
+  if (totalPorts === 0) {
+    if (device.type === "olt" || device.oltType) {
+      // For OLT devices, infer ports based on type or model
+      if (device.oltType === "epon") {
+        totalPorts = 8; // Most EPON OLTs have 8 ports
+      } else if (device.oltType === "gpon") {
+        totalPorts = 16; // Most GPON OLTs have 16 ports
+      } else if (device.oltType === "xgpon" || device.oltType === "xgspon") {
+        totalPorts = 16; // XG-PON typically has 16 ports
+      }
+    } else if (device.type === "ms" || device.msType) {
+      // For MS devices, infer from msType
+      if (device.msType === "1x8") {
+        totalPorts = 8;
+      } else if (device.msType === "1x16") {
+        totalPorts = 16;
+      } else if (device.msType === "1x32") {
+        totalPorts = 32;
+      }
+    } else if (device.type === "subms" || device.submsType) {
+      // For SUBMS devices, infer from submsType
+      if (device.submsType === "1x4") {
+        totalPorts = 4;
+      } else if (device.submsType === "1x8") {
+        totalPorts = 8;
+      } else if (device.submsType === "1x16") {
+        totalPorts = 16;
+      }
+    }
+  }
+
+  // Always calculate based on totalPorts - activePorts
+  return Math.max(0, totalPorts - activePorts);
+};
 
 // Helper function to calculate FDB input recommendations
 const calculateFDBInputRecommendations = (allDevices: any[]): {
@@ -5749,7 +5749,7 @@ const calculateFDBInputRecommendations = (allDevices: any[]): {
       deviceName: bestOLTs[0].deviceInfo.name,
       availablePorts: bestOLTs[0].deviceInfo.availablePorts
     };
-    
+
     const pathItem2 = {
       stage: 2,
       deviceType: "ms",
@@ -5779,48 +5779,48 @@ const calculateFDBInputRecommendations = (allDevices: any[]): {
 export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promise<any> => {
   try {
     const ownerId = (req as any).userId;
-    
+
     // Get all OLTs for the owner
     const olts = await OLTModel.find({ ownedBy: ownerId }).sort({ createdAt: -1 });
-    
+
     // Get detailed information for each OLT including connected devices
     const detailedOlts = await Promise.all(olts.map(async (olt) => {
       // Get MS devices connected to this OLT
-      const msDevices = await MSModel.find({ 
+      const msDevices = await MSModel.find({
         "input.id": olt.oltId,
-        ownedBy: ownerId 
+        ownedBy: ownerId
       }).select('msId msName msType location input outputs latitude longitude');
-      
+
       // Get FDB devices connected to this OLT
-      const fdbDevices = await FDBModel.find({ 
+      const fdbDevices = await FDBModel.find({
         "input.id": olt.oltId,
-        ownedBy: ownerId 
+        ownedBy: ownerId
       }).select('fdbId fdbName fdbPower location input outputs latitude longitude');
-      
+
       // Get SUBMS devices connected to MS devices (find all SUBMS that have MS devices as input)
       const msIds = msDevices.map(ms => ms.msId);
-      const submsDevices = await SUBMSModel.find({ 
+      const submsDevices = await SUBMSModel.find({
         "input.type": "ms",
         "input.id": { $in: msIds },
-        ownedBy: ownerId 
+        ownedBy: ownerId
       }).select('submsId submsName submsType location input outputs latitude longitude');
-      
+
       // Get X2 devices connected to FDB devices (find all X2 that have FDB devices as input)
       const fdbIds = fdbDevices.map(fdb => fdb.fdbId);
-      const x2Devices = await X2Model.find({ 
+      const x2Devices = await X2Model.find({
         "input.type": "fdb",
         "input.id": { $in: fdbIds },
-        ownedBy: ownerId 
+        ownedBy: ownerId
       }).select('x2Id x2Name x2Power location input outputs latitude longitude');
-      
+
       // Get owner details
       const owner = await UserModel.findById(olt.ownedBy).select('email');
-      
+
       // Calculate OLT ports based on oltPower and actual connected devices
       const oltTotalPorts = olt.oltPower || 0;
       const oltActivePorts = msDevices.length + fdbDevices.length; // Count actual connected MS and FDB devices
       const oltAvailablePorts = Math.max(0, oltTotalPorts - oltActivePorts);
-      
+
       // Create detailed OLT object
       const detailedOlt = {
         _id: olt._id,
@@ -5861,12 +5861,12 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
             case "1x64": msTotalPorts = 64; break;
             default: msTotalPorts = 0;
           }
-          
+
           // Count SUBMS devices connected to this MS
           const connectedSubms = submsDevices.filter(subms => subms.input.id === ms.msId);
           const msActivePorts = connectedSubms.length;
           const msAvailablePorts = Math.max(0, msTotalPorts - msActivePorts);
-          
+
           return {
             ms_id: ms.msId,
             ms_name: ms.msName,
@@ -5885,12 +5885,12 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
         fdb_devices: fdbDevices.map(fdb => {
           // Calculate FDB ports based on fdbPower (power = total ports)
           const fdbTotalPorts = fdb.fdbPower || 0;
-          
+
           // Count X2 devices connected to this FDB
           const connectedX2s = x2Devices.filter(x2 => x2.input.id === fdb.fdbId);
           const fdbActivePorts = connectedX2s.length;
           const fdbAvailablePorts = Math.max(0, fdbTotalPorts - fdbActivePorts);
-          
+
           return {
             fdb_id: fdb.fdbId,
             fdb_name: fdb.fdbName,
@@ -5917,11 +5917,11 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
             case "1x32": submsTotalPorts = 32; break;
             default: submsTotalPorts = 0;
           }
-          
+
           // Count actual outputs (connected devices) for SUBMS
           const submsActivePorts = subms.outputs ? subms.outputs.length : 0;
           const submsAvailablePorts = Math.max(0, submsTotalPorts - submsActivePorts);
-          
+
           return {
             subms_id: subms.submsId,
             subms_name: subms.submsName,
@@ -5940,11 +5940,11 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
         x2_devices: x2Devices.map(x2 => {
           // Calculate X2 ports based on x2Power (power = total ports)
           const x2TotalPorts = x2.x2Power || 0;
-          
+
           // Count actual outputs (connected devices/customers) for X2
           const x2ActivePorts = x2.outputs ? x2.outputs.length : 0;
           const x2AvailablePorts = Math.max(0, x2TotalPorts - x2ActivePorts);
-          
+
           return {
             x2_id: x2.x2Id,
             x2_name: x2.x2Name,
@@ -5961,16 +5961,16 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
           };
         })
       };
-      
+
       return detailedOlt;
     }));
-    
+
     res.status(200).json({
       success: true,
       message: "OLTs fetched successfully with detailed information",
       data: detailedOlts
     });
-  } catch (error:any) {
+  } catch (error: any) {
     res.status(500).json({
       success: false,
       message: "Error fetching OLTs to admin panel",
@@ -5978,3 +5978,186 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
     });
   }
 }
+
+
+export const selectNodeAdmin = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const companyId = (req as any).userId;
+
+    const olts = await OLTModel.find({
+      ownedBy: companyId
+    }).populate('ownedBy', 'name email company');
+
+    // For each OLT, get all connected devices with simplified topology
+    const oltsWithTopology = await Promise.all(olts.map(async (olt) => {
+      // Get all connected devices
+      const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+        MSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        FDBModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        SUBMSModel.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        }),
+        X2Model.find({
+          "input.type": "olt",
+          "input.id": olt.oltId
+        })
+      ]);
+
+      // Build simplified topology for MS devices
+      const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+        // Get SUBMS devices connected to this MS
+        const connectedSUBMS = await SUBMSModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+        //get FDB devices connected to this MS
+        const connectedFDB = await FDBModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+
+        return {
+          ms_id: ms.msId,
+          ms_name: ms.msName,
+          ms_power: ms.msType || 0,
+          location: [ms.latitude, ms.longitude],
+          input: { type: "olt", id: olt.oltId },
+          attachments: ms.attachments,
+          outputs: [
+            ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+          ]
+        };
+      }));
+
+      // Get all FDB devices connected to any MS of this OLT
+      const allConnectedFDB = await Promise.all(connectedMS.map(async (ms) => {
+        const connectedFDB = await FDBModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+        return connectedFDB;
+      }));
+      const flattenedFDB = allConnectedFDB.flat();
+
+      // Get all SUBMS devices connected to any MS of this OLT
+      const allConnectedSUBMS = await Promise.all(connectedMS.map(async (ms) => {
+        const connectedSUBMS = await SUBMSModel.find({
+          "input.type": "ms",
+          "input.id": ms.msId
+        });
+        return connectedSUBMS;
+      }));
+      const flattenedSUBMS = allConnectedSUBMS.flat();
+
+      // Get all FDB devices connected to SUBMS devices
+      const allConnectedFDBFromSUBMS = await Promise.all(flattenedSUBMS.map(async (subms) => {
+        const connectedFDB = await FDBModel.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
+        return connectedFDB;
+      }));
+      const flattenedFDBFromSUBMS = allConnectedFDBFromSUBMS.flat();
+
+      // Build simplified topology for FDB devices (both direct OLT connections, MS connections, and SUBMS connections)
+      const fdbWithTopology = await Promise.all([...connectedFDB, ...flattenedFDB, ...flattenedFDBFromSUBMS].map(async (fdb) => {
+        // Get X2 devices connected to this FDB
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        })
+        return {
+          fdb_id: fdb.fdbId,
+          fdb_name: fdb.fdbName,
+          fdb_power: fdb.fdbPower || 0,
+          location: [fdb.latitude, fdb.longitude],
+          input: fdb.input, // Keep the original input (either "olt", "ms", or "subms")
+          attachments: fdb.attachments,
+          outputs: [
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+          ]
+        };
+      }));
+
+      // Build simplified topology for SUBMS devices
+      const submsWithTopology = await Promise.all(flattenedSUBMS.map(async (subms) => {
+        const connectedFDB = await FDBModel.find({
+          "input.type": "subms",
+          "input.id": subms.submsId
+        });
+        return {
+          subms_id: subms.submsId,
+          subms_name: subms.submsName,
+          subms_power: subms.submsType || 0,
+          location: [subms.latitude, subms.longitude],
+          input: { type: "ms", id: subms.input.id },
+          attachments: subms.attachments,
+          outputs: [
+            ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+          ]
+        };
+      }));
+
+      // Get all X2 devices connected to any FDB of this OLT (both direct, MS-connected, and SUBMS-connected FDBs)
+      const allConnectedX2 = await Promise.all([...connectedFDB, ...flattenedFDB, ...flattenedFDBFromSUBMS].map(async (fdb) => {
+        const connectedX2 = await X2Model.find({
+          "input.type": "fdb",
+          "input.id": fdb.fdbId
+        });
+        return connectedX2;
+      }));
+      const flattenedX2 = allConnectedX2.flat();
+
+      // Build simplified topology for X2 devices
+      const x2WithTopology = await Promise.all(flattenedX2.map(async (x2) => {
+        return {
+          x2_id: x2.x2Id,
+          x2_name: x2.x2Name,
+          x2_power: x2.x2Power || 0,
+          location: [x2.latitude, x2.longitude],
+          input: { type: "fdb", id: x2.input.id },
+          attachments: x2.attachments,
+          outputs: []
+        };
+      }));
+
+      console.log("fdbWithTopology", fdbWithTopology);
+
+
+      return {
+        ...olt.toObject(),
+        outputs: [
+          ...connectedMS.map(ms => ({ type: "ms", id: ms.msId })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId })),
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+        ],
+        // Include simplified topology data for each device type
+        ms_devices: msWithTopology,
+        fdb_devices: fdbWithTopology,
+        subms_devices: submsWithTopology,
+        x2_devices: x2WithTopology
+      };
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: oltsWithTopology.length,
+      data: oltsWithTopology
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error searching OLTs by serial number",
+      error: error.message
+    });
+  }
+};

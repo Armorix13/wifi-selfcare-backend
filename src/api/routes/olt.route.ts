@@ -69,7 +69,8 @@ import {
   getTopologyRules,
   validateExistingTopology,
   getTopologyExamples,
-  fdbInput
+  fdbInput,
+  selectNodeAdmin
 } from "../controllers/olt.controller";
 import { OLTModel } from "../models/olt.model";
 import { MSModel } from "../models/ms.model";
@@ -78,6 +79,7 @@ import { FDBModel } from "../models/fdb.model";
 import { X2Model } from "../models/x2.model";
 import { UserModel } from "../models/user.model";
 import { upload } from '../services/upload.service';
+import authenticate from "../../middleware/auth.middleware";
 
 const router = Router();
 
@@ -612,5 +614,7 @@ router.get("/topology/validate/:oltId", validateExistingTopology);
 router.get("/topology/examples", getTopologyExamples);
 
 router.get("/fdb/input/:companyId", fdbInput);
+
+router.get("/olt/select/node", authenticate,selectNodeAdmin);
 
 export default router;
