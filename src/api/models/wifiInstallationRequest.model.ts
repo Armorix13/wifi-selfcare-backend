@@ -80,6 +80,13 @@ const WifiInstallationRequestSchema: Schema = new Schema(
     assignedEngineer: {
       type: Schema.Types.ObjectId,
       ref: 'User'
+    },
+    //if client connetced to olt and end deivce
+    connectedToOlt: {
+      type:String
+    },
+    connectedToEndDevice: {
+      type:String
     }
   },
   { timestamps: true }

@@ -141,7 +141,7 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
     // }
 
     const { id } = req.params;
-    const { status, remarks, assignedEngineer } = req.body;
+    const { status, remarks, assignedEngineer, connectedToOlt, connectedToEndDevice } = req.body;
 
     console.log('Update request - ID:', id);
     console.log('Update request - Status:', status);
@@ -178,6 +178,8 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
 
     if (status === 'approved') {
       update.approvedDate = new Date();
+      update.connectedToOlt = connectedToOlt;
+      update.connectedToEndDevice = connectedToEndDevice;
     } else if (status === 'rejected') {
       update.approvedDate = null;
     }
