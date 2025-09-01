@@ -70,7 +70,8 @@ import {
   validateExistingTopology,
   getTopologyExamples,
   fdbInput,
-  selectNodeAdmin
+  selectNodeAdmin,
+  getOLTByOLTIdForEngineer
 } from "../controllers/olt.controller";
 import { OLTModel } from "../models/olt.model";
 import { MSModel } from "../models/ms.model";
@@ -616,5 +617,7 @@ router.get("/topology/examples", getTopologyExamples);
 router.get("/fdb/input/:companyId", fdbInput);
 
 router.get("/olt/select/node", authenticate,selectNodeAdmin);
+
+router.get("/get-by-oltId/:oltId",getOLTByOLTIdForEngineer);
 
 export default router;

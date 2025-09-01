@@ -6156,7 +6156,188 @@ export const selectNodeAdmin = async (req: Request, res: Response): Promise<any>
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      message: "Error searching OLTs by serial number",
+      error: error.message
+    });
+  }
+};
+
+export const getOLTByOLTIdForEngineer = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { oltId } = req.params;
+
+    const olt = await OLTModel.findOne({
+      oltId: oltId,
+    }).populate('ownedBy', 'name email company');
+
+    if (!olt) {
+      return res.status(404).json({
+        success: false,
+        message: "OLT not found"
+      });
+    }
+
+    // Get all connected devices
+    const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+      MSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      FDBModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      SUBMSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      X2Model.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      })
+    ]);
+
+    // Build simplified topology for MS devices
+    const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+      // Get SUBMS devices connected to this MS
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+      //get FDB devices connected to this MS
+      const connectedFDB = await FDBModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+
+      return {
+        ms_id: ms.msId,
+        ms_name: ms.msName,
+        ms_power: ms.msType || 0,
+        location: [ms.latitude, ms.longitude],
+        input: { type: "olt", id: olt.oltId },
+        attachments: ms.attachments,
+        outputs: [
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+        ]
+      };
+    }));
+
+    // Get all FDB devices connected to any MS of this OLT
+    const allConnectedFDB = await Promise.all(connectedMS.map(async (ms) => {
+      const connectedFDB = await FDBModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+      return connectedFDB;
+    }));
+    const flattenedFDB = allConnectedFDB.flat();
+
+    // Get all SUBMS devices connected to any MS of this OLT
+    const allConnectedSUBMS = await Promise.all(connectedMS.map(async (ms) => {
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+      return connectedSUBMS;
+    }));
+    const flattenedSUBMS = allConnectedSUBMS.flat();
+
+    // Get all FDB devices connected to SUBMS devices
+    const allConnectedFDBFromSUBMS = await Promise.all(flattenedSUBMS.map(async (subms) => {
+      const connectedFDB = await FDBModel.find({
+        "input.type": "subms",
+        "input.id": subms.submsId
+      });
+      return connectedFDB;
+    }));
+    const flattenedFDBFromSUBMS = allConnectedFDBFromSUBMS.flat();
+
+    // Build simplified topology for FDB devices (both direct OLT connections, MS connections, and SUBMS connections)
+    const fdbWithTopology = await Promise.all([...connectedFDB, ...flattenedFDB, ...flattenedFDBFromSUBMS].map(async (fdb) => {
+      // Get X2 devices connected to this FDB
+      const connectedX2 = await X2Model.find({
+        "input.type": "fdb",
+        "input.id": fdb.fdbId
+      })
+      return {
+        fdb_id: fdb.fdbId,
+        fdb_name: fdb.fdbName,
+        fdb_power: fdb.fdbPower || 0,
+        location: [fdb.latitude, fdb.longitude],
+        input: fdb.input, // Keep the original input (either "olt", "ms", or "subms")
+        attachments: fdb.attachments,
+        outputs: [
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+        ]
+      };
+    }));
+
+    // Build simplified topology for SUBMS devices
+    const submsWithTopology = await Promise.all(flattenedSUBMS.map(async (subms) => {
+      const connectedFDB = await FDBModel.find({
+        "input.type": "subms",
+        "input.id": subms.submsId
+      });
+      return {
+        subms_id: subms.submsId,
+        subms_name: subms.submsName,
+        subms_power: subms.submsType || 0,
+        location: [subms.latitude, subms.longitude],
+        input: { type: "ms", id: subms.input.id },
+        attachments: subms.attachments,
+        outputs: [
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+        ]
+      };
+    }));
+
+    // Get all X2 devices connected to any FDB of this OLT (both direct, MS-connected, and SUBMS-connected FDBs)
+    const allConnectedX2 = await Promise.all([...connectedFDB, ...flattenedFDB, ...flattenedFDBFromSUBMS].map(async (fdb) => {
+      const connectedX2 = await X2Model.find({
+        "input.type": "fdb",
+        "input.id": fdb.fdbId
+      });
+      return connectedX2;
+    }));
+    const flattenedX2 = allConnectedX2.flat();
+
+    // Build simplified topology for X2 devices
+    const x2WithTopology = await Promise.all(flattenedX2.map(async (x2) => {
+      return {
+        x2_id: x2.x2Id,
+        x2_name: x2.x2Name,
+        x2_power: x2.x2Power || 0,
+        location: [x2.latitude, x2.longitude],
+        input: { type: "fdb", id: x2.input.id },
+        attachments: x2.attachments,
+        outputs: []
+      };
+    }));
+
+    const oltWithTopology = {
+      ...olt.toObject(),
+      outputs: [
+        ...connectedMS.map(ms => ({ type: "ms", id: ms.msId })),
+        ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId })),
+        ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+        ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+      ],
+      // Include simplified topology data for each device type
+      ms_devices: msWithTopology,
+      fdb_devices: fdbWithTopology,
+      subms_devices: submsWithTopology,
+      x2_devices: x2WithTopology
+    };
+
+    res.status(200).json({
+      success: true,
+      data: oltWithTopology
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching OLT by OLT ID",
       error: error.message
     });
   }
