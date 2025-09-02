@@ -88,6 +88,8 @@ export interface IUser extends Document {
   assigned?: string; // ASSIGNED
   ruralUrban?: string; // RURAL_UR - Rural/Urban
   acquisitionType?: string; // ACQUISITION_TYPE
+  modemUserName?: string; // MODEN_USER_NAME
+  modemPassword?: string; // MODEN_PASSWORD
   addedBy?:  mongoose.Types.ObjectId; // ADDED_BY
   parentCompany?:  mongoose.Types.ObjectId; // ADDED_BY
   isActivated?: boolean; // IS_ACTIVATED
@@ -262,9 +264,12 @@ const UserSchema = new Schema<IUser>({
   bbPlan: { type: String }, // BB_PLAN - Broadband Plan
   llInstallDate: { type: Date }, // LL_INSTALL - Landline Installation Date
   workingStatus: { type: String }, // WKG_ST - Working Status
-  assigned: { type: String }, // ASSIGNED
   ruralUrban: { type: String }, // RURAL_UR - Rural/Urban
   acquisitionType: { type: String }, // ACQUISITION_TYPE
+  modemUserName:{type:String},
+  modemPassword:{type:String},
+  assigned: { type: String }, // ASSIGNED
+
   addedBy:{
     type: Schema.Types.ObjectId,
     ref: "User"

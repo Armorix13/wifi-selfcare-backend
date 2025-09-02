@@ -110,7 +110,7 @@ router.get("/olt/search/location", searchOLTsByLocation);
 // ==================== OLT SEARCH ROUTES ====================
 
 // Individual Search Routes
-router.get("/olt/search/serial/:serialNumber", searchOLTsBySerialNumber);
+router.get("/olt/search/serial/:companyId", searchOLTsBySerialNumber);
 router.get("/olt/search/name/:name", searchOLTsByName);
 router.get("/olt/search/id/:oltId", searchOLTsByOLTId);
 router.get("/olt/search/ip/:ip", searchOLTsByIP);

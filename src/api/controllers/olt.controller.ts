@@ -1013,17 +1013,10 @@ export const searchOLTsByLocation = async (req: Request, res: Response): Promise
 // Search OLTs by Serial Number
 export const searchOLTsBySerialNumber = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { serialNumber } = req.params;
-
-    if (!serialNumber) {
-      return res.status(400).json({
-        success: false,
-        message: "Serial number is required"
-      });
-    }
+    const { companyId } = req.params;
 
     const olts = await OLTModel.find({
-      serialNumber: { $regex: serialNumber, $options: 'i' }
+      ownedBy: companyId
     }).populate('ownedBy', 'name email company');
 
     // For each OLT, get all connected devices with simplified topology
@@ -1189,7 +1182,6 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
     res.status(200).json({
       success: true,
       count: oltsWithTopology.length,
-      serialNumber,
       data: oltsWithTopology
     });
   } catch (error: any) {
