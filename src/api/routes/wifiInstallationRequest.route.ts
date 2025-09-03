@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { upload } from '../services/upload.service';
 import authenticate from '../../middleware/auth.middleware';
-import { addWifiInstallationRequest, updateWifiInstallationRequestStatus, assignEngineerToWifiInstallationRequest, getAllWifiInstallationRequests } from '../controllers/wifiInstallationRequest.controller';
+import { addWifiInstallationRequest, updateWifiInstallationRequestStatus, assignEngineerToWifiInstallationRequest, getAllWifiInstallationRequests, makeInstallationRequestActive } from '../controllers/wifiInstallationRequest.controller';
 
 const router = Router();
 
@@ -23,5 +23,13 @@ router.patch('/:id/status', authenticate, updateWifiInstallationRequestStatus);
 router.patch('/:id/assign-engineer', authenticate, assignEngineerToWifiInstallationRequest);
 
 router.get("/all-insallation-requests",authenticate,getAllWifiInstallationRequests)
+
+// Engineer: Make installation request active with images (3-4 images required)
+router.post(
+  '/:userId/make-active',
+  authenticate,
+  upload.array('images', 4),
+  makeInstallationRequestActive
+);
 
 export default router; 

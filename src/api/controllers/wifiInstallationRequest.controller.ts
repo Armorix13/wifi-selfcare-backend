@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
+import moment from 'moment';
 import { WifiInstallationRequest } from '../models/wifiInstallationRequest.model';
 import { ApplicationForm } from '../models/applicationform.model';
 import { UserModel } from '../models/user.model';
@@ -531,22 +532,22 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
           as: 'fdbDetails'
         }
       },
-             {
-         $lookup: {
-           from: 'olts',
-           localField: 'customerDetails.oltId',
-           foreignField: '_id',
-           as: 'oltDetails'
-         }
-       },
-       {
-         $lookup: {
-           from: 'modems',
-           localField: '_id',
-           foreignField: 'userId',
-           as: 'modemDetails'
-         }
-       },
+      {
+        $lookup: {
+          from: 'olts',
+          localField: 'customerDetails.oltId',
+          foreignField: '_id',
+          as: 'oltDetails'
+        }
+      },
+      {
+        $lookup: {
+          from: 'modems',
+          localField: '_id',
+          foreignField: 'userId',
+          as: 'modemDetails'
+        }
+      },
       {
         $project: {
           _id: 1,
@@ -597,7 +598,9 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
                 billingCycle: { $arrayElemAt: ['$customerDetails.billingCycle', 0] },
                 isOverdue: { $arrayElemAt: ['$customerDetails.isOverdue', 0] },
                 createdAt: { $arrayElemAt: ['$customerDetails.createdAt', 0] },
-                updatedAt: { $arrayElemAt: ['$customerDetails.updatedAt', 0] }
+                updatedAt: { $arrayElemAt: ['$customerDetails.updatedAt', 0] },
+                isInstalled: { $arrayElemAt: ['$customerDetails.isInstalled', 0] },
+                attachments: { $arrayElemAt: ['$customerDetails.attachments', 0] }
               },
               else: null
             }
@@ -610,6 +613,7 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
                 _id: { $arrayElemAt: ['$fdbDetails._id', 0] },
                 fdbId: { $arrayElemAt: ['$fdbDetails.fdbId', 0] },
                 fdbName: { $arrayElemAt: ['$fdbDetails.fdbName', 0] },
+                fdbPower: { $arrayElemAt: ['$fdbDetails.fdbPower', 0] },
                 fdbType: { $arrayElemAt: ['$fdbDetails.fdbType', 0] },
                 status: { $arrayElemAt: ['$fdbDetails.status', 0] },
                 location: { $arrayElemAt: ['$fdbDetails.location', 0] },
@@ -620,45 +624,45 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
               else: null
             }
           },
-                     // OLT Details
-           olt: {
-             $cond: {
-               if: { $gt: [{ $size: '$oltDetails' }, 0] },
-               then: {
-                 _id: { $arrayElemAt: ['$oltDetails._id', 0] },
-                 oltId: { $arrayElemAt: ['$oltDetails.oltId', 0] },
-                 name: { $arrayElemAt: ['$oltDetails.name', 0] },
-                 oltIp: { $arrayElemAt: ['$oltDetails.oltIp', 0] },
-                 oltType: { $arrayElemAt: ['$oltDetails.oltType', 0] },
-                 status: { $arrayElemAt: ['$oltDetails.status', 0] },
-                 location: { $arrayElemAt: ['$oltDetails.location', 0] },
-                 address: { $arrayElemAt: ['$oltDetails.address', 0] },
-                 city: { $arrayElemAt: ['$oltDetails.city', 0] },
-                 state: { $arrayElemAt: ['$oltDetails.state', 0] }
-               },
-               else: null
-             }
-           },
-           // Modem Details
-           modem: {
-             $cond: {
-               if: { $gt: [{ $size: '$modemDetails' }, 0] },
-               then: {
-                 _id: { $arrayElemAt: ['$modemDetails._id', 0] },
-                 modemName: { $arrayElemAt: ['$modemDetails.modemName', 0] },
-                 ontType: { $arrayElemAt: ['$modemDetails.ontType', 0] },
-                 modelNumber: { $arrayElemAt: ['$modemDetails.modelNumber', 0] },
-                 serialNumber: { $arrayElemAt: ['$modemDetails.serialNumber', 0] },
-                 ontMac: { $arrayElemAt: ['$modemDetails.ontMac', 0] },
-                 username: { $arrayElemAt: ['$modemDetails.username', 0] },
-                 password: { $arrayElemAt: ['$modemDetails.password', 0] },
-                 isActive: { $arrayElemAt: ['$modemDetails.isActive', 0] },
-                 createdAt: { $arrayElemAt: ['$modemDetails.createdAt', 0] },
-                 updatedAt: { $arrayElemAt: ['$modemDetails.updatedAt', 0] }
-               },
-               else: null
-             }
-           }
+          // OLT Details
+          olt: {
+            $cond: {
+              if: { $gt: [{ $size: '$oltDetails' }, 0] },
+              then: {
+                _id: { $arrayElemAt: ['$oltDetails._id', 0] },
+                oltId: { $arrayElemAt: ['$oltDetails.oltId', 0] },
+                name: { $arrayElemAt: ['$oltDetails.name', 0] },
+                oltIp: { $arrayElemAt: ['$oltDetails.oltIp', 0] },
+                oltType: { $arrayElemAt: ['$oltDetails.oltType', 0] },
+                status: { $arrayElemAt: ['$oltDetails.status', 0] },
+                location: { $arrayElemAt: ['$oltDetails.location', 0] },
+                address: { $arrayElemAt: ['$oltDetails.address', 0] },
+                city: { $arrayElemAt: ['$oltDetails.city', 0] },
+                state: { $arrayElemAt: ['$oltDetails.state', 0] }
+              },
+              else: null
+            }
+          },
+          // Modem Details
+          modem: {
+            $cond: {
+              if: { $gt: [{ $size: '$modemDetails' }, 0] },
+              then: {
+                _id: { $arrayElemAt: ['$modemDetails._id', 0] },
+                modemName: { $arrayElemAt: ['$modemDetails.modemName', 0] },
+                ontType: { $arrayElemAt: ['$modemDetails.ontType', 0] },
+                modelNumber: { $arrayElemAt: ['$modemDetails.modelNumber', 0] },
+                serialNumber: { $arrayElemAt: ['$modemDetails.serialNumber', 0] },
+                ontMac: { $arrayElemAt: ['$modemDetails.ontMac', 0] },
+                username: { $arrayElemAt: ['$modemDetails.username', 0] },
+                password: { $arrayElemAt: ['$modemDetails.password', 0] },
+                isActive: { $arrayElemAt: ['$modemDetails.isActive', 0] },
+                createdAt: { $arrayElemAt: ['$modemDetails.createdAt', 0] },
+                updatedAt: { $arrayElemAt: ['$modemDetails.updatedAt', 0] }
+              },
+              else: null
+            }
+          }
         }
       },
       {
@@ -666,11 +670,11 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
       }
     ]);
 
-         return sendSuccess(
-       res,
-       uniqueUsers,
-       `Successfully fetched ${uniqueUsers.length} unique user${uniqueUsers.length !== 1 ? 's' : ''} with customer, service, and modem details`
-     );
+    return sendSuccess(
+      res,
+      uniqueUsers,
+      `Successfully fetched ${uniqueUsers.length} unique user${uniqueUsers.length !== 1 ? 's' : ''} with customer, service, and modem details`
+    );
 
   } catch (error: any) {
     console.error('Error in getAllUserInstallationRequests:', error);
@@ -692,3 +696,64 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
     );
   }
 };
+
+
+export const makeInstallationRequestActive = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const engineerId = (req as any).userId;
+    const { userId } = req.params;
+
+    const request = await WifiInstallationRequest.findOne({
+      userId: userId,
+      status: 'approved',
+      assignedEngineer: engineerId
+    });
+
+    if (!request) {
+      return sendError(res, 'Installation request not found', 404);
+    }
+
+    const customer = await CustomerModel.findOne({
+      userId: userId,
+    });
+
+    if (!customer) {
+      return sendError(res, 'Customer not found', 404);
+    }
+
+    if (req.files) {
+      const files = req.files as Express.Multer.File[];
+      
+      // Validate minimum and maximum file requirements
+      if (files.length < 3) {
+        return sendError(res, 'At least 3 images are required', 400);
+      }
+      
+      if (files.length > 4) {
+        return sendError(res, 'Maximum 4 images are allowed', 400);
+      }
+      
+      const attachments = files.map((file: Express.Multer.File) => file.path);
+      customer.attachments = attachments;
+      customer.isInstalled = true;
+      customer.activationDate = new Date();
+      customer.expirationDate = moment().add(1, 'month').toDate();
+      await customer.save();
+    } else {
+      return sendError(res, 'At least 3 images are required', 400);
+    }
+
+    return sendSuccess(res, { customer }, 'Installation request activated successfully');
+
+
+  } catch (error: any) {
+    return sendError(
+      res,
+      'Failed to make installation request active',
+      500,
+      process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    );
+  }
+}
+
+

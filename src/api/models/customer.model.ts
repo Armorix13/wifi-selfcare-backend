@@ -17,6 +17,8 @@ export interface ICustomer extends Document {
     lastPaymentDate?: Date;
     lastPaymentAmount?: number;
     billingCycle?: string;
+    attachments?: string[];
+    isInstalled?: boolean;
 
 
     createdAt?: Date;
@@ -63,6 +65,13 @@ const CustomerSchema = new Schema<ICustomer>({
     },
     billingCycle: {
         type: String
+    },
+    attachments:{
+        type: [String]
+    },
+    isInstalled:{
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true

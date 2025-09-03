@@ -10,6 +10,7 @@ import { IptvInstallationRequest } from "../models/iptvInstallationRequest.model
 import { FibreInstallationRequest } from "../models/fibreInstallationRequest.model";
 import { CctvRequestModel, CctvStatus } from "../models/cctvRequest.model";
 import { RequestBill } from "../models/requestBill.model";
+import { CustomerModel } from "../models/customer.model";
 
 const signUp = async (req: Request, res: Response): Promise<any> => {
     console.log(req.body);
@@ -654,8 +655,21 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             isBillRequestSend = true;
         }
 
+        //is wifi installation request active or not
+        let wifiInstallationRequestActive = 1; // not active
+        const customer = await CustomerModel.findOne({ userId });
+
+        if(customer && customer.isInstalled) {
+            wifiInstallationRequestActive = 2;
+        }
 
         const result = {
+            wifiInstallationActive:{
+                wifiInstallationRequestActive,
+                installationDate:customer?.installationDate,
+                activationDate:customer?.activationDate,
+                expirationDate:customer?.expirationDate,
+            },
             installationStatus,
             cctv: cctvAds,
             wifi: wifiAds,
