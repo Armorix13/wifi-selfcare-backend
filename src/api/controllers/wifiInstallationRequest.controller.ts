@@ -459,6 +459,7 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
   try {
     // Extract and validate user ID from request
     const userId = req.userId;
+    const { isInstalled } = req.query; // Get isInstalled filter from query
 
     // Verify user is an engineer
     const engineer = await UserModel.findById(userId).select('role parentCompany');
@@ -476,6 +477,17 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
 
     const companyId = engineer.parentCompany;
 
+    // Build match conditions for the aggregation
+    const matchConditions: any = {
+      'application.assignedCompany': new mongoose.Types.ObjectId(companyId)
+    };
+
+    // Add isInstalled filter if provided
+    if (isInstalled !== undefined) {
+      const isInstalledValue = isInstalled === 'true' || isInstalled === '1';
+      matchConditions['customerDetails.isInstalled'] = isInstalledValue;
+    }
+
     const uniqueUsers = await WifiInstallationRequest.aggregate([
       {
         $lookup: {
@@ -489,9 +501,15 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
         $unwind: '$application'
       },
       {
-        $match: {
-          'application.assignedCompany': new mongoose.Types.ObjectId(companyId)
+        $lookup: {
+          from: 'customers',
+          localField: 'userId',
+          foreignField: 'userId',
+          as: 'customerDetails'
         }
+      },
+      {
+        $match: matchConditions
       },
       {
         $group: {
@@ -670,10 +688,25 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
       }
     ]);
 
+    // Filter results based on isInstalled status if provided
+    let filteredResults = uniqueUsers;
+    if (isInstalled !== undefined) {
+      const isInstalledValue = isInstalled === 'true' || isInstalled === '1';
+      filteredResults = uniqueUsers.filter(user => {
+        if (isInstalledValue) {
+          // For true: must have customer details and isInstalled must be true
+          return user.customer && user.customer.isInstalled === true;
+        } else {
+          // For false: either no customer details or isInstalled is false/null/undefined
+          return !user.customer || user.customer.isInstalled !== true;
+        }
+      });
+    }
+
     return sendSuccess(
       res,
-      uniqueUsers,
-      `Successfully fetched ${uniqueUsers.length} unique user${uniqueUsers.length !== 1 ? 's' : ''} with customer, service, and modem details`
+      filteredResults,
+      `Successfully fetched ${filteredResults.length} unique user${filteredResults.length !== 1 ? 's' : ''} with customer, service, and modem details`
     );
 
   } catch (error: any) {
