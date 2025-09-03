@@ -4,6 +4,8 @@ import { WifiInstallationRequest } from '../models/wifiInstallationRequest.model
 import { ApplicationForm } from '../models/applicationform.model';
 import { UserModel } from '../models/user.model';
 import { sendSuccess, sendError } from '../../utils/helper';
+import Modem from '../models/modem.model';
+import { CustomerModel } from '../models/customer.model';
 
 // TypeScript interfaces for better type safety
 interface AuthenticatedRequest extends Request {
@@ -135,13 +137,9 @@ export const addWifiInstallationRequest = async (req: Request, res: Response): P
 
 export const updateWifiInstallationRequestStatus = async (req: Request, res: Response): Promise<any> => {
   try {
-    // const userRole = (req as any).role;
-    // if (!['admin', 'superadmin', 'manager'].includes(userRole)) {
-    //   return sendError(res, 'Forbidden: Admins only', 403);
-    // }
 
     const { id } = req.params;
-    const { status, remarks, assignedEngineer, connectedToOlt, connectedToEndDevice } = req.body;
+    const { status, remarks, assignedEngineer, oltId, fdbId, modemName, ontType, modelNumber, serialNumber, ontMac, username, password } = req.body;
 
     console.log('Update request - ID:', id);
     console.log('Update request - Status:', status);
@@ -176,10 +174,31 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
       update.assignedEngineer = assignedEngineer;
     }
 
+    const request = await WifiInstallationRequest.findById(id);
+    if (!request) {
+      return sendError(res, 'Installation request not found', 404);
+    }
+
     if (status === 'approved') {
       update.approvedDate = new Date();
-      update.connectedToOlt = connectedToOlt;
-      update.connectedToEndDevice = connectedToEndDevice;
+      //adding modem data to modem model
+      await Modem.create({
+        userId: request.userId,
+        modemName: modemName,
+        ontType: ontType,
+        modelNumber: modelNumber,
+        serialNumber: serialNumber,
+        ontMac: ontMac,
+        username: username,
+        password: password
+      });
+
+      await CustomerModel.create({
+        userId: request.userId,
+        fdbId: fdbId,
+        oltId: oltId,
+        installationDate: Date.now()
+      });
     } else if (status === 'rejected') {
       update.approvedDate = null;
     }
@@ -432,6 +451,7 @@ export const deleteWifiInstallationRequest = async (req: Request, res: Response)
 /**
  * Get all unique users who have applied for installation requests in engineer's company
  * Only accessible by engineers
+ * Includes customer details and user model data
  */
 
 export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, res: Response): Promise<any> => {
@@ -496,27 +516,161 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
         $unwind: '$userDetails'
       },
       {
-        $project: {
-          _id: 1,
-          firstName: '$userDetails.firstName',
-          lastName: '$userDetails.lastName',
-          email: '$userDetails.email',
-          phoneNumber: '$userDetails.phoneNumber',
-          countryCode: '$userDetails.countryCode',
-          profileImage: '$userDetails.profileImage',
-          location: '$userDetails.location'
+        $lookup: {
+          from: 'customers',
+          localField: '_id',
+          foreignField: 'userId',
+          as: 'customerDetails'
         }
       },
       {
-        $sort: { firstName: 1 }
+        $lookup: {
+          from: 'fdbs',
+          localField: 'customerDetails.fdbId',
+          foreignField: '_id',
+          as: 'fdbDetails'
+        }
+      },
+             {
+         $lookup: {
+           from: 'olts',
+           localField: 'customerDetails.oltId',
+           foreignField: '_id',
+           as: 'oltDetails'
+         }
+       },
+       {
+         $lookup: {
+           from: 'modems',
+           localField: '_id',
+           foreignField: 'userId',
+           as: 'modemDetails'
+         }
+       },
+      {
+        $project: {
+          _id: 1,
+          // User Details
+          user: {
+            firstName: '$userDetails.firstName',
+            lastName: '$userDetails.lastName',
+            email: '$userDetails.email',
+            phoneNumber: '$userDetails.phoneNumber',
+            countryCode: '$userDetails.countryCode',
+            profileImage: '$userDetails.profileImage',
+            location: '$userDetails.location',
+            userName: '$userDetails.userName',
+            status: '$userDetails.status',
+            role: '$userDetails.role',
+            permanentAddress: '$userDetails.permanentAddress',
+            billingAddress: '$userDetails.billingAddress',
+            balanceDue: '$userDetails.balanceDue',
+            activationDate: '$userDetails.activationDate',
+            expirationDate: '$userDetails.expirationDate',
+            staticIp: '$userDetails.staticIp',
+            macIp: '$userDetails.macIp',
+            type: '$userDetails.type',
+            fatherName: '$userDetails.fatherName',
+            area: '$userDetails.area',
+            mode: '$userDetails.mode',
+            provider: '$userDetails.provider',
+            providerId: '$userDetails.providerId',
+            isAccountVerified: '$userDetails.isAccountVerified',
+            lastLogin: '$userDetails.lastLogin',
+            createdAt: '$userDetails.createdAt',
+            updatedAt: '$userDetails.updatedAt'
+          },
+          // Customer Details
+          customer: {
+            $cond: {
+              if: { $gt: [{ $size: '$customerDetails' }, 0] },
+              then: {
+                _id: { $arrayElemAt: ['$customerDetails._id', 0] },
+                fdbId: { $arrayElemAt: ['$customerDetails.fdbId', 0] },
+                oltId: { $arrayElemAt: ['$customerDetails.oltId', 0] },
+                installationDate: { $arrayElemAt: ['$customerDetails.installationDate', 0] },
+                activationDate: { $arrayElemAt: ['$customerDetails.activationDate', 0] },
+                expirationDate: { $arrayElemAt: ['$customerDetails.expirationDate', 0] },
+                balanceDue: { $arrayElemAt: ['$customerDetails.balanceDue', 0] },
+                lastPaymentDate: { $arrayElemAt: ['$customerDetails.lastPaymentDate', 0] },
+                lastPaymentAmount: { $arrayElemAt: ['$customerDetails.lastPaymentAmount', 0] },
+                billingCycle: { $arrayElemAt: ['$customerDetails.billingCycle', 0] },
+                isOverdue: { $arrayElemAt: ['$customerDetails.isOverdue', 0] },
+                createdAt: { $arrayElemAt: ['$customerDetails.createdAt', 0] },
+                updatedAt: { $arrayElemAt: ['$customerDetails.updatedAt', 0] }
+              },
+              else: null
+            }
+          },
+          // FDB Details
+          fdb: {
+            $cond: {
+              if: { $gt: [{ $size: '$fdbDetails' }, 0] },
+              then: {
+                _id: { $arrayElemAt: ['$fdbDetails._id', 0] },
+                fdbId: { $arrayElemAt: ['$fdbDetails.fdbId', 0] },
+                fdbName: { $arrayElemAt: ['$fdbDetails.fdbName', 0] },
+                fdbType: { $arrayElemAt: ['$fdbDetails.fdbType', 0] },
+                status: { $arrayElemAt: ['$fdbDetails.status', 0] },
+                location: { $arrayElemAt: ['$fdbDetails.location', 0] },
+                address: { $arrayElemAt: ['$fdbDetails.address', 0] },
+                city: { $arrayElemAt: ['$fdbDetails.city', 0] },
+                state: { $arrayElemAt: ['$fdbDetails.state', 0] }
+              },
+              else: null
+            }
+          },
+                     // OLT Details
+           olt: {
+             $cond: {
+               if: { $gt: [{ $size: '$oltDetails' }, 0] },
+               then: {
+                 _id: { $arrayElemAt: ['$oltDetails._id', 0] },
+                 oltId: { $arrayElemAt: ['$oltDetails.oltId', 0] },
+                 name: { $arrayElemAt: ['$oltDetails.name', 0] },
+                 oltIp: { $arrayElemAt: ['$oltDetails.oltIp', 0] },
+                 oltType: { $arrayElemAt: ['$oltDetails.oltType', 0] },
+                 status: { $arrayElemAt: ['$oltDetails.status', 0] },
+                 location: { $arrayElemAt: ['$oltDetails.location', 0] },
+                 address: { $arrayElemAt: ['$oltDetails.address', 0] },
+                 city: { $arrayElemAt: ['$oltDetails.city', 0] },
+                 state: { $arrayElemAt: ['$oltDetails.state', 0] }
+               },
+               else: null
+             }
+           },
+           // Modem Details
+           modem: {
+             $cond: {
+               if: { $gt: [{ $size: '$modemDetails' }, 0] },
+               then: {
+                 _id: { $arrayElemAt: ['$modemDetails._id', 0] },
+                 modemName: { $arrayElemAt: ['$modemDetails.modemName', 0] },
+                 ontType: { $arrayElemAt: ['$modemDetails.ontType', 0] },
+                 modelNumber: { $arrayElemAt: ['$modemDetails.modelNumber', 0] },
+                 serialNumber: { $arrayElemAt: ['$modemDetails.serialNumber', 0] },
+                 ontMac: { $arrayElemAt: ['$modemDetails.ontMac', 0] },
+                 username: { $arrayElemAt: ['$modemDetails.username', 0] },
+                 password: { $arrayElemAt: ['$modemDetails.password', 0] },
+                 isActive: { $arrayElemAt: ['$modemDetails.isActive', 0] },
+                 createdAt: { $arrayElemAt: ['$modemDetails.createdAt', 0] },
+                 updatedAt: { $arrayElemAt: ['$modemDetails.updatedAt', 0] }
+               },
+               else: null
+             }
+           }
+        }
+      },
+      {
+        $sort: { 'user.firstName': 1 }
       }
     ]);
 
-    return sendSuccess(
-      res,
-      uniqueUsers,
-      `Successfully fetched ${uniqueUsers.length} unique user${uniqueUsers.length !== 1 ? 's' : ''}`
-    );
+         return sendSuccess(
+       res,
+       uniqueUsers,
+       `Successfully fetched ${uniqueUsers.length} unique user${uniqueUsers.length !== 1 ? 's' : ''} with customer, service, and modem details`
+     );
 
   } catch (error: any) {
     console.error('Error in getAllUserInstallationRequests:', error);
