@@ -333,10 +333,33 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
         .populate('assignedEngineer', 'firstName lastName email phoneNumber')
         .sort({ createdAt: -1 });
 
-      const total = requests.length;
+      // For approved requests, fetch additional customer and modem details
+      const requestsWithDetails = await Promise.all(requests.map(async (request) => {
+        const requestObj = request.toObject();
+        
+        if (request.status === 'approved') {
+          // Fetch customer details
+          const customerDetails = await CustomerModel.findOne({ userId: request.userId })
+            .populate('fdbId', 'fdbName fdbType fdbPower latitude longitude input serialNumber powerStatus')
+            .populate('oltId', 'oltName oltType oltPower latitude longitude serialNumber powerStatus');
+
+          // Fetch modem details
+          const modemDetails = await Modem.findOne({ userId: request.userId });
+
+          return {
+            ...requestObj,
+            customerDetails: customerDetails || null,
+            modemDetails: modemDetails || null
+          };
+        }
+
+        return requestObj;
+      }));
+
+      const total = requestsWithDetails.length;
 
       return sendSuccess(res, {
-        requests,
+        requests: requestsWithDetails,
         total,
         message: 'All installation requests fetched successfully (no pagination)'
       }, 'All installation requests fetched successfully');
@@ -359,10 +382,33 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
       .skip(skip)
       .limit(Number(limit));
 
+    // For approved requests, fetch additional customer and modem details
+    const requestsWithDetails = await Promise.all(requests.map(async (request) => {
+      const requestObj = request.toObject();
+      
+      if (request.status === 'approved') {
+        // Fetch customer details
+        const customerDetails = await CustomerModel.findOne({ userId: request.userId })
+          .populate('fdbId', 'fdbName fdbType fdbPower latitude longitude input serialNumber powerStatus status attachments')
+          .populate('oltId', 'oltName oltType oltPower latitude longitude serialNumber powerStatus status');
+
+        // Fetch modem details
+        const modemDetails = await Modem.findOne({ userId: request.userId });
+
+        return {
+          ...requestObj,
+          customerDetails: customerDetails || null,
+          modemDetails: modemDetails || null
+        };
+      }
+
+      return requestObj;
+    }));
+
     const total = await WifiInstallationRequest.countDocuments(filter);
 
     return sendSuccess(res, {
-      requests,
+      requests: requestsWithDetails,
       pagination: {
         page: Number(page),
         limit: Number(limit),
