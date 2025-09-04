@@ -1162,193 +1162,25 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         };
       }));
 
-      // console.log("fdbWithTopology", fdbWithTopology);
-
-      // const customers = await UserModel.find({
-      //   role: "user",
-      //   assignedCompany:companyId
-      // }).select("_if firstName lastName email profileImage location countryCode phoneNumber");
-
-
-      // const installedCustomers = await CustomerModel.aggregate([
-      //   {
-      //     $match: {
-      //       isInstalled: true
-      //     }
-      //   },
-      //   {
-      //     $lookup: {
-      //       from: 'users',
-      //       localField: 'userId',
-      //       foreignField: '_id',
-      //       as: 'userDetails'
-      //     }
-      //   },
-      //   {
-      //     $unwind: '$userDetails'
-      //   },
-      //   {
-      //     $lookup: {
-      //       from: 'applicationforms',
-      //       localField: 'userDetails._id',
-      //       foreignField: 'userId',
-      //       as: 'applicationDetails'
-      //     }
-      //   },
-      //   {
-      //     $unwind: '$applicationDetails'
-      //   },
-      //   {
-      //     $match: {
-      //       'applicationDetails.assignedCompany': new mongoose.Types.ObjectId(companyId)
-      //     }
-      //   },
-      //   {
-      //     $lookup: {
-      //       from: 'olts',
-      //       localField: 'oltId',
-      //       foreignField: '_id',
-      //       as: 'oltDetails'
-      //     }
-      //   },
-      //   {
-      //     $lookup: {
-      //       from: 'fdbs',
-      //       localField: 'fdbId',
-      //       foreignField: '_id',
-      //       as: 'fdbDetails'
-      //     }
-      //   },
-      //   {
-      //     $lookup: {
-      //       from: 'modems',
-      //       localField: 'userId',
-      //       foreignField: 'userId',
-      //       as: 'modemDetails'
-      //     }
-      //   },
-      //   {
-      //     $project: {
-      //       _id: 1,
-      //       // Customer Details
-      //       customer: {
-      //         userId: '$userId',
-      //         installationDate: '$installationDate',
-      //         activationDate: '$activationDate',
-      //         expirationDate: '$expirationDate',
-      //         balanceDue: '$balanceDue',
-      //         lastPaymentDate: '$lastPaymentDate',
-      //         lastPaymentAmount: '$lastPaymentAmount',
-      //         billingCycle: '$billingCycle',
-      //         isInstalled: '$isInstalled',
-      //         attachments: '$attachments',
-      //         createdAt: '$createdAt',
-      //         updatedAt: '$updatedAt'
-      //       },
-      //       // User Details
-      //       user: {
-      //         _id: '$userDetails._id',
-      //         firstName: '$userDetails.firstName',
-      //         lastName: '$userDetails.lastName',
-      //         email: '$userDetails.email',
-      //         phoneNumber: '$userDetails.phoneNumber',
-      //         countryCode: '$userDetails.countryCode',
-      //         profileImage: '$userDetails.profileImage',
-      //         location: '$userDetails.location',
-      //         userName: '$userDetails.userName',
-      //         status: '$userDetails.status',
-      //         role: '$userDetails.role',
-      //         permanentAddress: '$userDetails.permanentAddress',
-      //         billingAddress: '$userDetails.billingAddress',
-      //         balanceDue: '$userDetails.balanceDue',
-      //         activationDate: '$userDetails.activationDate',
-      //         expirationDate: '$userDetails.expirationDate',
-      //         staticIp: '$userDetails.staticIp',
-      //         macIp: '$userDetails.macIp',
-      //         type: '$userDetails.type',
-      //         fatherName: '$userDetails.fatherName',
-      //         area: '$userDetails.area',
-      //         mode: '$userDetails.mode',
-      //         provider: '$userDetails.provider',
-      //         providerId: '$userDetails.providerId',
-      //         isAccountVerified: '$userDetails.isAccountVerified',
-      //         lastLogin: '$userDetails.lastLogin',
-      //         createdAt: '$userDetails.createdAt',
-      //         updatedAt: '$userDetails.updatedAt'
-      //       },
-      //       // OLT Details
-      //       olt: {
-      //         $cond: {
-      //           if: { $gt: [{ $size: '$oltDetails' }, 0] },
-      //           then: {
-      //             _id: { $arrayElemAt: ['$oltDetails._id', 0] },
-      //             oltId: { $arrayElemAt: ['$oltDetails.oltId', 0] },
-      //             name: { $arrayElemAt: ['$oltDetails.name', 0] },
-      //             oltIp: { $arrayElemAt: ['$oltDetails.oltIp', 0] },
-      //             oltType: { $arrayElemAt: ['$oltDetails.oltType', 0] },
-      //             status: { $arrayElemAt: ['$oltDetails.status', 0] },
-      //             location: { $arrayElemAt: ['$oltDetails.location', 0] },
-      //             address: { $arrayElemAt: ['$oltDetails.address', 0] },
-      //             city: { $arrayElemAt: ['$oltDetails.city', 0] },
-      //             state: { $arrayElemAt: ['$oltDetails.state', 0] }
-      //           },
-      //           else: null
-      //         }
-      //       },
-      //       // FDB Details
-      //       fdb: {
-      //         $cond: {
-      //           if: { $gt: [{ $size: '$fdbDetails' }, 0] },
-      //           then: {
-      //             _id: { $arrayElemAt: ['$fdbDetails._id', 0] },
-      //             fdbId: { $arrayElemAt: ['$fdbDetails.fdbId', 0] },
-      //             fdbName: { $arrayElemAt: ['$fdbDetails.fdbName', 0] },
-      //             fdbPower: { $arrayElemAt: ['$fdbDetails.fdbPower', 0] },
-      //             fdbType: { $arrayElemAt: ['$fdbDetails.fdbType', 0] },
-      //             status: { $arrayElemAt: ['$fdbDetails.status', 0] },
-      //             location: { $arrayElemAt: ['$fdbDetails.location', 0] },
-      //             address: { $arrayElemAt: ['$fdbDetails.address', 0] },
-      //             city: { $arrayElemAt: ['$fdbDetails.city', 0] },
-      //             state: { $arrayElemAt: ['$fdbDetails.state', 0] }
-      //           },
-      //           else: null
-      //         }
-      //       },
-      //       // Modem Details
-      //       modem: {
-      //         $cond: {
-      //           if: { $gt: [{ $size: '$modemDetails' }, 0] },
-      //           then: {
-      //             _id: { $arrayElemAt: ['$modemDetails._id', 0] },
-      //             modemName: { $arrayElemAt: ['$modemDetails.modemName', 0] },
-      //             ontType: { $arrayElemAt: ['$modemDetails.ontType', 0] },
-      //             modelNumber: { $arrayElemAt: ['$modemDetails.modelNumber', 0] },
-      //             serialNumber: { $arrayElemAt: ['$modemDetails.serialNumber', 0] },
-      //             ontMac: { $arrayElemAt: ['$modemDetails.ontMac', 0] },
-      //             username: { $arrayElemAt: ['$modemDetails.username', 0] },
-      //             password: { $arrayElemAt: ['$modemDetails.password', 0] },
-      //             isActive: { $arrayElemAt: ['$modemDetails.isActive', 0] },
-      //             createdAt: { $arrayElemAt: ['$modemDetails.createdAt', 0] },
-      //             updatedAt: { $arrayElemAt: ['$modemDetails.updatedAt', 0] }
-      //           },
-      //           else: null
-      //         }
-      //       }
-      //     }
-      //   },
-      //   {
-      //     $sort: { 'user.firstName': 1 }
-      //   }
-      // ]);
-
-      const customerData = await CustomerModel.find({
+      
+      let customerData = await CustomerModel.find({
         oltId: olt._id
       }).populate("userId","firstName lastName email profileImage location countryCode phoneNumber")
       .populate("fdbId");
-      // .populate("oltId")
 
-      console.log("customerData",customerData);
-      
+      const transformedCustomerData = customerData.map((c)=>{
+        const fdbData = c.fdbId as any; // Type assertion for populated data
+        return {
+          _id: c._id,
+          userId: c.userId,
+          input: fdbData.input,
+          // fdbPower: fdbData.fdbPower,
+          // fdbName: fdbData.fdbName,
+          // fdbId: fdbData.fdbId,
+          // location: fdbData.location,
+          // __v: c.__v
+        }
+      })
 
       
 
@@ -1366,7 +1198,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         fdb_devices: fdbWithTopology,
         subms_devices: submsWithTopology,
         x2_devices: x2WithTopology,
-        customers: customerData
+        customers: transformedCustomerData
       };
     }));
 
