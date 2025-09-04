@@ -7,6 +7,8 @@ import { UserModel } from '../models/user.model';
 import { sendSuccess, sendError } from '../../utils/helper';
 import Modem from '../models/modem.model';
 import { CustomerModel } from '../models/customer.model';
+import { OLTModel } from '../models/olt.model';
+import { FDBModel } from '../models/fdb.model';
 
 // TypeScript interfaces for better type safety
 interface AuthenticatedRequest extends Request {
@@ -157,6 +159,14 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
 
     const update: any = { status, remarks };
 
+    const fdb = await FDBModel.findOne({
+      fdbId: fdbId
+    });
+
+    if(!fdb) {
+      return sendError(res, 'FDB not found', 404);
+    }
+
     // Handle engineer assignment
     if (assignedEngineer) {
       // Validate ObjectId format for engineer
@@ -196,7 +206,7 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
 
       await CustomerModel.create({
         userId: request.userId,
-        fdbId: fdbId,
+        fdbId: fdb._id,
         oltId: oltId,
         installationDate: Date.now()
       });
