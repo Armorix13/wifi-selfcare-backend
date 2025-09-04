@@ -159,13 +159,7 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
 
     const update: any = { status, remarks };
 
-    const fdb = await FDBModel.findOne({
-      fdbId: fdbId
-    });
-
-    if(!fdb) {
-      return sendError(res, 'FDB not found', 404);
-    }
+  
 
     // Handle engineer assignment
     if (assignedEngineer) {
@@ -191,6 +185,14 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
     }
 
     if (status === 'approved') {
+      
+      const fdb = await FDBModel.findOne({
+        fdbId: fdbId
+      });
+  
+      if(!fdb) {
+        return sendError(res, 'FDB not found', 404);
+      }
       update.approvedDate = new Date();
       //adding modem data to modem model
       await Modem.create({
