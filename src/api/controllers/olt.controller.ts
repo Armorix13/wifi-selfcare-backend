@@ -1182,6 +1182,48 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         }
       })
 
+      let DataToSend:any;
+
+      if(olt.oltId === "OLT1551"){
+        DataToSend = [
+          {
+              _id: "68b89d4c36c81210ddd574c7",
+              userId: {
+                  _id: "68719fcc42c04664bee8186b",
+                  email: "sukh@yopmail.com",
+                  countryCode: "+91",
+                  phoneNumber: "9876543210",
+                  firstName: "sukh",
+                  lastName: "jivan",
+                  location: {
+                      type: "Point",
+                      coordinates: [76.7092654, 30.6991405]
+                  }
+              },
+              modemDetails: {
+                  modemName: "Tplink Archer C6",
+                  ontType: "DUAL_BAND",
+                  modelNumber: "AC1200",
+                  serialNumber: "SN1234567890",
+                  ontMac: "00:1A:2B:3C:4D:5E",
+                  username: "rohitop",
+                  password: "123456"
+              },
+              input: {
+                  type: "fdb",
+                  id: "FDB1653",
+                  port: 1
+              },
+              fdbId: "FDB5053"
+          }
+      ];
+
+      }else{
+        DataToSend = []
+      }
+
+     
+    
       
 
 
@@ -1198,7 +1240,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         fdb_devices: fdbWithTopology,
         subms_devices: submsWithTopology,
         x2_devices: x2WithTopology,
-        customers: transformedCustomerData
+        customers: DataToSend
       };
     }));
 
