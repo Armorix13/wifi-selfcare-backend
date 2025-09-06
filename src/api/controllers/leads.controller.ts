@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Leads, ILeads, LeadStatus, LeadPlatform } from "../models/leads.model";
 import { UserModel } from "../models/user.model";
+import { OLTModel } from "../models/olt.model";
 
 // Create a new lead
 export const createLead = async (req: Request, res: Response): Promise<any> => {
@@ -62,6 +63,8 @@ export const createLead = async (req: Request, res: Response): Promise<any> => {
       }
     }
 
+    
+
     // Create new lead
     const newLead = new Leads({
       byUserId,
@@ -83,11 +86,66 @@ export const createLead = async (req: Request, res: Response): Promise<any> => {
       contactAttempts: 0,
     });
 
+    // Handle assignment based on provided parameters
+    if (byUserId) {
+      // Manual assignment to specific user
+      newLead.assignedTo = byUserId;
+    } else if (byEngineerId) {
+      // Assignment to specific engineer
+      newLead.assignedTo = byEngineerId;
+    } else {
+      // If no specific user or engineer assigned, find nearest OLT and assign to its owner
+      const userLatitude = req.body.latitude;
+      const userLongitude = req.body.longitude;
+      
+      // Validate location coordinates
+      if (!userLatitude || !userLongitude) {
+        return res.status(400).json({
+          success: false,
+          message: "Latitude and longitude are required for automatic assignment",
+        });
+      }
+
+      try {
+        // Find the nearest OLT among ALL OLTs (no distance limit)
+        const nearestOLT = await OLTModel.findOne({
+          location: {
+            $near: {
+              $geometry: {
+                type: "Point",
+                coordinates: [userLongitude, userLatitude] // GeoJSON uses [lng, lat] order
+              }
+            }
+          },
+          ownedBy: { $exists: true } // Ensure OLT has an owner
+        }).populate('ownedBy', '_id');
+
+        if (nearestOLT && nearestOLT.ownedBy) {
+          // Assign lead to the OLT owner
+          newLead.assignedTo = nearestOLT.ownedBy as any;
+          
+          console.log(`Lead assigned to nearest OLT owner (OLT: ${nearestOLT.oltId})`);
+        } else {
+          // No OLT found, create untracked lead
+          console.log('No OLT found, creating untracked lead');
+          newLead.status = LeadStatus.UNTRACKED;
+          newLead.isTracked = false;
+        }
+      } catch (locationError) {
+        console.error('Error finding nearest OLT:', locationError);
+        // Fallback: create untracked lead
+        newLead.status = LeadStatus.UNTRACKED;
+        newLead.isTracked = false;
+      }
+    }
+
     const savedLead = await newLead.save();
 
     res.status(201).json({
       success: true,
-      message: "Lead created successfully",
+      message: savedLead.assignedTo 
+        ? "Lead created and assigned successfully"
+        : "Lead created successfully (untracked)",
       data: savedLead,
     });
   } catch (error) {
@@ -116,6 +174,11 @@ export const getAllLeads = async (req: Request, res: Response) => {
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
+
+    const companyId = (req as any).userId;
+
+
+
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
