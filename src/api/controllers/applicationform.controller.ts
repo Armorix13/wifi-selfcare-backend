@@ -78,6 +78,7 @@ export const applyApplication = async (req: Request, res: Response): Promise<any
         
         return sendSuccess(res, application, 'Application submitted successfully', 201);
     } catch (error: any) {
+        console.log("error",error);
         return sendError(res, 'Failed to submit application', 500, error.message || error);
     }
 };
