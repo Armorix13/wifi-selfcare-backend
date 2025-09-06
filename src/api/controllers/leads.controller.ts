@@ -86,15 +86,24 @@ export const createLead = async (req: Request, res: Response): Promise<any> => {
       contactAttempts: 0,
     });
 
+    if(byUserId){
+      newLead.byUserId = byUserId;
+    }
+
+    if(byEngineerId){
+      newLead.byEngineerId = byEngineerId;
+    }
+
     // Handle assignment based on provided parameters
-    if (byUserId) {
-      // Manual assignment to specific user
-      newLead.assignedTo = byUserId;
-    } else if (byEngineerId) {
-      // Assignment to specific engineer
-      newLead.assignedTo = byEngineerId;
-    } else {
+    // if (byUserId) {
+    //   // Manual assignment to specific user
+    //   newLead.assignedTo = byUserId;
+    // } else if (byEngineerId) {
+    //   // Assignment to specific engineer
+    //   newLead.assignedTo = byEngineerId;
+    // } else {
       // If no specific user or engineer assigned, find nearest OLT and assign to its owner
+      if(req.body.latitude && req.body.longitude){
       const userLatitude = req.body.latitude;
       const userLongitude = req.body.longitude;
       
