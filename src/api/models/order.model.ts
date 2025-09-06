@@ -23,6 +23,7 @@ export interface IOrder extends Document {
   paymentMethod: PaymentMethod;
   orderStatus: OrderStatus;
   totalAmount: number;
+  vLan?:string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +52,7 @@ const OrderSchema = new Schema<IOrder>({
   paymentMethod: { type: String, enum: ['cash_on_delivery', 'online', 'upi', 'card'], default: 'cash_on_delivery' },
   orderStatus: { type: String, enum: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'returned'], default: 'pending' },
   totalAmount: { type: Number, required: true, min: 0 },
+  vLan: { type: String }
 }, {
   timestamps: true,
 });

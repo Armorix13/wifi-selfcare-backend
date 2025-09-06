@@ -20,6 +20,9 @@ export interface ICustomer extends Document {
     attachments?: string[];
     isInstalled?: boolean;
 
+    consumedWire?: number;
+    remarks?: string;
+
 
     createdAt?: Date;
     updatedAt?: Date;
@@ -72,6 +75,12 @@ const CustomerSchema = new Schema<ICustomer>({
     isInstalled:{
         type: Boolean,
         default: false
+    },
+    remarks:{
+        type: String
+    },
+    consumedWire:{
+        type: Number
     }
 }, {
     timestamps: true

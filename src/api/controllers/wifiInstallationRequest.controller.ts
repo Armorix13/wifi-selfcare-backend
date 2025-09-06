@@ -213,6 +213,28 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
         oltId: oltId,
         installationDate: Date.now()
       });
+      
+      // Add user connection to FDB outputs
+      if(fdb._id){
+        try {
+          const fdbData = await FDBModel.findById(fdb._id);
+          if(fdbData){
+            // Add output connection to FDB
+            if (!fdbData.outputs) {
+              fdbData.outputs = [];
+            }
+            fdbData.outputs.push({
+              type: 'user',
+              id: request.userId.toString(),
+              description: `User connection for ${request.name || 'Customer'}`
+            });
+            await fdbData.save();
+          }
+        } catch (error) {
+          console.error('Error adding user to FDB outputs:', error);
+          // Continue execution as this is not critical for the main flow
+        }
+      }
       const user = await UserModel.findById(request.userId);
       if(user) {
         user.mtceFranchise = mtceFranchise;
@@ -684,7 +706,16 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
             isAccountVerified: '$userDetails.isAccountVerified',
             lastLogin: '$userDetails.lastLogin',
             createdAt: '$userDetails.createdAt',
-            updatedAt: '$userDetails.updatedAt'
+            updatedAt: '$userDetails.updatedAt',
+            mtceFranchise: '$userDetails.mtceFranchise',
+            bbUserId: '$userDetails.bbUserId',
+            ftthExchangePlan: '$userDetails.ftthExchangePlan',
+            bbPlan: '$userDetails.bbPlan',
+            workingStatus: '$userDetails.workingStatus',
+            ruralUrban: '$userDetails.ruralUrban',
+            acquisitionType: '$userDetails.acquisitionType',
+            consumedWire: '$userDetails.consumedWire',
+            remarks: '$userDetails.remarks'
           },
           // Customer Details
           customer: {
@@ -822,6 +853,7 @@ export const makeInstallationRequestActive = async (req: Request, res: Response)
   try {
     const engineerId = (req as any).userId;
     const { userId } = req.params;
+    const { consumedWire, remarks } = req.body;
 
     const request = await WifiInstallationRequest.findOne({
       userId: userId,
@@ -858,6 +890,8 @@ export const makeInstallationRequestActive = async (req: Request, res: Response)
       customer.isInstalled = true;
       customer.activationDate = new Date();
       customer.expirationDate = moment().add(1, 'month').toDate();
+      customer.consumedWire = consumedWire || 0;
+      customer.remarks = remarks || '';
       await customer.save();
     } else {
       return sendError(res, 'At least 3 images are required', 400);

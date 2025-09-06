@@ -30,7 +30,7 @@ enum FDBType {
 
 // Input/Output Interface for FDB connections
 interface IFDBConnection {
-  type: "olt" | "ms" | "subms" | "fdb" | "x2" | "other";
+  type: "olt" | "ms" | "subms" | "fdb" | "x2" | "other" | "user";
   id: string; // Reference ID
   port?: number; // Port number if applicable
   description?: string;
@@ -118,7 +118,7 @@ export interface IFDB extends Document {
 const FDBConnectionSchema = new Schema<IFDBConnection>({
   type: {
     type: String,
-    enum: ["olt", "ms", "subms", "fdb", "x2", "other"],
+    enum: ["olt", "ms", "subms", "fdb", "x2", "other", "user"],
     required: true
   },
   id: {
