@@ -177,26 +177,50 @@ export const getAllLeads = async (req: Request, res: Response) => {
 
     const companyId = (req as any).userId;
 
-
-
-
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build filter object
-    const filter: any = {};
+    // Get company users and engineers
+    const [companyUsers, companyEngineers] = await Promise.all([
+      UserModel.find({ assignedCompany: companyId }).select("_id"),
+      UserModel.find({ parentCompany: companyId }).select("_id")
+    ]);
+    
+    const companyUserIds = companyUsers.map(user => user._id);
+    const companyEngineerIds = companyEngineers.map(user => user._id);
 
-    if (status) filter.status = status;
-    if (leadPlatform) filter.leadPlatform = leadPlatform;
-    if (byUserId) filter.byUserId = byUserId;
-    if (byEngineerId) filter.byEngineerId = byEngineerId;
-    if (isTracked !== undefined) filter.isTracked = isTracked === 'true';
-    if (priority) filter.priority = priority;
+    // Build company-based filter for 3 scenarios:
+    // 1. byUserId is in our company users
+    // 2. byEngineerId is in our company engineers  
+    // 3. assignedTo is equal to our company ID
+    const companyFilter = {
+      $or: [
+        { byUserId: { $in: companyUserIds } },
+        { byEngineerId: { $in: companyEngineerIds } },
+        { assignedTo: companyId }
+      ]
+    };
+
+
+    
+
+
+
+
+    // Build additional filter object for query parameters
+    const additionalFilter: any = {};
+
+    if (status) additionalFilter.status = status;
+    if (leadPlatform) additionalFilter.leadPlatform = leadPlatform;
+    if (byUserId) additionalFilter.byUserId = byUserId;
+    if (byEngineerId) additionalFilter.byEngineerId = byEngineerId;
+    if (isTracked !== undefined) additionalFilter.isTracked = isTracked === 'true';
+    if (priority) additionalFilter.priority = priority;
 
     // Search functionality
     if (search) {
-      filter.$or = [
+      additionalFilter.$or = [
         { firstName: { $regex: search, $options: "i" } },
         { lastName: { $regex: search, $options: "i" } },
         { phoneNumber: { $regex: search, $options: "i" } },
@@ -207,12 +231,17 @@ export const getAllLeads = async (req: Request, res: Response) => {
       ];
     }
 
+    // Combine company filter with additional filters
+    const finalFilter = {
+      $and: [companyFilter, additionalFilter]
+    };
+
     // Build sort object
     const sort: any = {};
     sort[sortBy as string] = sortOrder === "desc" ? -1 : 1;
 
     // Get leads with pagination
-    const leads = await Leads.find(filter)
+    const leads = await Leads.find(finalFilter)
       .populate("byUserId", "firstName lastName email phoneNumber role")
       .populate("byEngineerId", "firstName lastName email phoneNumber role")
       .populate("assignedTo", "firstName lastName email phoneNumber role")
@@ -220,7 +249,7 @@ export const getAllLeads = async (req: Request, res: Response) => {
       .skip(skip)
       .limit(limitNum);
 
-    const totalLeads = await Leads.countDocuments(filter);
+    const totalLeads = await Leads.countDocuments(finalFilter);
     const totalPages = Math.ceil(totalLeads / limitNum);
 
     // Get comprehensive statistics
@@ -235,7 +264,7 @@ export const getAllLeads = async (req: Request, res: Response) => {
     ] = await Promise.all([
       // Status distribution
       Leads.aggregate([
-        { $match: filter },
+        { $match: finalFilter },
         {
           $group: {
             _id: "$status",
@@ -245,7 +274,7 @@ export const getAllLeads = async (req: Request, res: Response) => {
       ]),
       // Platform distribution
       Leads.aggregate([
-        { $match: filter },
+        { $match: finalFilter },
         {
           $group: {
             _id: "$leadPlatform",
@@ -255,7 +284,7 @@ export const getAllLeads = async (req: Request, res: Response) => {
       ]),
       // Tracking statistics
       Leads.aggregate([
-        { $match: filter },
+        { $match: finalFilter },
         {
           $group: {
             _id: null,
@@ -268,7 +297,7 @@ export const getAllLeads = async (req: Request, res: Response) => {
       ]),
       // Priority distribution
       Leads.aggregate([
-        { $match: filter },
+        { $match: finalFilter },
         {
           $group: {
             _id: "$priority",
@@ -278,21 +307,21 @@ export const getAllLeads = async (req: Request, res: Response) => {
       ]),
       // Today's leads
       Leads.countDocuments({
-        ...filter,
+        ...finalFilter,
         createdAt: {
           $gte: new Date(new Date().setHours(0, 0, 0, 0)),
         },
       }),
       // Monthly leads
       Leads.countDocuments({
-        ...filter,
+        ...finalFilter,
         createdAt: {
           $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         },
       }),
       // High priority leads
       Leads.countDocuments({
-        ...filter,
+        ...finalFilter,
         priority: "high",
       })
     ]);
