@@ -219,16 +219,26 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
         try {
           const fdbData = await FDBModel.findById(fdb._id);
           if(fdbData){
-            // Add output connection to FDB
+            // Initialize outputs array if it doesn't exist
             if (!fdbData.outputs) {
               fdbData.outputs = [];
             }
-            fdbData.outputs.push({
-              type: 'user',
-              id: request.userId.toString(),
-              description: `User connection for ${request.name || 'Customer'}`
-            });
-            await fdbData.save();
+            
+            // Check if user is already connected to prevent duplicates
+            const existingUserConnection = fdbData.outputs.find(
+              output => output.type === 'user' && output.id === request.userId.toString()
+            );
+            
+            if (!existingUserConnection) {
+              fdbData.outputs.push({
+                type: 'user',
+                id: request.userId.toString(),
+                description: `User connection for ${request.name || 'Customer'}`
+              });
+              await fdbData.save();
+            } else {
+              console.log(`User ${request.userId} is already connected to FDB ${fdb.fdbId}`);
+            }
           }
         } catch (error) {
           console.error('Error adding user to FDB outputs:', error);

@@ -425,8 +425,20 @@ FDBSchema.methods.addOutput = function(output: IFDBConnection) {
   if (!this.outputs) {
     this.outputs = [];
   }
-  this.outputs.push(output);
-  return this.save();
+  
+  // Check for duplicate connections to prevent security issues
+  const existingConnection = this.outputs.find(
+    (existing: IFDBConnection) => 
+      existing.type === output.type && existing.id === output.id
+  );
+  
+  if (!existingConnection) {
+    this.outputs.push(output);
+    return this.save();
+  } else {
+    console.log(`Connection already exists: ${output.type}:${output.id}`);
+    return Promise.resolve(this);
+  }
 };
 
   // Method to remove output connection

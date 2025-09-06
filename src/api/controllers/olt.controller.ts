@@ -16,6 +16,7 @@ import {
 import { UserModel } from "../models/user.model";
 import mongoose from "mongoose";
 import { CustomerModel } from "../models/customer.model";
+import Modem from "../models/modem.model";
 
 // ==================== UTILITY FUNCTIONS ====================
 
@@ -1115,7 +1116,13 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           input: fdb.input, // Keep the original input (either "olt", "ms", or "subms")
           attachments: fdb.attachments,
           outputs: [
-            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+            ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id })),
+            // Include existing user connections from FDB outputs
+            ...(fdb.outputs || []).filter(output => output.type === 'user').map(userOutput => ({
+              type: "user",
+              id: userOutput.id,
+              description: userOutput.description
+            }))
           ]
         };
       }));
@@ -1168,59 +1175,65 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
       }).populate("userId","firstName lastName email profileImage location countryCode phoneNumber")
       .populate("fdbId");
 
-      const transformedCustomerData = customerData.map((c)=>{
+      const transformedCustomerData = customerData.map(async(c)=>{
         const fdbData = c.fdbId as any; // Type assertion for populated data
+        const modemDetails = await Modem.findOne({
+          userId: c.userId
+        }).select("modemName ontType modelNumber serialNumber ontMac username password");
+
+        const input = {
+          type: "fdb",
+          id: fdbData.fdbId,
+          port: 1
+        }
         return {
           _id: c._id,
           userId: c.userId,
-          input: fdbData.input,
-          // fdbPower: fdbData.fdbPower,
-          // fdbName: fdbData.fdbName,
-          // fdbId: fdbData.fdbId,
-          // location: fdbData.location,
-          // __v: c.__v
+          fdbId: fdbData.fdbId,
+          input: input,
+          modemDetails: modemDetails,
         }
       })
 
-      let DataToSend:any;
+      // let DataToSend:any;
 
-      if(olt.oltId === "OLT1551"){
-        DataToSend = [
-          {
-              _id: "68b89d4c36c81210ddd574c7",
-              userId: {
-                  _id: "68719fcc42c04664bee8186b",
-                  email: "sukh@yopmail.com",
-                  countryCode: "+91",
-                  phoneNumber: "9876543210",
-                  firstName: "sukh",
-                  lastName: "jivan",
-                  location: {
-                      type: "Point",
-                      coordinates: [76.7092654, 30.6991405]
-                  }
-              },
-              modemDetails: {
-                  modemName: "Tplink Archer C6",
-                  ontType: "DUAL_BAND",
-                  modelNumber: "AC1200",
-                  serialNumber: "SN1234567890",
-                  ontMac: "00:1A:2B:3C:4D:5E",
-                  username: "rohitop",
-                  password: "123456"
-              },
-              input: {
-                  type: "fdb",
-                  id: "FDB1653",
-                  port: 1
-              },
-              fdbId: "FDB5053"
-          }
-      ];
+      // if(olt.oltId === "OLT1551"){
+      //   DataToSend = [
+      //     {
+      //         _id: "68b89d4c36c81210ddd574c7",
+      //         userId: {
+      //             _id: "68719fcc42c04664bee8186b",
+      //             email: "sukh@yopmail.com",
+      //             countryCode: "+91",
+      //             phoneNumber: "9876543210",
+      //             firstName: "sukh",
+      //             lastName: "jivan",
+      //             location: {
+      //                 type: "Point",
+      //                 coordinates: [76.7092654, 30.6991405]
+      //             }
+      //         },
+      //         modemDetails: {
+      //             modemName: "Tplink Archer C6",
+      //             ontType: "DUAL_BAND",
+      //             modelNumber: "AC1200",
+      //             serialNumber: "SN1234567890",
+      //             ontMac: "00:1A:2B:3C:4D:5E",
+      //             username: "rohitop",
+      //             password: "123456"
+      //         },
+      //         input: {
+      //             type: "fdb",
+      //             id: "FDB1653",
+      //             port: 1
+      //         },
+      //         fdbId: "FDB5053"
+      //     }
+      // ];
 
-      }else{
-        DataToSend = []
-      }
+      // }else{
+      //   DataToSend = []
+      // }
 
      
     
@@ -1240,7 +1253,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         fdb_devices: fdbWithTopology,
         subms_devices: submsWithTopology,
         x2_devices: x2WithTopology,
-        customers: DataToSend
+        customers: transformedCustomerData
       };
     }));
 
