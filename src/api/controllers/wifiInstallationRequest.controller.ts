@@ -142,7 +142,8 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
   try {
 
     const { id } = req.params;
-    const { status, remarks, assignedEngineer, oltId, fdbId, modemName, ontType, modelNumber, serialNumber, ontMac, username, password } = req.body;
+    const { status, remarks, assignedEngineer, oltId, fdbId, modemName, ontType, modelNumber, serialNumber, ontMac, username, password ,mtceFranchise,bbUserId,ftthExchangePlan,bbPlan,workingStatus,ruralUrban,
+      acquisitionType } = req.body;
 
     console.log('Update request - ID:', id);
     console.log('Update request - Status:', status);
@@ -212,6 +213,17 @@ export const updateWifiInstallationRequestStatus = async (req: Request, res: Res
         oltId: oltId,
         installationDate: Date.now()
       });
+      const user = await UserModel.findById(request.userId);
+      if(user) {
+        user.mtceFranchise = mtceFranchise;
+        user.bbUserId = bbUserId;
+        user.ftthExchangePlan = ftthExchangePlan;
+        user.bbPlan = bbPlan;
+        user.workingStatus = workingStatus;
+        user.ruralUrban = ruralUrban;
+        user.acquisitionType = acquisitionType;
+        await user.save();
+      }
     } else if (status === 'rejected') {
       update.approvedDate = null;
     }
@@ -397,10 +409,27 @@ export const getAllWifiInstallationRequests = async (req: Request, res: Response
         // Fetch modem details
         const modemDetails = await Modem.findOne({ userId: request.userId });
 
+        const userDetails = await UserModel.findById(request.userId);
+
+        if(!userDetails) {
+          return sendError(res, 'User not found', 404);
+        }
+
+        const businessInformationDetails = {
+          mtceFranchise: userDetails.mtceFranchise,
+        bbUserId: userDetails.bbUserId,
+        ftthExchangePlan: userDetails.ftthExchangePlan,
+        bbPlan: userDetails.bbPlan,
+        workingStatus: userDetails.workingStatus,
+        ruralUrban: userDetails.ruralUrban,
+        acquisitionType: userDetails.acquisitionType
+        }
+
         return {
           ...requestObj,
           customerDetails: customerDetails || null,
-          modemDetails: modemDetails || null
+          modemDetails: modemDetails || null,
+          businessInformationDetails: businessInformationDetails || null
         };
       }
 
