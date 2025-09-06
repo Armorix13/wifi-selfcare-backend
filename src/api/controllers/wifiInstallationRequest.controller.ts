@@ -579,6 +579,11 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
     // Extract and validate user ID from request
     const userId = req.userId;
     const { isInstalled } = req.query; // Get isInstalled filter from query
+    
+    // Validate isInstalled parameter if provided
+    if (isInstalled !== undefined && !['true', 'false', '1', '0'].includes(isInstalled as string)) {
+      return sendError(res, 'Invalid isInstalled parameter. Must be true, false, 1, or 0', 400);
+    }
 
     // Verify user is an engineer
     const engineer = await UserModel.findById(userId).select('role parentCompany');
@@ -602,10 +607,24 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
     };
 
     // Add isInstalled filter if provided
+    // Three scenarios:
+    // 1. isInstalled=true/1: Return only customers with isInstalled=true
+    // 2. isInstalled=false/0: Return customers with isInstalled=false/null or no customer record
+    // 3. No isInstalled parameter: Return all customers (both installed and non-installed)
     if (isInstalled !== undefined) {
       const isInstalledValue = isInstalled === 'true' || isInstalled === '1';
-      matchConditions['customerDetails.isInstalled'] = isInstalledValue;
+      if (isInstalledValue) {
+        // Scenario 1: Only installed customers
+        matchConditions['customerDetails.isInstalled'] = true;
+      } else {
+        // Scenario 2: Non-installed customers (no customer record OR isInstalled is false/null)
+        matchConditions['$or'] = [
+          { 'customerDetails': { $size: 0 } }, // No customer record
+          { 'customerDetails.isInstalled': { $ne: true } } // isInstalled is false/null/undefined
+        ];
+      }
     }
+    // Scenario 3: No isInstalled parameter - return all customers (no additional filter)
 
     const uniqueUsers = await WifiInstallationRequest.aggregate([
       {
@@ -816,25 +835,10 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
       }
     ]);
 
-    // Filter results based on isInstalled status if provided
-    let filteredResults = uniqueUsers;
-    if (isInstalled !== undefined) {
-      const isInstalledValue = isInstalled === 'true' || isInstalled === '1';
-      filteredResults = uniqueUsers.filter(user => {
-        if (isInstalledValue) {
-          // For true: must have customer details and isInstalled must be true
-          return user.customer && user.customer.isInstalled === true;
-        } else {
-          // For false: either no customer details or isInstalled is false/null/undefined
-          return !user.customer || user.customer.isInstalled !== true;
-        }
-      });
-    }
-
     return sendSuccess(
       res,
-      filteredResults,
-      `Successfully fetched ${filteredResults.length} unique user${filteredResults.length !== 1 ? 's' : ''} with customer, service, and modem details`
+      uniqueUsers,
+      `Successfully fetched ${uniqueUsers.length} unique user${uniqueUsers.length !== 1 ? 's' : ''} with customer, service, and modem details`
     );
 
   } catch (error: any) {

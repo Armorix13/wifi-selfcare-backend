@@ -28,11 +28,17 @@ export interface ICustomer extends Document {
     updatedAt?: Date;
 }
 
+// Interface for Customer Model with static methods
+export interface ICustomerModel extends Model<ICustomer> {
+    createOrUpdateCustomer(userId: mongoose.Types.ObjectId, customerData: Partial<ICustomer>): Promise<ICustomer>;
+}
+
 const CustomerSchema = new Schema<ICustomer>({
     userId: {
         type: Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: true,
+        unique: true // Ensure one customer per user
     },
 
     fdbId: {
@@ -86,6 +92,12 @@ const CustomerSchema = new Schema<ICustomer>({
     timestamps: true
 });
 
+// Indexes for better performance and data integrity
+CustomerSchema.index({ userId: 1 }, { unique: true }); // Unique index on userId
+CustomerSchema.index({ fdbId: 1 }); // Index for FDB lookups
+CustomerSchema.index({ oltId: 1 }); // Index for OLT lookups
+CustomerSchema.index({ isInstalled: 1 }); // Index for installation status
+
 
 // Virtual for isOverdue
 CustomerSchema.virtual('isOverdue').get(function () {
@@ -106,7 +118,27 @@ CustomerSchema.methods.addPayment = function (amount: number) {
     return this.save();
 };
 
+// Static method to safely create or update customer
+CustomerSchema.statics.createOrUpdateCustomer = async function(userId: mongoose.Types.ObjectId, customerData: Partial<ICustomer>) {
+    try {
+        // Try to find existing customer
+        const existingCustomer = await this.findOne({ userId });
+        
+        if (existingCustomer) {
+            // Update existing customer
+            Object.assign(existingCustomer, customerData);
+            return await existingCustomer.save();
+        } else {
+            // Create new customer
+            return await this.create({ userId, ...customerData });
+        }
+    } catch (error) {
+        console.error('Error in createOrUpdateCustomer:', error);
+        throw error;
+    }
+};
 
-const CustomerModel: Model<ICustomer> = mongoose.model<ICustomer>("Customer", CustomerSchema);
+
+const CustomerModel: ICustomerModel = mongoose.model<ICustomer, ICustomerModel>("Customer", CustomerSchema);
 
 export { CustomerModel };
