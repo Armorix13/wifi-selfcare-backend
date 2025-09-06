@@ -1238,7 +1238,10 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
      
     
       
+     let DataToSend = await Promise.all(transformedCustomerData);
 
+     console.log("DataToSend",DataToSend);
+     
 
       return {
         ...olt.toObject(),
@@ -1253,7 +1256,7 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
         fdb_devices: fdbWithTopology,
         subms_devices: submsWithTopology,
         x2_devices: x2WithTopology,
-        customers: transformedCustomerData
+        customers: DataToSend
       };
     }));
 
