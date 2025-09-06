@@ -4,6 +4,8 @@ import { ComplaintModel, ComplaintStatus, Priority } from "../models/complaint.m
 import { UserModel, Role } from "../models/user.model";
 import { sendSuccess, sendError, sendMessage } from "../../utils/helper";
 import { AssignEngineerBody, CreateComplaintBody, UpdateStatusBody, CloseComplaintBody } from "../../type/complaint.interface";
+import { CustomerModel } from "../models/customer.model";
+import Modem from "../models/modem.model";
 
 
 const validatePriority = (priority: string): boolean => {
@@ -17,6 +19,9 @@ const validateStatus = (status: string): boolean => {
 const createComplaint = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
+
+        console.log("userId",userId);
+        
         const { title, issueDescription, issueType, phoneNumber, attachments, complaintType, type }: CreateComplaintBody = req.body;
         console.log("createComplaint",req.body);
         
@@ -63,6 +68,7 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
         // if (![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
         //     return sendError(res, "Access denied. Admin/Manager access required", 403);
         // }
+
 
         const {
             status,
@@ -139,19 +145,26 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
 const getMyComplaints = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
+
+        console.log("user",userId);
+        
         const { status, page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc" } = req.query;
 
-        const filter: any = { user: userId };
+        const filter: any = { user: new mongoose.Types.ObjectId(userId) };
 
         if (status && validateStatus(status as string)) {
             filter.status = status;
         }
+
 
         // Build sort object
         const sort: any = {};
         sort[sortBy as string] = sortOrder === "desc" ? -1 : 1;
 
         const skip = (Number(page) - 1) * Number(limit);
+
+        console.log("filter",filter);
+        
 
         const complaints = await ComplaintModel.find(filter)
             .populate("engineer", "firstName lastName email phoneNumber")
@@ -275,6 +288,30 @@ const getComplaintById = async (req: Request, res: Response): Promise<any> => {
         complaintData.engineerAssignmentHistory = complaint.getEngineerAssignmentHistory();
         complaintData.statusHistoryCount = (complaint as any).statusHistoryCount;
         complaintData.latestStatusChange = (complaint as any).latestStatusChange;
+
+        // Get customer details for the complaint user (not the requesting user)
+        try {
+            const customerDetails = await CustomerModel.findOne({ userId: complaint.user._id })
+                .populate("fdbId", "fdbId fdbName fdbPower fdbType status location address city state")
+                .populate("oltId", "oltId name oltIp oltType status location address city state");
+            complaintData.customerDetails = customerDetails;
+        } catch (customerError) {
+            console.error("Error fetching customer details:", customerError);
+            complaintData.customerDetails = null;
+        }
+
+        // Get modem details for the complaint user (not the requesting user)
+        try {
+            const modem = await Modem.findOne({ userId: complaint.user._id });
+            complaintData.modemDetails = modem;
+        } catch (modemError) {
+            console.error("Error fetching modem details:", modemError);
+            complaintData.modemDetails = null;
+        }
+
+        // Add additional metadata
+        complaintData.hasCustomerDetails = !!complaintData.customerDetails;
+        complaintData.hasModemDetails = !!complaintData.modemDetails;
 
         return sendSuccess(res, { complaint: complaintData }, "Complaint retrieved successfully");
     } catch (error) {
