@@ -68,7 +68,31 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
         // if (![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
         //     return sendError(res, "Access denied. Admin/Manager access required", 403);
         // }
+        const companyId = (req as any).userId;
 
+        // Validate company ID
+        if (!mongoose.Types.ObjectId.isValid(companyId)) {
+            return sendError(res, "Invalid company ID", 400);
+        }
+
+        // Get all users assigned to this company
+        const getOurCompanyUsers = await UserModel.find({ assignedCompany: companyId }).select("_id");
+        const companyUserIds = getOurCompanyUsers.map(user => user._id);
+
+        console.log(`Found ${companyUserIds.length} users in company ${companyId}`);
+
+        // If no users found in company, return empty result
+        if (companyUserIds.length === 0) {
+            return sendSuccess(res, {
+                complaints: [],
+                pagination: {
+                    page: 1,
+                    limit: 10,
+                    total: 0,
+                    pages: 0
+                }
+            }, "No users found in your company");
+        }
 
         const {
             status,
@@ -83,8 +107,12 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
             sortOrder = "desc"
         } = req.query;
 
-        // Build filter object
-        const filter: any = {};
+        // Build filter object - only include complaints from users in our company
+        const filter: any = {
+            user: { $in: companyUserIds } // Filter complaints by company users only
+        };
+
+        console.log(`Filtering complaints for company users:`, companyUserIds);
 
         if (status && validateStatus(status as string)) {
             filter.status = status;
@@ -133,8 +161,13 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
                 limit: Number(limit),
                 total,
                 pages: Math.ceil(total / Number(limit))
+            },
+            companyInfo: {
+                companyId,
+                totalCompanyUsers: companyUserIds.length,
+                filteredByCompany: true
             }
-        }, "Complaints retrieved successfully");
+        }, `Complaints retrieved successfully for ${companyUserIds.length} company users`);
     } catch (error) {
         console.error("Get all complaints error:", error);
         return sendError(res, "Internal server error", 500, error);
@@ -525,15 +558,50 @@ const getAssignedComplaints = async (req: Request, res: Response): Promise<any> 
 const getComplaintStats = async (req: Request, res: Response): Promise<any> => {
     try {
         const userRole = (req as any).role;
+        const companyId = (req as any).userId;
 
         // Check admin permission
         if (![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
             return sendError(res, "Access denied. Admin access required", 403);
         }
 
+        // Validate company ID
+        if (!mongoose.Types.ObjectId.isValid(companyId)) {
+            return sendError(res, "Invalid company ID", 400);
+        }
+
+        // Get all users assigned to this company
+        const getOurCompanyUsers = await UserModel.find({ assignedCompany: companyId }).select("_id");
+        const companyUserIds = getOurCompanyUsers.map(user => user._id);
+
+        console.log(`Stats: Found ${companyUserIds.length} users in company ${companyId}`);
+
+        // If no users found in company, return empty stats
+        if (companyUserIds.length === 0) {
+            return sendSuccess(res, {
+                stats: {
+                    statusStats: [],
+                    typeStats: [],
+                    priorityStats: [],
+                    totalComplaints: 0,
+                    resolvedComplaints: 0,
+                    pendingComplaints: 0,
+                    resolutionRate: 0
+                },
+                companyInfo: {
+                    companyId,
+                    totalCompanyUsers: 0,
+                    filteredByCompany: true
+                }
+            }, "No users found in your company");
+        }
+
         const { startDate, endDate } = req.query;
 
-        const filter: any = {};
+        // Build filter with company user filtering
+        const filter: any = {
+            user: { $in: companyUserIds } // Filter by company users
+        };
 
         if (startDate || endDate) {
             filter.createdAt = {};
@@ -633,7 +701,14 @@ const getComplaintStats = async (req: Request, res: Response): Promise<any> => {
             }
         };
 
-        return sendSuccess(res, { stats }, "Complaint statistics retrieved successfully");
+        return sendSuccess(res, { 
+            stats,
+            companyInfo: {
+                companyId,
+                totalCompanyUsers: companyUserIds.length,
+                filteredByCompany: true
+            }
+        }, `Complaint statistics retrieved successfully for ${companyUserIds.length} company users`);
     } catch (error) {
         console.error("Get complaint stats error:", error);
         return sendError(res, "Internal server error", 500, error);
@@ -644,23 +719,60 @@ const getComplaintStats = async (req: Request, res: Response): Promise<any> => {
 const getDashboardData = async (req: Request, res: Response): Promise<any> => {
     try {
         const userRole = (req as any).role;
+        const companyId = (req as any).userId;
 
         // Check admin permission
         if (![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
             return sendError(res, "Access denied. Admin access required", 403);
         }
 
+        // Validate company ID
+        if (!mongoose.Types.ObjectId.isValid(companyId)) {
+            return sendError(res, "Invalid company ID", 400);
+        }
+
+        // Get all users assigned to this company
+        const getOurCompanyUsers = await UserModel.find({ assignedCompany: companyId }).select("_id");
+        const companyUserIds = getOurCompanyUsers.map(user => user._id);
+
+        console.log(`Dashboard: Found ${companyUserIds.length} users in company ${companyId}`);
+
+        // If no users found in company, return empty dashboard
+        if (companyUserIds.length === 0) {
+            return sendSuccess(res, {
+                dashboardData: {
+                    kpis: {
+                        totalComplaints: { value: 0, change: "0.0", trend: "neutral" },
+                        resolutionRate: { value: 0, change: "0.0", trend: "neutral" },
+                        avgResolutionTime: { value: 0, change: "0.0", trend: "neutral" },
+                        pendingIssues: { value: 0, change: "0.0", trend: "neutral" }
+                    },
+                    distributions: { status: [], type: [] },
+                    trends: { daily: [] },
+                    summary: { currentPeriod: {}, lastMonth: {} },
+                    additionalData: { priorityDistribution: [], topIssueTypes: [], engineerPerformance: [], recentActivity: [] }
+                },
+                companyInfo: {
+                    companyId,
+                    totalCompanyUsers: 0,
+                    filteredByCompany: true
+                }
+            }, "No users found in your company");
+        }
+
         const { startDate, endDate } = req.query;
 
-        // Current period filter
-        const currentFilter: any = {};
+        // Current period filter - include company user filter
+        const currentFilter: any = {
+            user: { $in: companyUserIds } // Filter by company users
+        };
         if (startDate || endDate) {
             currentFilter.createdAt = {};
             if (startDate) currentFilter.createdAt.$gte = new Date(startDate as string);
             if (endDate) currentFilter.createdAt.$lte = new Date(endDate as string);
         }
 
-        // Last month filter for comparison
+        // Last month filter for comparison - include company user filter
         const lastMonthStart = new Date();
         lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
         lastMonthStart.setDate(1);
@@ -671,6 +783,7 @@ const getDashboardData = async (req: Request, res: Response): Promise<any> => {
         lastMonthEnd.setHours(23, 59, 59, 999);
 
         const lastMonthFilter = {
+            user: { $in: companyUserIds }, // Filter by company users
             createdAt: {
                 $gte: lastMonthStart,
                 $lte: lastMonthEnd
@@ -774,7 +887,7 @@ const getDashboardData = async (req: Request, res: Response): Promise<any> => {
             { $sort: { count: -1 } }
         ]);
 
-        // 6. Daily Trends (Last 7 days)
+        // 6. Daily Trends (Last 7 days) - include company user filter
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         sevenDaysAgo.setHours(0, 0, 0, 0);
@@ -782,6 +895,7 @@ const getDashboardData = async (req: Request, res: Response): Promise<any> => {
         const dailyTrends = await ComplaintModel.aggregate([
             {
                 $match: {
+                    user: { $in: companyUserIds }, // Filter by company users
                     createdAt: { $gte: sevenDaysAgo }
                 }
             },
@@ -1019,7 +1133,14 @@ const getDashboardData = async (req: Request, res: Response): Promise<any> => {
             }))
         };
 
-        return sendSuccess(res, { dashboardData }, "Dashboard data retrieved successfully");
+        return sendSuccess(res, { 
+            dashboardData,
+            companyInfo: {
+                companyId,
+                totalCompanyUsers: companyUserIds.length,
+                filteredByCompany: true
+            }
+        }, `Dashboard data retrieved successfully for ${companyUserIds.length} company users`);
     } catch (error) {
         console.error("Get dashboard data error:", error);
         return sendError(res, "Internal server error", 500, error);
