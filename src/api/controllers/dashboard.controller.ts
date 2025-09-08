@@ -2659,7 +2659,7 @@ export const addUser = async (
       llInstallDate,
       bbPlan,
       workingStatus,
-      isInstalled = false
+      isInstalled = true
     } = req.body;
 
     const companyId = (req as any).userId;
