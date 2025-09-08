@@ -19,6 +19,8 @@ import { OttInstallationRequest } from '../models/ottInstallationRequest.model';
 import { FibreInstallationRequest } from '../models/fibreInstallationRequest.model';
 import { Leads } from '../models/leads.model';
 import { LeaveRequestModel } from '../models/leaveRequest.model';
+import { CustomerModel } from '../models/customer.model';
+import Modem from '../models/modem.model';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -2472,6 +2474,199 @@ export const approveRejectLeaveRequest = async (req: Request, res: Response, nex
   }
 };
 
+export const getUserManagementData = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+  const companyId = (req as any).userId;
+
+  const getOurCompanyUsers = await UserModel.find({ assignedCompany: companyId }).select("_id");
+
+  const companyUserIds = getOurCompanyUsers.map(user => user._id);
+
+  const customer = await CustomerModel.find({ userId: { $in: companyUserIds } })
+    .populate("userId", "_id name firstName lastName email phoneNumber profileImage permanentAddress billingAddress fatherName oltIp mtceFranchise category mobile bbUserId ftthExchangePlan bbPlan llInstallDate workingStatus assigned ruralUrban acquisitionType modemUserName modemPassword isActivated companyName companyAddress companyPhone")
+    .populate("fdbId")
+    .populate("oltId");
+
+  for(let i = 0; i < customer.length; i++){
+    const c = customer[i];
+    const modemDetails = await Modem.findOne({
+      userId: c.userId
+    }).select("modemName ontType modelNumber serialNumber ontMac username password");
+
+    const requestDetails = await WifiInstallationRequest.findOne({
+      userId: c.userId
+    });
+  }
+    
+  } catch (error) {
+    next(error); 
+  }
+}
+
+
+
+export const addUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<any> => {
+  try {
+    const {
+      email,
+      firstName,
+      lastName,
+      phoneNumber,
+      countryCode,
+      companyPreference,
+      permanentAddress,
+      residentialAddress,
+      landlineNumber,
+      modemName,
+      ontType,
+      modelNumber,
+      serialNumber,
+      ontMac,
+      username,
+      password,
+      fdbId,
+      oltId,
+      mtceFranchise,
+      bbUserId,
+      bbPassword,
+      ruralUrban, 
+      acquisitionType, 
+      category, 
+      ftthExchangePlan,
+      llInstallDate,
+      bbPlan,
+      workingStatus,
+      isInstalled = false
+    } = req.body;
+
+    const companyId = (req as any).userId;
+
+    // Check if user already exists
+    const checkUser = await UserModel.findOne({ email });
+    if(checkUser){
+      return res.status(400).json({
+        success: false,
+        message: "User already exists"
+      });
+    }
+
+    // Check if landline number already exists
+    const checkLandLine = await UserModel.findOne({ landlineNumber });
+    if(checkLandLine){
+      return res.status(400).json({
+        success: false,
+        message: "Landline number already exists"
+      });
+    }
+    
+    // Generate random password using a-z and 0-9
+    const generatedPassword = generateRandomPassword(8);
+    
+    // Prepare user data
+    const userData = {
+      email,
+      firstName,
+      lastName,
+      phoneNumber,
+      countryCode,
+      companyPreference,
+      permanentAddress,
+      residentialAddress,
+      landlineNumber,
+      role: "user",
+      mtceFranchise,
+      bbUserId,
+      bbPassword,
+      ruralUrban,
+      acquisitionType,
+      category,
+      ftthExchangePlan,
+      llInstallDate,
+      bbPlan,
+      workingStatus,
+      assignedCompany:companyId,
+      password:generatedPassword
+    };
+
+    // Use database transaction to ensure atomicity
+    const session = await UserModel.startSession();
+    
+    try {
+      const result = await session.withTransaction(async () => {
+        // Create new user
+        const newUser = new UserModel(userData);
+        await newUser.save({ session });
+
+        // Execute modem and customer creation atomically using Promise.all
+        const [modemResult, customerResult] = await Promise.all([
+          Modem.create([{
+            userId: newUser._id,
+            modemName,
+            ontType,
+            modelNumber,
+            serialNumber,
+            ontMac,
+            username,
+            password
+          }], { session }),
+          CustomerModel.create([{
+            userId: newUser._id,
+            fdbId,
+            oltId,
+            isInstalled: isInstalled
+          }], { session })
+        ]);
+
+        // Return all created records
+        return {
+          newUser,
+          modemResult: modemResult[0],
+          customerResult: customerResult[0]
+        };
+      });
+
+      // Send email with credentials (this can fail without affecting the main operation)
+      try {
+        await sendMessage.sendEmail({
+          userEmail: email,
+          subject: "Welcome to WiFi Selfcare - Your Account Credentials",
+          text: `Welcome ${firstName}! Your account has been created. Email: ${email}, Password: ${generatedPassword}`,
+          html: generateEngineerCredentialsEmail(email, generatedPassword, firstName)
+        });
+      } catch (emailError) {
+        console.error("Failed to send email:", emailError);
+        // Don't fail the entire operation if email fails
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: "User added successfully. Credentials have been sent to the user's email.",
+        data: {
+          userId: result.newUser._id,
+          email: result.newUser.email,
+          firstName: result.newUser.firstName,
+          lastName: result.newUser.lastName,
+          modemId: result.modemResult._id,
+          customerId: result.customerResult._id
+        }
+      });
+
+    } catch (transactionError) {
+      console.error("Transaction failed:", transactionError);
+      throw transactionError;
+    } finally {
+      await session.endSession();
+    }
+
+  } catch (error) {
+    console.error("Error in addUser:", error);
+    next(error);
+  }
+};
 
 
 

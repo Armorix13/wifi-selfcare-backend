@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload, excelUpload } from '../services/upload.service';
-import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest } from '../controllers/dashboard.controller';
+import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser } from '../controllers/dashboard.controller';
 import { getAllOltTOAdminPanel } from '../controllers/olt.controller';
 
 const dashboardRoute = Router();
@@ -15,6 +15,9 @@ dashboardRoute.get('/engineers/:id', authenticate, getEngineerById);
 dashboardRoute.post('/add-engineer', authenticate, upload.single('profileImage'), addEngineer);
 dashboardRoute.put('/update-engineer', authenticate, upload.single('profileImage'), updateEngineer);
 dashboardRoute.delete('/engineers/:id', authenticate, deleteEngineer);
+
+// User Management Routes
+dashboardRoute.post('/add-user', authenticate, addUser);
 
 // Engineer Complaint Routes
 dashboardRoute.get('/engineer-complaints', authenticate, getAllComplaintForEnginer);

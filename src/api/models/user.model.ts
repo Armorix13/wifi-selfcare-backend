@@ -22,10 +22,10 @@ enum Mode {
 
 interface IGeoPoint {
   type: "Point";
-  coordinates: [number, number]; 
+  coordinates: [number, number];
 }
 
-type CompanyPreference = string; 
+type CompanyPreference = string;
 
 export interface IUser extends Document {
   email: string;
@@ -47,6 +47,7 @@ export interface IUser extends Document {
   group?: string;
   zone?: string;
   permanentAddress?: string;
+  residentialAddress?: string;
   billingAddress?: string;
   balanceDue?: number;
   activationDate?: Date;
@@ -55,6 +56,7 @@ export interface IUser extends Document {
   macIp?: string;
   type?: string;
   fatherName?: string;
+  landlineNumber?: string;
   area?: AreaType;
   mode?: Mode;
   provider?: string;
@@ -74,7 +76,7 @@ export interface IUser extends Document {
   password?: string;
   createdAt?: Date;
   updatedAt?: Date;
-  
+
   // New fields from Excel sheet
   oltIp?: string; // OLT_IP - Optical Line Terminal IP address
   mtceFranchise?: string; // MTCE_FRANCHISE - Maintenance Franchise
@@ -90,8 +92,8 @@ export interface IUser extends Document {
   acquisitionType?: string; // ACQUISITION_TYPE
   modemUserName?: string; // MODEN_USER_NAME
   modemPassword?: string; // MODEN_PASSWORD
-  addedBy?:  mongoose.Types.ObjectId; // ADDED_BY
-  parentCompany?:  mongoose.Types.ObjectId; // ADDED_BY
+  addedBy?: mongoose.Types.ObjectId; // ADDED_BY
+  parentCompany?: mongoose.Types.ObjectId; // ADDED_BY
   isActivated?: boolean; // IS_ACTIVATED
 
   //for admin(company) details
@@ -102,7 +104,7 @@ export interface IUser extends Document {
   companyWebsite?: string;
   companyLogo?: string;
   companyDescription?: string;
-  
+
   // Enhanced company details
   contactPerson?: string;
   industry?: string;
@@ -110,10 +112,10 @@ export interface IUser extends Document {
   companyCity?: string;
   companyState?: string;
   companyCountry?: string;
-  
+
   // Internet providers array
   internetProviders?: string[];
-  
+
   // Customer-specific fields for fiber network
   customerId?: string; // Auto-generated customer ID (e.g., CUS1234)
   customerType?: string; // residential, commercial, enterprise
@@ -124,16 +126,7 @@ export interface IUser extends Document {
   lastBillingDate?: Date; // Last billing date
   assignedEngineer?: mongoose.Types.ObjectId; // Reference to engineer
   assignedCompany?: mongoose.Types.ObjectId; // Reference to company
-  
-  // Network connection fields
-  networkInput?: {
-    type: "x2" | "fdb" | "subms";
-    id: string;
-  };
-  networkOutputs?: Array<{
-    type: "x2" | "fdb" | "subms";
-    id: string;
-  }>;
+
 }
 
 // Interface for static methods
@@ -155,7 +148,7 @@ const GeoPointSchema = new Schema<IGeoPoint>({
 }, { _id: false });
 
 const UserSchema = new Schema<IUser>({
-  email: { type: String},
+  email: { type: String },
   countryCode: { type: String },
   phoneNumber: { type: String },
   lat: { type: Number },
@@ -165,14 +158,15 @@ const UserSchema = new Schema<IUser>({
   location: { type: GeoPointSchema },
   language: { type: String },
   companyPreference: { type: String },
-  country: { type: String},
+  country: { type: String },
   userName: { type: String },
   firstName: { type: String },
-  lastName: { type: String},
+  lastName: { type: String },
   status: { type: String },
   group: { type: String },
   zone: { type: String },
   permanentAddress: { type: String },
+  residentialAddress: { type: String },
   billingAddress: { type: String },
   balanceDue: { type: Number, default: 0 },
   activationDate: { type: Date },
@@ -181,6 +175,7 @@ const UserSchema = new Schema<IUser>({
   macIp: { type: String },
   type: { type: String },
   fatherName: { type: String },
+  landlineNumber: { type: String },
   area: { type: String, enum: Object.values(AreaType) },
   mode: { type: String, enum: Object.values(Mode) },
   provider: { type: String },
@@ -207,7 +202,7 @@ const UserSchema = new Schema<IUser>({
   companyWebsite: { type: String },
   companyLogo: { type: String },
   companyDescription: { type: String },
-  
+
   // Enhanced company details
   contactPerson: { type: String },
   industry: { type: String },
@@ -215,10 +210,10 @@ const UserSchema = new Schema<IUser>({
   companyCity: { type: String },
   companyState: { type: String },
   companyCountry: { type: String },
-  
+
   // Internet providers array
   internetProviders: [{ type: String }],
-  
+
   // Customer-specific fields for fiber network
   customerId: { type: String, unique: true, sparse: true },
   customerType: { type: String, enum: ["residential", "commercial", "enterprise"] },
@@ -236,24 +231,9 @@ const UserSchema = new Schema<IUser>({
     type: Schema.Types.ObjectId,
     ref: "User"
   },
-  
-  // Network connection fields
-  networkInput: {
-    type: {
-      type: String,
-      enum: ["x2", "fdb", "subms","ms"]
-    },
-    id: { type: String }
-  },
-  networkOutputs: [{
-    type: {
-      type: String,
-      enum: ["x2", "fdb", "subms","ms"]
-    },
-    id: { type: String }
-  }],
 
-  
+
+
   // New fields from Excel sheet
   oltIp: { type: String }, // OLT_IP - Optical Line Terminal IP address
   mtceFranchise: { type: String }, // MTCE_FRANCHISE - Maintenance Franchise
@@ -266,20 +246,20 @@ const UserSchema = new Schema<IUser>({
   workingStatus: { type: String }, // WKG_ST - Working Status
   ruralUrban: { type: String }, // RURAL_UR - Rural/Urban
   acquisitionType: { type: String }, // ACQUISITION_TYPE
-  modemUserName:{type:String},
-  modemPassword:{type:String},
+  modemUserName: { type: String },
+  modemPassword: { type: String },
   assigned: { type: String }, // ASSIGNED
 
-  addedBy:{
+  addedBy: {
     type: Schema.Types.ObjectId,
     ref: "User"
   },
   //for engineer under which admin
-  parentCompany :{
+  parentCompany: {
     type: Schema.Types.ObjectId,
-    ref: "User" 
+    ref: "User"
   },
-  isActivated:{
+  isActivated: {
     type: Boolean,
     default: false
   }
@@ -290,7 +270,7 @@ const UserSchema = new Schema<IUser>({
 //UNIQUE ID FOR ENGINEER,ADMIN,
 
 // Pre-save middleware
-UserSchema.pre('save', function(next) {
+UserSchema.pre('save', function (next) {
   // Auto-generate customerId for users with role "user" if not provided
   if (this.role === "user" && !this.customerId) {
     const timestamp = Date.now().toString().slice(-4);
@@ -316,7 +296,7 @@ UserSchema.index({ "networkInput.id": 1 });
 UserSchema.index({ "networkOutputs.id": 1 });
 
 // Static methods for customer queries
-UserSchema.statics.findCustomersByLocation = function(latitude: number, longitude: number, maxDistance: number = 10000) {
+UserSchema.statics.findCustomersByLocation = function (latitude: number, longitude: number, maxDistance: number = 10000) {
   return this.find({
     role: "user",
     location: {
@@ -331,11 +311,11 @@ UserSchema.statics.findCustomersByLocation = function(latitude: number, longitud
   });
 };
 
-UserSchema.statics.findCustomersByStatus = function(status: string) {
+UserSchema.statics.findCustomersByStatus = function (status: string) {
   return this.find({ role: "user", status });
 };
 
-UserSchema.statics.findCustomersByType = function(customerType: string) {
+UserSchema.statics.findCustomersByType = function (customerType: string) {
   return this.find({ role: "user", customerType });
 };
 
