@@ -2478,18 +2478,149 @@ export const approveRejectLeaveRequest = async (req: Request, res: Response, nex
 
 export const getUserManagementData = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-  const companyId = (req as any).userId;
-
-  const getOurCompanyUsers = await UserModel.find({ assignedCompany: companyId }).select("_id");
-
-  const userManagementData = await UserModel.find({ assignedCompany: companyId ,role:Role.USER
-   }).select("_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus");
-
+    const companyId = (req as any).userId;
     
-  } catch (error) {
-    next(error); 
+    // Get pagination parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    // Get customer data first to find which users have customer records
+    const customerData = await CustomerModel.find({
+      userId: { $exists: true }
+    }).select("_id userId fdbId oltId isInstalled createdAt updatedAt")
+      .populate('fdbId', 'fdbId fdbName')
+      .populate('oltId', 'oltId oltName');
+
+    // Extract user IDs from customer data
+    const userIds = customerData.map(customer => customer.userId as any);
+
+    // Get total count for pagination (all users with customer records)
+    const totalUsersCount = await UserModel.countDocuments({ 
+      _id: { $in: userIds },
+      assignedCompany: companyId,
+      role: Role.USER
+    });
+
+    // Get paginated users who have customer records
+    const userManagementData = await UserModel.find({ 
+      _id: { $in: userIds },
+      assignedCompany: companyId,
+      role: Role.USER
+    }).select("_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus createdAt updatedAt")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Get modem data for these users
+    const modemData = await Modem.find({
+      userId: { $in: userIds }
+    }).select("_id userId modemName ontType modelNumber serialNumber ontMac username password createdAt updatedAt");
+
+    // Combine user data with customer and modem information
+    const combinedData = userManagementData.map((user, index) => {
+      const customer = customerData.find(c => c.userId.toString() === userIds[index].toString());
+      const modem = modemData.find(m => m.userId.toString() === userIds[index].toString());
+
+      return {
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          companyPreference: user.companyPreference,
+          permanentAddress: user.permanentAddress,
+          residentialAddress: user.residentialAddress,
+          landlineNumber: user.landlineNumber,
+          mtceFranchise: user.mtceFranchise,
+          bbUserId: user.bbUserId,
+          bbPassword: user.bbPassword,
+          ruralUrban: user.ruralUrban,
+          acquisitionType: user.acquisitionType,
+          category: user.category,
+          ftthExchangePlan: user.ftthExchangePlan,
+          llInstallDate: user.llInstallDate,
+          bbPlan: user.bbPlan,
+          workingStatus: user.workingStatus,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        },
+        customer: customer ? {
+          _id: customer._id,
+          fdbId: customer.fdbId,
+          oltId: customer.oltId,
+          isInstalled: customer.isInstalled,
+          createdAt: customer.createdAt,
+          updatedAt: customer.updatedAt
+        } : null,
+        modem: modem ? {
+          _id: modem._id,
+          modemName: modem.modemName,
+          ontType: modem.ontType,
+          modelNumber: modem.modelNumber,
+          serialNumber: modem.serialNumber,
+          ontMac: modem.ontMac,
+          username: modem.username,
+          password: modem.password,
+          createdAt: modem.createdAt,
+          updatedAt: modem.updatedAt
+        } : null
+      };
+    });
+
+    // Calculate summary statistics (GLOBAL - from ALL users, not just current page)
+    const totalUsers = totalUsersCount;
+    const usersWithCustomerData = totalUsers; // All users have customer data since we filtered by it
+    
+    // Get ALL modem data for global statistics
+    const allModemData = await Modem.find({
+      userId: { $in: userIds }
+    }).select("_id userId");
+    
+    const usersWithModemData = allModemData.length;
+    
+    // Get ALL customer data for global statistics
+    const allCustomerData = await CustomerModel.find({
+      userId: { $in: userIds }
+    }).select("_id userId isInstalled");
+    
+    const installedUsers = allCustomerData.filter(customer => customer.isInstalled === true).length;
+    const pendingInstallation = allCustomerData.filter(customer => customer.isInstalled === false).length;
+    
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalUsersCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    const response = {
+      summary: {
+        totalUsers,
+        usersWithCustomerData,
+        usersWithModemData,
+        installedUsers,
+        pendingInstallation,
+        usersWithoutCustomerData: totalUsers - usersWithCustomerData,
+        usersWithoutModemData: totalUsers - usersWithModemData
+      },
+      users: combinedData,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalUsers: totalUsersCount,
+        usersPerPage: limit,
+        hasNextPage,
+        hasPrevPage
+      }
+    };
+
+    return sendSuccess(res, response, 'User management data fetched successfully');
+
+  } catch (error: any) {
+    console.error("Error in getUserManagementData:", error);
+    return sendError(res, 'Failed to fetch user management data', 500, error);
   }
-}
+};
 
 
 
