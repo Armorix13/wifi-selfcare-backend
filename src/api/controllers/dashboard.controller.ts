@@ -2,11 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import Product from '../models/product.model';
 import Order from '../models/order.model';
 import { CategoryModel } from '../models/category.model';
-import { UserModel } from '../models/user.model';
+import { Role, UserModel } from '../models/user.model';
 import { IptvPlan } from '../models/iptvPlan.model';
 import { OttPlan } from '../models/ottPlan.model';
 import { Plan } from '../models/plan.model';
-import { sendSuccess, sendError, generateOtp, hashPassword, generateRandomPassword, sendMessage, generateEngineerCredentialsEmail } from '../../utils/helper';
+import { sendSuccess, sendError, generateOtp, hashPassword, generateRandomPassword, sendMessage, generateEngineerCredentialsEmail, generateUserCredentialsEmail } from '../../utils/helper';
 import { ComplaintModel, ComplaintStatus } from '../models/complaint.model';
 import { EngineerAttendanceModel } from '../models/engineerAttendance.model';
 import * as XLSX from 'xlsx';
@@ -2480,23 +2480,9 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
 
   const getOurCompanyUsers = await UserModel.find({ assignedCompany: companyId }).select("_id");
 
-  const companyUserIds = getOurCompanyUsers.map(user => user._id);
+  const userManagementData = await UserModel.find({ assignedCompany: companyId ,role:Role.USER
+   }).select("_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus");
 
-  const customer = await CustomerModel.find({ userId: { $in: companyUserIds } })
-    .populate("userId", "_id name firstName lastName email phoneNumber profileImage permanentAddress billingAddress fatherName oltIp mtceFranchise category mobile bbUserId ftthExchangePlan bbPlan llInstallDate workingStatus assigned ruralUrban acquisitionType modemUserName modemPassword isActivated companyName companyAddress companyPhone")
-    .populate("fdbId")
-    .populate("oltId");
-
-  for(let i = 0; i < customer.length; i++){
-    const c = customer[i];
-    const modemDetails = await Modem.findOne({
-      userId: c.userId
-    }).select("modemName ontType modelNumber serialNumber ontMac username password");
-
-    const requestDetails = await WifiInstallationRequest.findOne({
-      userId: c.userId
-    });
-  }
     
   } catch (error) {
     next(error); 
@@ -2565,6 +2551,7 @@ export const addUser = async (
     
     // Generate random password using a-z and 0-9
     const generatedPassword = generateRandomPassword(8);
+    const hashedPassword = await hashPassword(generatedPassword);
     
     // Prepare user data
     const userData = {
@@ -2589,7 +2576,10 @@ export const addUser = async (
       bbPlan,
       workingStatus,
       assignedCompany:companyId,
-      password:generatedPassword
+      password:hashedPassword,
+      isAccountVerified:true,
+      isDeactivated:false,
+      isSuspended:false
     };
 
     // Use database transaction to ensure atomicity
@@ -2635,7 +2625,7 @@ export const addUser = async (
           userEmail: email,
           subject: "Welcome to WiFi Selfcare - Your Account Credentials",
           text: `Welcome ${firstName}! Your account has been created. Email: ${email}, Password: ${generatedPassword}`,
-          html: generateEngineerCredentialsEmail(email, generatedPassword, firstName)
+          html: generateUserCredentialsEmail(email, generatedPassword, firstName)
         });
       } catch (emailError) {
         console.error("Failed to send email:", emailError);
