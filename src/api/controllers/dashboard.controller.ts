@@ -21,6 +21,8 @@ import { Leads } from '../models/leads.model';
 import { LeaveRequestModel } from '../models/leaveRequest.model';
 import { CustomerModel } from '../models/customer.model';
 import Modem from '../models/modem.model';
+import { OLTModel } from '../models/olt.model';
+import { FDBModel } from '../models/fdb.model';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -2582,6 +2584,23 @@ export const addUser = async (
       isSuspended:false
     };
 
+    // Validate OLT and FDB before starting transaction
+    const olt = await OLTModel.findOne({oltId});
+    if(!olt){
+      return res.status(400).json({
+        success: false,
+        message: "OLT not found"
+      });
+    }
+
+    const fdb = await FDBModel.findOne({fdbId});
+    if(!fdb){
+      return res.status(400).json({
+        success: false,
+        message: "FDB not found"
+      });
+    }
+
     // Use database transaction to ensure atomicity
     const session = await UserModel.startSession();
     
@@ -2605,8 +2624,8 @@ export const addUser = async (
           }], { session }),
           CustomerModel.create([{
             userId: newUser._id,
-            fdbId,
-            oltId,
+            fdbId:fdb._id,
+            oltId:olt._id,
             isInstalled: isInstalled
           }], { session })
         ]);
