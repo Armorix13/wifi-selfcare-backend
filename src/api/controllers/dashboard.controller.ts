@@ -2485,6 +2485,58 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
+    const qry: any = {};
+
+
+    // Handle search functionality
+    let userIdsToSearch = [];
+    if(req.query.search){
+      const searchTerm = req.query.search as string;
+      
+      // Search in User collection
+      const userSearchQuery = {
+        $or: [
+          { firstName: { $regex: searchTerm, $options: 'i' } },
+          { lastName: { $regex: searchTerm, $options: 'i' } },
+          { email: { $regex: searchTerm, $options: 'i' } },
+          { phoneNumber: { $regex: searchTerm, $options: 'i' } },
+          { landlineNumber: { $regex: searchTerm, $options: 'i' } },
+          { bbUserId: { $regex: searchTerm, $options: 'i' } },
+          { mtceFranchise: { $regex: searchTerm, $options: 'i' } }
+        ]
+      };
+      
+      // Search in Modem collection
+      const modemSearchQuery = {
+        $or: [
+          { modemName: { $regex: searchTerm, $options: 'i' } },
+          { modelNumber: { $regex: searchTerm, $options: 'i' } },
+          { serialNumber: { $regex: searchTerm, $options: 'i' } },
+          { ontMac: { $regex: searchTerm, $options: 'i' } },
+          { username: { $regex: searchTerm, $options: 'i' } }
+        ]
+      };
+      
+      // Get user IDs from modem search
+      const modemResults = await Modem.find(modemSearchQuery).select('userId');
+      const modemUserIds = modemResults.map(modem => modem.userId);
+      
+      // Get user IDs from user search
+      const userResults = await UserModel.find(userSearchQuery).select('_id');
+      const userUserIds = userResults.map(user => user._id);
+      
+      // Combine all user IDs
+      userIdsToSearch = [...new Set([...modemUserIds, ...userUserIds])];
+      
+      // If we have search results, filter by those user IDs
+      if(userIdsToSearch.length > 0) {
+        (qry as any)._id = { $in: userIdsToSearch };
+      } else {
+        // If no search results found, return empty result
+        (qry as any)._id = { $in: [] };
+      }
+    }
+
     // Get customer data first to find which users have customer records
     const customerData = await CustomerModel.find({
       userId: { $exists: true }
