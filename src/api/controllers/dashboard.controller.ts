@@ -2844,5 +2844,161 @@ export const getUserDetailForUpdate = async (req: Request, res: Response, next: 
   }
 };
 
+export const updateUser = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const {
+      userId,
+      email,
+      firstName,
+      lastName,
+      phoneNumber,
+      countryCode,
+      companyPreference,
+      permanentAddress,
+      residentialAddress,
+      landlineNumber,
+      modemName,
+      ontType,
+      modelNumber,
+      serialNumber,
+      ontMac,
+      username,
+      password,
+      mtceFranchise,
+      bbUserId,
+      bbPassword,
+      ruralUrban,
+      acquisitionType,
+      category,
+      ftthExchangePlan,
+      llInstallDate,
+      bbPlan,
+      workingStatus,
+      isInstalled
+    } = req.body;
+
+    // Validate userId
+    if (!userId) {
+      return sendError(res, "User ID is required", 400);
+    }
+
+    // Check if user exists
+    const existingUser = await UserModel.findById(userId);
+    if (!existingUser) {
+      return sendError(res, "User not found", 404);
+    }
+
+    // Check if email is being updated and if it already exists for another user
+    if (email && email !== existingUser.email) {
+      const emailExists = await UserModel.findOne({ email, _id: { $ne: userId } });
+      if (emailExists) {
+        return sendError(res, "Email already exists for another user", 400);
+      }
+    }
+
+    // Check if landline number is being updated and if it already exists for another user
+    if (landlineNumber && landlineNumber !== existingUser.landlineNumber) {
+      const landlineExists = await UserModel.findOne({ landlineNumber, _id: { $ne: userId } });
+      if (landlineExists) {
+        return sendError(res, "Landline number already exists for another user", 400);
+      }
+    }
+
+    // Use database transaction to ensure atomicity
+    const session = await UserModel.startSession();
+    
+    try {
+      const result = await session.withTransaction(async () => {
+        // Prepare user update data
+        const userUpdateData: any = {};
+        if (email) userUpdateData.email = email;
+        if (firstName) userUpdateData.firstName = firstName;
+        if (lastName) userUpdateData.lastName = lastName;
+        if (phoneNumber) userUpdateData.phoneNumber = phoneNumber;
+        if (countryCode) userUpdateData.countryCode = countryCode;
+        if (companyPreference) userUpdateData.companyPreference = companyPreference;
+        if (permanentAddress) userUpdateData.permanentAddress = permanentAddress;
+        if (residentialAddress) userUpdateData.residentialAddress = residentialAddress;
+        if (landlineNumber) userUpdateData.landlineNumber = landlineNumber;
+        if (mtceFranchise) userUpdateData.mtceFranchise = mtceFranchise;
+        if (bbUserId) userUpdateData.bbUserId = bbUserId;
+        if (bbPassword) userUpdateData.bbPassword = bbPassword;
+        if (ruralUrban) userUpdateData.ruralUrban = ruralUrban;
+        if (acquisitionType) userUpdateData.acquisitionType = acquisitionType;
+        if (category) userUpdateData.category = category;
+        if (ftthExchangePlan) userUpdateData.ftthExchangePlan = ftthExchangePlan;
+        if (llInstallDate) userUpdateData.llInstallDate = llInstallDate;
+        if (bbPlan) userUpdateData.bbPlan = bbPlan;
+        if (workingStatus) userUpdateData.workingStatus = workingStatus;
+
+        // Update user
+        const updatedUser = await UserModel.findByIdAndUpdate(
+          userId,
+          userUpdateData,
+          { new: true, session }
+        );
+
+        // Update modem if modem data is provided
+        let updatedModem = null;
+        if (modemName || ontType || modelNumber || serialNumber || ontMac || username || password) {
+          const modemUpdateData: any = {};
+          if (modemName) modemUpdateData.modemName = modemName;
+          if (ontType) modemUpdateData.ontType = ontType;
+          if (modelNumber) modemUpdateData.modelNumber = modelNumber;
+          if (serialNumber) modemUpdateData.serialNumber = serialNumber;
+          if (ontMac) modemUpdateData.ontMac = ontMac;
+          if (username) modemUpdateData.username = username;
+          if (password) modemUpdateData.password = password;
+
+          updatedModem = await Modem.findOneAndUpdate(
+            { userId: userId },
+            modemUpdateData,
+            { new: true, session }
+          );
+        }
+
+        // Always update customer record
+        let updatedCustomer = null;
+        const customerUpdateData: any = {};
+        
+        
+        // Update isInstalled if provided
+        if (isInstalled !== undefined) {
+          customerUpdateData.isInstalled = isInstalled;
+        }
+
+        // Always update customer record (even if no fields changed, it will refresh the record)
+        updatedCustomer = await CustomerModel.findOneAndUpdate(
+          { userId: userId },
+          customerUpdateData,
+          { new: true, session }
+        );
+
+        return {
+          updatedUser,
+          updatedModem,
+          updatedCustomer
+        };
+      });
+
+      return sendSuccess(res, {
+        user: result.updatedUser,
+        modem: result.updatedModem,
+        customer: result.updatedCustomer
+      }, "User updated successfully");
+
+    } catch (transactionError) {
+      console.error("Transaction failed:", transactionError);
+      throw transactionError;
+    } finally {
+      await session.endSession();
+    }
+
+  } catch (error) {
+    console.error("Error in updateUser:", error);
+    next(error);
+  }
+};
+
 
 
