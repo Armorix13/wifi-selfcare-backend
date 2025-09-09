@@ -1833,6 +1833,16 @@ const deleteAdmin = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+const userManagement  = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const companyId = (req as any).userId;
+        
+        
+    } catch (error) {
+        return sendError(res, "Internal server error", 500, error);  
+    }
+}
+
 export const userController = {
     signUp,
     verifyOtp,

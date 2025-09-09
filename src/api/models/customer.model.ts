@@ -37,8 +37,6 @@ const CustomerSchema = new Schema<ICustomer>({
     userId: {
         type: Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
-        unique: true // Ensure one customer per user
     },
 
     fdbId: {

@@ -2501,9 +2501,8 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
       const searchTerm = req.query.search as string;
       console.log('Search term:', searchTerm);
       
-      // Search in User collection for users who have customer records
+      // Search in User collection across ALL users (not limited by customer records)
       const userSearchQuery = {
-        _id: { $in: userIds },
         $or: [
           { firstName: { $regex: searchTerm, $options: 'i' } },
           { lastName: { $regex: searchTerm, $options: 'i' } },
@@ -2524,9 +2523,8 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
         ]
       };
       
-      // Search in Modem collection for users who have customer records
+      // Search in Modem collection across ALL modems
       const modemSearchQuery = {
-        userId: { $in: userIds },
         $or: [
           { modemName: { $regex: searchTerm, $options: 'i' } },
           { modelNumber: { $regex: searchTerm, $options: 'i' } },
@@ -2543,15 +2541,16 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
         Modem.find(modemSearchQuery).select('userId')
       ]);
       
-      const userUserIds = userResults.map(user => user._id);
-      const modemUserIds = modemResults.map(modem => modem.userId);
+      const userUserIds = userResults.map((user: any) => user._id.toString());
+      const modemUserIds = modemResults.map((modem: any) => modem.userId.toString());
       
       // Combine all user IDs and remove duplicates
       const searchResultUserIds = [...new Set([...userUserIds, ...modemUserIds])];
       console.log('Search results found:', searchResultUserIds.length);
+      console.log('Search result IDs:', searchResultUserIds);
       
-      // Filter the userIds to only include search results
-      filteredUserIds = userIds.filter(id => searchResultUserIds.includes(id));
+      // Filter to only include users who have customer records AND match search
+      filteredUserIds = userIds.filter(id => searchResultUserIds.includes(id.toString()));
       console.log('Filtered user IDs:', filteredUserIds.length);
     }
 
