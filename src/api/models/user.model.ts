@@ -83,6 +83,7 @@ export interface IUser extends Document {
   category?: string; // CATEG - Category
   mobile?: string; // MOBILE - Mobile Number (separate from phoneNumber)
   bbUserId?: string; // BB_USER_ID - Broadband User ID
+  bbPassword?: string; // BB_USER_ID - Broadband User ID
   ftthExchangePlan?: string; // FTTH_EXCH_PLAN - Fiber to the Home Exchange Plan
   bbPlan?: string; // BB_PLAN - Broadband Plan
   llInstallDate?: Date; // LL_INSTALL - Landline Installation Date
@@ -240,6 +241,7 @@ const UserSchema = new Schema<IUser>({
   category: { type: String }, // CATEG - Category
   mobile: { type: String }, // MOBILE - Mobile Number (separate from phoneNumber)
   bbUserId: { type: String }, // BB_USER_ID - Broadband User ID
+  bbPassword: { type: String }, // bbPassword
   ftthExchangePlan: { type: String }, // FTTH_EXCH_PLAN - Fiber to the Home Exchange Plan
   bbPlan: { type: String }, // BB_PLAN - Broadband Plan
   llInstallDate: { type: Date }, // LL_INSTALL - Landline Installation Date
