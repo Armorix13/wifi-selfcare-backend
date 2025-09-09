@@ -2831,7 +2831,7 @@ export const getUserDetailForUpdate = async (req: Request, res: Response, next: 
     const modemDetails = await Modem.findOne({ userId: userId }).lean();
     
     // Fetch related customer details
-    const customerDetails = await CustomerModel.findOne({ userId: userId }).lean();
+    const customerDetails = await CustomerModel.findOne({ userId: userId }).populate("fdbId", "fdbId fdbName").populate("oltId", "oltId serialNumber oltIp macAddress ").lean();
 
     return sendSuccess(res, {
       user,
