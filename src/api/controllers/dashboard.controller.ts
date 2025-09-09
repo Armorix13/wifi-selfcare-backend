@@ -2809,4 +2809,40 @@ export const addUser = async (
 };
 
 
+export const getUserDetailForUpdate = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const userId = req.params.id;
+
+    // Validate userId
+    if (!userId) {
+      return sendError(res, "User ID is required", 400);
+    }
+
+    // Fetch user details with comprehensive fields for update
+    const user = await UserModel.findById(userId)
+      .select('_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus createdAt updatedAt')
+      .lean();
+
+    if (!user) {
+      return sendError(res, "User not found", 404);
+    }
+
+    // Fetch related modem details
+    const modemDetails = await Modem.findOne({ userId: userId }).lean();
+    
+    // Fetch related customer details
+    const customerDetails = await CustomerModel.findOne({ userId: userId }).lean();
+
+    return sendSuccess(res, {
+      user,
+      modemDetails,
+      customerDetails
+    }, "User details fetched successfully for update");
+  } catch (error) {
+    console.error("Error in getUserDetailForUpdate:", error);
+    next(error);
+  }
+};
+
+
 
