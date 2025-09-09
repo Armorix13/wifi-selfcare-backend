@@ -2485,58 +2485,6 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const qry: any = {};
-
-
-    // Handle search functionality
-    let userIdsToSearch = [];
-    if(req.query.search){
-      const searchTerm = req.query.search as string;
-      
-      // Search in User collection
-      const userSearchQuery = {
-        $or: [
-          { firstName: { $regex: searchTerm, $options: 'i' } },
-          { lastName: { $regex: searchTerm, $options: 'i' } },
-          { email: { $regex: searchTerm, $options: 'i' } },
-          { phoneNumber: { $regex: searchTerm, $options: 'i' } },
-          { landlineNumber: { $regex: searchTerm, $options: 'i' } },
-          { bbUserId: { $regex: searchTerm, $options: 'i' } },
-          { mtceFranchise: { $regex: searchTerm, $options: 'i' } }
-        ]
-      };
-      
-      // Search in Modem collection
-      const modemSearchQuery = {
-        $or: [
-          { modemName: { $regex: searchTerm, $options: 'i' } },
-          { modelNumber: { $regex: searchTerm, $options: 'i' } },
-          { serialNumber: { $regex: searchTerm, $options: 'i' } },
-          { ontMac: { $regex: searchTerm, $options: 'i' } },
-          { username: { $regex: searchTerm, $options: 'i' } }
-        ]
-      };
-      
-      // Get user IDs from modem search
-      const modemResults = await Modem.find(modemSearchQuery).select('userId');
-      const modemUserIds = modemResults.map(modem => modem.userId);
-      
-      // Get user IDs from user search
-      const userResults = await UserModel.find(userSearchQuery).select('_id');
-      const userUserIds = userResults.map(user => user._id);
-      
-      // Combine all user IDs
-      userIdsToSearch = [...new Set([...modemUserIds, ...userUserIds])];
-      
-      // If we have search results, filter by those user IDs
-      if(userIdsToSearch.length > 0) {
-        (qry as any)._id = { $in: userIdsToSearch };
-      } else {
-        // If no search results found, return empty result
-        (qry as any)._id = { $in: [] };
-      }
-    }
-
     // Get customer data first to find which users have customer records
     const customerData = await CustomerModel.find({
       userId: { $exists: true }
@@ -2547,16 +2495,76 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
     // Extract user IDs from customer data
     const userIds = customerData.map(customer => customer.userId as any);
 
-    // Get total count for pagination (all users with customer records)
+    // Handle search functionality
+    let filteredUserIds = userIds;
+    if(req.query.search){
+      const searchTerm = req.query.search as string;
+      console.log('Search term:', searchTerm);
+      
+      // Search in User collection for users who have customer records
+      const userSearchQuery = {
+        _id: { $in: userIds },
+        $or: [
+          { firstName: { $regex: searchTerm, $options: 'i' } },
+          { lastName: { $regex: searchTerm, $options: 'i' } },
+          { email: { $regex: searchTerm, $options: 'i' } },
+          { phoneNumber: { $regex: searchTerm, $options: 'i' } },
+          { landlineNumber: { $regex: searchTerm, $options: 'i' } },
+          { bbUserId: { $regex: searchTerm, $options: 'i' } },
+          { mtceFranchise: { $regex: searchTerm, $options: 'i' } },
+          { companyPreference: { $regex: searchTerm, $options: 'i' } },
+          { permanentAddress: { $regex: searchTerm, $options: 'i' } },
+          { residentialAddress: { $regex: searchTerm, $options: 'i' } },
+          { ruralUrban: { $regex: searchTerm, $options: 'i' } },
+          { acquisitionType: { $regex: searchTerm, $options: 'i' } },
+          { category: { $regex: searchTerm, $options: 'i' } },
+          { ftthExchangePlan: { $regex: searchTerm, $options: 'i' } },
+          { bbPlan: { $regex: searchTerm, $options: 'i' } },
+          { workingStatus: { $regex: searchTerm, $options: 'i' } }
+        ]
+      };
+      
+      // Search in Modem collection for users who have customer records
+      const modemSearchQuery = {
+        userId: { $in: userIds },
+        $or: [
+          { modemName: { $regex: searchTerm, $options: 'i' } },
+          { modelNumber: { $regex: searchTerm, $options: 'i' } },
+          { serialNumber: { $regex: searchTerm, $options: 'i' } },
+          { ontMac: { $regex: searchTerm, $options: 'i' } },
+          { username: { $regex: searchTerm, $options: 'i' } },
+          { password: { $regex: searchTerm, $options: 'i' } }
+        ]
+      };
+      
+      // Get user IDs from both searches
+      const [userResults, modemResults] = await Promise.all([
+        UserModel.find(userSearchQuery).select('_id'),
+        Modem.find(modemSearchQuery).select('userId')
+      ]);
+      
+      const userUserIds = userResults.map(user => user._id);
+      const modemUserIds = modemResults.map(modem => modem.userId);
+      
+      // Combine all user IDs and remove duplicates
+      const searchResultUserIds = [...new Set([...userUserIds, ...modemUserIds])];
+      console.log('Search results found:', searchResultUserIds.length);
+      
+      // Filter the userIds to only include search results
+      filteredUserIds = userIds.filter(id => searchResultUserIds.includes(id));
+      console.log('Filtered user IDs:', filteredUserIds.length);
+    }
+
+    // Get total count for pagination (users with customer records + search filter)
     const totalUsersCount = await UserModel.countDocuments({ 
-      _id: { $in: userIds },
+      _id: { $in: filteredUserIds },
       assignedCompany: companyId,
       role: Role.USER
     });
 
-    // Get paginated users who have customer records
+    // Get paginated users who have customer records (with search filter)
     const userManagementData = await UserModel.find({ 
-      _id: { $in: userIds },
+      _id: { $in: filteredUserIds },
       assignedCompany: companyId,
       role: Role.USER
     }).select("_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus createdAt updatedAt")
@@ -2566,7 +2574,7 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
 
     // Get modem data for these users
     const modemData = await Modem.find({
-      userId: { $in: userIds }
+      userId: { $in: filteredUserIds }
     }).select("_id userId modemName ontType modelNumber serialNumber ontMac username password createdAt updatedAt");
 
     // Combine user data with customer and modem information
