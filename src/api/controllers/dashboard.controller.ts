@@ -2511,6 +2511,183 @@ export const approveRejectLeaveRequest = async (req: Request, res: Response, nex
   }
 };
 
+// Get users added via Excel without customer/modem data
+export const getExcelUsersWithoutCompleteData = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const companyId = (req as any).userId;
+    
+    // Get pagination parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    // Get all users who have addedBy field (indicating they were added via Excel)
+    const excelUsersQuery = {
+      addedBy: { $exists: true, $ne: null },
+      assignedCompany: companyId,
+      role: Role.USER
+    };
+
+    // Handle search functionality for Excel users
+    if (req.query.search) {
+      const searchTerm = req.query.search as string;
+      (excelUsersQuery as any).$or = [
+        { firstName: { $regex: searchTerm, $options: 'i' } },
+        { lastName: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } },
+        { phoneNumber: { $regex: searchTerm, $options: 'i' } },
+        { landlineNumber: { $regex: searchTerm, $options: 'i' } },
+        { bbUserId: { $regex: searchTerm, $options: 'i' } },
+        { mtceFranchise: { $regex: searchTerm, $options: 'i' } },
+        { companyPreference: { $regex: searchTerm, $options: 'i' } },
+        { permanentAddress: { $regex: searchTerm, $options: 'i' } },
+        { residentialAddress: { $regex: searchTerm, $options: 'i' } },
+        { ruralUrban: { $regex: searchTerm, $options: 'i' } },
+        { acquisitionType: { $regex: searchTerm, $options: 'i' } },
+        { category: { $regex: searchTerm, $options: 'i' } },
+        { ftthExchangePlan: { $regex: searchTerm, $options: 'i' } },
+        { bbPlan: { $regex: searchTerm, $options: 'i' } },
+        { workingStatus: { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+
+    // Get total count of Excel users
+    const totalExcelUsersCount = await UserModel.countDocuments(excelUsersQuery);
+
+    // Get paginated Excel users
+    const excelUsers = await UserModel.find(excelUsersQuery)
+      .select("_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus addedBy createdAt updatedAt")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Get user IDs for checking related data
+    const userIds = excelUsers.map((user: any) => user._id);
+
+    // Check which users have customer data
+    const customerData = await CustomerModel.find({
+      userId: { $in: userIds }
+    }).select("_id userId fdbId oltId isInstalled createdAt updatedAt")
+      .populate('fdbId', 'fdbId fdbName')
+      .populate('oltId', 'oltId oltName');
+
+    // Check which users have modem data
+    const modemData = await Modem.find({
+      userId: { $in: userIds }
+    }).select("_id userId modemName ontType modelNumber serialNumber ontMac username password createdAt updatedAt");
+
+    // Create a map for quick lookup
+    const customerMap = new Map();
+    customerData.forEach(customer => {
+      customerMap.set(customer.userId.toString(), customer);
+    });
+
+    const modemMap = new Map();
+    modemData.forEach(modem => {
+      modemMap.set(modem.userId.toString(), modem);
+    });
+
+    // Combine data and categorize users
+    const combinedData = excelUsers.map((user: any) => {
+      const customer = customerMap.get(user._id.toString());
+      const modem = modemMap.get(user._id.toString());
+
+      return {
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          companyPreference: user.companyPreference,
+          permanentAddress: user.permanentAddress,
+          residentialAddress: user.residentialAddress,
+          landlineNumber: user.landlineNumber,
+          mtceFranchise: user.mtceFranchise,
+          bbUserId: user.bbUserId,
+          bbPassword: user.bbPassword,
+          ruralUrban: user.ruralUrban,
+          acquisitionType: user.acquisitionType,
+          category: user.category,
+          ftthExchangePlan: user.ftthExchangePlan,
+          llInstallDate: user.llInstallDate,
+          bbPlan: user.bbPlan,
+          workingStatus: user.workingStatus,
+          addedBy: user.addedBy,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        },
+        customer: customer ? {
+          _id: customer._id,
+          fdbId: customer.fdbId,
+          oltId: customer.oltId,
+          isInstalled: customer.isInstalled,
+          createdAt: customer.createdAt,
+          updatedAt: customer.updatedAt
+        } : null,
+        modem: modem ? {
+          _id: modem._id,
+          modemName: modem.modemName,
+          ontType: modem.ontType,
+          modelNumber: modem.modelNumber,
+          serialNumber: modem.serialNumber,
+          ontMac: modem.ontMac,
+          username: modem.username,
+          password: modem.password,
+          createdAt: modem.createdAt,
+          updatedAt: modem.updatedAt
+        } : null,
+        dataStatus: {
+          hasCustomerData: !!customer,
+          hasModemData: !!modem,
+          isComplete: !!(customer && modem)
+        }
+      };
+    });
+
+    // Calculate summary statistics
+    const totalExcelUsers = totalExcelUsersCount;
+    const usersWithCustomerData = customerData.length;
+    const usersWithModemData = modemData.length;
+    const usersWithCompleteData = combinedData.filter(item => item.dataStatus.isComplete).length;
+    const usersWithoutCustomerData = totalExcelUsers - usersWithCustomerData;
+    const usersWithoutModemData = totalExcelUsers - usersWithModemData;
+    const usersWithIncompleteData = totalExcelUsers - usersWithCompleteData;
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalExcelUsersCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    const response = {
+      summary: {
+        totalExcelUsers,
+        usersWithCustomerData,
+        usersWithModemData,
+        usersWithCompleteData,
+        usersWithoutCustomerData,
+        usersWithoutModemData,
+        usersWithIncompleteData
+      },
+      users: combinedData,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalUsers: totalExcelUsersCount,
+        usersPerPage: limit,
+        hasNextPage,
+        hasPrevPage
+      }
+    };
+
+    return sendSuccess(res, response, 'Excel users data fetched successfully');
+
+  } catch (error: any) {
+    console.error("Error in getExcelUsersWithoutCompleteData:", error);
+    return sendError(res, 'Failed to fetch Excel users data', 500, error);
+  }
+};
+
 export const getUserManagementData = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const companyId = (req as any).userId;
@@ -2528,15 +2705,27 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
       .populate('oltId', 'oltId oltName');
 
     // Extract user IDs from customer data
-    const userIds = customerData.map(customer => customer.userId as any);
+    const customerUserIds = customerData.map(customer => customer.userId as any);
+
+    // Get Excel users (users added via Excel upload)
+    const excelUsers = await UserModel.find({
+      addedBy: { $exists: true, $ne: null },
+      assignedCompany: companyId,
+      role: Role.USER
+    }).select("_id");
+
+    const excelUserIds = excelUsers.map((user: any) => user._id);
+
+    // Combine both customer users and Excel users
+    const allUserIds = [...new Set([...customerUserIds, ...excelUserIds])];
 
     // Handle search functionality
-    let filteredUserIds = userIds;
+    let filteredUserIds = allUserIds;
     if(req.query.search){
       const searchTerm = req.query.search as string;
       console.log('Search term:', searchTerm);
       
-      // Search in User collection across ALL users (not limited by customer records)
+      // Search in User collection across ALL users (both customer and Excel users)
       const userSearchQuery = {
         $or: [
           { firstName: { $regex: searchTerm, $options: 'i' } },
@@ -2558,7 +2747,7 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
         ]
       };
       
-      // 0earch in Modem collection across ALL modems
+      // Search in Modem collection across ALL modems
       const modemSearchQuery = {
         $or: [
           { modemName: { $regex: searchTerm, $options: 'i' } },
@@ -2584,24 +2773,24 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
       console.log('Search results found:', searchResultUserIds.length);
       console.log('Search result IDs:', searchResultUserIds);
       
-      // Filter to only include users who have customer records AND match search
-      filteredUserIds = userIds.filter(id => searchResultUserIds.includes(id.toString()));
+      // Filter to only include users who are in our combined list AND match search
+      filteredUserIds = allUserIds.filter(id => searchResultUserIds.includes(id.toString()));
       console.log('Filtered user IDs:', filteredUserIds.length);
     }
 
-    // Get total count for pagination (users with customer records + search filter)
+    // Get total count for pagination (users with customer records + Excel users + search filter)
     const totalUsersCount = await UserModel.countDocuments({ 
       _id: { $in: filteredUserIds },
       assignedCompany: companyId,
       role: Role.USER
     });
 
-    // Get paginated users who have customer records (with search filter)
+    // Get paginated users (both customer users and Excel users with search filter)
     const userManagementData = await UserModel.find({ 
       _id: { $in: filteredUserIds },
       assignedCompany: companyId,
       role: Role.USER
-    }).select("_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus createdAt updatedAt")
+    }).select("_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus addedBy createdAt updatedAt")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -2611,10 +2800,21 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
       userId: { $in: filteredUserIds }
     }).select("_id userId modemName ontType modelNumber serialNumber ontMac username password createdAt updatedAt");
 
+    // Create maps for quick lookup
+    const customerMap = new Map();
+    customerData.forEach(customer => {
+      customerMap.set(customer.userId.toString(), customer);
+    });
+
+    const modemMap = new Map();
+    modemData.forEach(modem => {
+      modemMap.set(modem.userId.toString(), modem);
+    });
+
     // Combine user data with customer and modem information
-    const combinedData = userManagementData.map((user, index) => {
-      const customer = customerData.find(c => c.userId.toString() === userIds[index].toString());
-      const modem = modemData.find(m => m.userId.toString() === userIds[index].toString());
+    const combinedData = userManagementData.map((user: any) => {
+      const customer = customerMap.get(user._id.toString());
+      const modem = modemMap.get(user._id.toString());
 
       return {
         user: {
@@ -2637,6 +2837,7 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
           llInstallDate: user.llInstallDate,
           bbPlan: user.bbPlan,
           workingStatus: user.workingStatus,
+          addedBy: user.addedBy,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt
         },
@@ -2659,28 +2860,41 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
           password: modem.password,
           createdAt: modem.createdAt,
           updatedAt: modem.updatedAt
-        } : null
+        } : null,
+        dataStatus: {
+          hasCustomerData: !!customer,
+          hasModemData: !!modem,
+          isExcelUser: !!user.addedBy,
+          isComplete: !!(customer && modem)
+        }
       };
     });
 
     // Calculate summary statistics (GLOBAL - from ALL users, not just current page)
     const totalUsers = totalUsersCount;
-    const usersWithCustomerData = totalUsers; // All users have customer data since we filtered by it
+    const usersWithCustomerData = customerData.length;
     
     // Get ALL modem data for global statistics
     const allModemData = await Modem.find({
-      userId: { $in: userIds }
+      userId: { $in: allUserIds }
     }).select("_id userId");
     
     const usersWithModemData = allModemData.length;
     
     // Get ALL customer data for global statistics
     const allCustomerData = await CustomerModel.find({
-      userId: { $in: userIds }
+      userId: { $in: allUserIds }
     }).select("_id userId isInstalled");
     
     const installedUsers = allCustomerData.filter(customer => customer.isInstalled === true).length;
     const pendingInstallation = allCustomerData.filter(customer => customer.isInstalled === false).length;
+    
+    // Calculate Excel users statistics
+    const excelUsersCount = excelUsers.length;
+    const usersWithCompleteData = combinedData.filter(item => item.dataStatus.isComplete).length;
+    const usersWithoutCustomerData = totalUsers - usersWithCustomerData;
+    const usersWithoutModemData = totalUsers - usersWithModemData;
+    const usersWithIncompleteData = totalUsers - usersWithCompleteData;
     
     // Calculate pagination info
     const totalPages = Math.ceil(totalUsersCount / limit);
@@ -2690,12 +2904,15 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
     const response = {
       summary: {
         totalUsers,
+        excelUsersCount,
         usersWithCustomerData,
         usersWithModemData,
+        usersWithCompleteData,
+        usersWithoutCustomerData,
+        usersWithoutModemData,
+        usersWithIncompleteData,
         installedUsers,
-        pendingInstallation,
-        usersWithoutCustomerData: totalUsers - usersWithCustomerData,
-        usersWithoutModemData: totalUsers - usersWithModemData
+        pendingInstallation
       },
       users: combinedData,
       pagination: {
