@@ -1933,7 +1933,8 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         // Map row data to user object
         const userData: any = {
           addedBy: addedBy,
-          isActivated: false
+          assignedCompany:addedBy,
+          isActivated: true
         };
 
         headers.forEach((header, colIndex) => {
