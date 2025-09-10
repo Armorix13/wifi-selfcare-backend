@@ -23,6 +23,8 @@ import { CustomerModel } from '../models/customer.model';
 import Modem from '../models/modem.model';
 import { OLTModel } from '../models/olt.model';
 import { FDBModel } from '../models/fdb.model';
+import orderModel from '../models/order.model';
+import { RequestBill } from '../models/requestBill.model';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -2523,7 +2525,7 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
         ]
       };
       
-      // Search in Modem collection across ALL modems
+      // 0earch in Modem collection across ALL modems
       const modemSearchQuery = {
         $or: [
           { modemName: { $regex: searchTerm, $options: 'i' } },
@@ -3058,6 +3060,119 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
     next(error);
   }
 };
+
+export const getFullClientDetailsById = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    // First, check if client exists (this needs to be done first)
+    const client = await UserModel.findById(id).select("_id name firstName lastName email phoneNumber profileImage permanentAddress residentialAddress landlineNumber fatherName oltIp mtceFranchise category mobile bbUserId bbPassword ftthExchangePlan bbPlan llInstallDate workingStatus assigned ruralUrban acquisitionType createdAt updatedAt");
+    
+    if(!client){
+      return sendError(res, "Client not found", 404);
+    }
+
+    // Run all other database queries in parallel using Promise.all
+    const [
+      modemDetail,
+      customerDetail,
+      allComplaints,
+      orderPurchaseByMe,
+      allLeadsByMe,
+      allBillUploadedByMe,
+      wifiInstallationRequests,
+      iptvInstallationRequests,
+      ottInstallationRequests,
+      fibreInstallationRequests
+    ] = await Promise.all([
+      // Get modem details
+      Modem.findOne({ userId: id }),
+      
+      // Get customer details
+      CustomerModel.findOne({ userId: id }),
+      
+      // Get all complaints by this client
+      ComplaintModel.find({ user: id })
+        .populate('assignedEngineer', 'name email phoneNumber')
+        .sort({ createdAt: -1 }),
+      
+      // Get all orders purchased by this client
+      orderModel.find({user: id})
+        .populate("products.product")
+        .sort({ createdAt: -1 }),
+      
+      // Get all leads created by this client
+      Leads.find({byUserId: id})
+        .populate('assignedEngineer', 'name email phoneNumber')
+        .sort({ createdAt: -1 }),
+      
+      // Get all bill requests uploaded by this client
+      RequestBill.find({userId: id})
+        .sort({ createdAt: -1 }),
+      
+      // Get WiFi installation requests
+      WifiInstallationRequest.find({ userId: id })
+        .populate('assignedEngineer', 'name email phoneNumber')
+        .sort({ createdAt: -1 }),
+      
+      // Get IPTV installation requests
+      IptvInstallationRequest.find({ userId: id })
+        .populate('assignedEngineer', 'name email phoneNumber')
+        .sort({ createdAt: -1 }),
+      
+      // Get OTT installation requests
+      OttInstallationRequest.find({ userId: id })
+        .populate('assignedEngineer', 'name email phoneNumber')
+        .sort({ createdAt: -1 }),
+      
+      // Get Fibre installation requests
+      FibreInstallationRequest.find({ userId: id })
+        .populate('assignedEngineer', 'name email phoneNumber')
+        .sort({ createdAt: -1 })
+    ]);
+
+    // Calculate statistics
+    const stats = {
+      totalComplaints: allComplaints.length,
+      resolvedComplaints: allComplaints.filter(complaint => complaint.status === ComplaintStatus.RESOLVED).length,
+      pendingComplaints: allComplaints.filter(complaint => complaint.status === ComplaintStatus.PENDING).length,
+      totalOrders: orderPurchaseByMe.length,
+      totalLeads: allLeadsByMe.length,
+      totalBillRequests: allBillUploadedByMe.length,
+      totalInstallationRequests: wifiInstallationRequests.length + iptvInstallationRequests.length + ottInstallationRequests.length + fibreInstallationRequests.length
+    };
+
+    // Prepare response data
+    const responseData = {
+      client: {
+        ...client.toObject(),
+        // Add computed fields if needed
+        fullName: `${client.firstName || ''} ${client.lastName || ''}`.trim() || client.name,
+        isActive: client.workingStatus === 'active'
+      },
+      modemDetail,
+      customerDetail,
+      complaints: allComplaints,
+      orders: orderPurchaseByMe,
+      leads: allLeadsByMe,
+      billRequests: allBillUploadedByMe,
+      installationRequests: {
+        wifi: wifiInstallationRequests,
+        iptv: iptvInstallationRequests,
+        ott: ottInstallationRequests,
+        fibre: fibreInstallationRequests
+      },
+      statistics: stats
+    };
+
+    return sendSuccess(res, responseData, "Client details retrieved successfully");
+
+  } catch (error) {
+    console.error("Error in getFullClientDetailsById:", error);
+    next(error);
+  }
+}
+
 
 
 
