@@ -3093,7 +3093,7 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
       
       // Get all complaints by this client
       ComplaintModel.find({ user: id })
-        .populate('assignedEngineer', 'name email phoneNumber')
+        .populate('engineer', 'name email phoneNumber')
         .sort({ createdAt: -1 }),
       
       // Get all orders purchased by this client
@@ -3103,7 +3103,7 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
       
       // Get all leads created by this client
       Leads.find({byUserId: id})
-        .populate('assignedEngineer', 'name email phoneNumber')
+        .populate('assignedTo', 'name email phoneNumber')
         .sort({ createdAt: -1 }),
       
       // Get all bill requests uploaded by this client
