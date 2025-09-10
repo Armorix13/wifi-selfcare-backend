@@ -3066,7 +3066,7 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
     const { id } = req.params;
 
     // First, check if client exists (this needs to be done first)
-    const client = await UserModel.findById(id).select("_id name firstName lastName email phoneNumber profileImage permanentAddress residentialAddress landlineNumber fatherName oltIp mtceFranchise category mobile bbUserId bbPassword ftthExchangePlan bbPlan llInstallDate workingStatus assigned ruralUrban acquisitionType createdAt updatedAt");
+    const client = await UserModel.findById(id).select("_id name firstName lastName email countryCode phoneNumber fullName profileImage permanentAddress residentialAddress landlineNumber fatherName oltIp mtceFranchise category mobile bbUserId bbPassword ftthExchangePlan bbPlan llInstallDate workingStatus assigned ruralUrban acquisitionType createdAt updatedAt");
     
     if(!client){
       return sendError(res, "Client not found", 404);
@@ -3089,7 +3089,7 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
       Modem.findOne({ userId: id }),
       
       // Get customer details
-      CustomerModel.findOne({ userId: id }),
+      CustomerModel.findOne({ userId: id }).populate("oltId").populate("fdbId"),
       
       // Get all complaints by this client
       ComplaintModel.find({ user: id })
