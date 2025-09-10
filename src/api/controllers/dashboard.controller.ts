@@ -1934,7 +1934,10 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         const userData: any = {
           addedBy: addedBy,
           assignedCompany:addedBy,
-          isActivated: true
+          isActivated: true,
+          isAccountVerified: true,
+          isDeactivated: false,
+          isSuspended: false
         };
 
         headers.forEach((header, colIndex) => {
