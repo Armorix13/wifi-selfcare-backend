@@ -1638,13 +1638,20 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
       totalUsers: number;
       newUsers: number;
       updatedUsers: number;
+      duplicateUsers: number;
       errors: string[];
       fileResults: Array<{
         fileName: string;
         totalUsers: number;
         newUsers: number;
         updatedUsers: number;
+        duplicateUsers: number;
         errors: string[];
+        duplicateDetails: Array<{
+          phoneNumber: string;
+          email: string;
+          action: 'updated' | 'skipped';
+        }>;
       }>;
     } = {
       totalFiles: files.length,
@@ -1652,6 +1659,7 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
       totalUsers: 0,
       newUsers: 0,
       updatedUsers: 0,
+      duplicateUsers: 0,
       errors: [],
       fileResults: []
     };
@@ -1666,6 +1674,7 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
         results.totalUsers += fileResult.totalUsers;
         results.newUsers += fileResult.newUsers;
         results.updatedUsers += fileResult.updatedUsers;
+        results.duplicateUsers += fileResult.duplicateUsers;
         results.errors.push(...fileResult.errors);
       } catch (fileError: any) {
         console.error(`Error processing file ${file.originalname}:`, fileError);
@@ -1680,6 +1689,7 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
     let message = `Processed ${results.processedFiles} files. `;
     if (results.newUsers > 0) message += `Added ${results.newUsers} new users. `;
     if (results.updatedUsers > 0) message += `Updated ${results.updatedUsers} existing users. `;
+    if (results.duplicateUsers > 0) message += `Found ${results.duplicateUsers} duplicate users (based on phone number). `;
     if (results.errors.length > 0) message += `${results.errors.length} errors occurred.`;
 
     return sendSuccess(res, results, message);
@@ -1710,7 +1720,13 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
     totalUsers: 0,
     newUsers: 0,
     updatedUsers: 0,
-    errors: [] as string[]
+    duplicateUsers: 0,
+    errors: [] as string[],
+    duplicateDetails: [] as Array<{
+      phoneNumber: string;
+      email: string;
+      action: 'updated' | 'skipped';
+    }>
   };
 
   try {
@@ -1831,20 +1847,20 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
       throw new Error('No data rows found in Excel file');
     }
 
-    // Map Excel headers to User model fields
+    // Map Excel headers to User model fields (PHONE_NO is primary unique identifier)
     const headerMapping: { [key: string]: string } = {
-      'PHONE_NO': 'phoneNumber',
-      'PHONE_N': 'phoneNumber',
-      'PHONE N': 'phoneNumber',
+      'PHONE_NO': 'phoneNumber',      // Primary unique identifier
+      'PHONE_N': 'phoneNumber',       // Primary unique identifier
+      'PHONE N': 'phoneNumber',       // Primary unique identifier
+      'MOBILE_NO': 'phoneNumber',     // Primary unique identifier
+      'MOBILE': 'phoneNumber',        // Primary unique identifier
       'OLT_IP': 'oltIp',
       'MTCE_FRANCHISE_CODE': 'mtceFranchise',
       'MTCE_FRANCHISE': 'mtceFranchise',
       'CATEGORY': 'category',
       'CATEG': 'category',
-      'CUSTOMER_NAME': 'customerName',
-      'CUSTOMER NAME': 'customerName',
-      'MOBILE_NO': 'mobile',
-      'MOBILE': 'mobile',
+      'CUSTOMER_NAME': 'firstName',
+      'CUSTOMER NAME': 'firstName',
       'EMAIL_ID': 'email',
       'EMAIL ID': 'email',
       'BB_USER_ID': 'bbUserId',
@@ -1868,9 +1884,9 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
       'ACQUISITION_TYPE': 'acquisitionType'
     };
 
-    // Validate required headers with flexible matching
+    // Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
     const requiredHeaders = [
-      { key: 'PHONE_N', patterns: ['PHONE_NO', 'PHONE_N', 'PHONE N', 'PHONE'] },
+      { key: 'PHONE_NO', patterns: ['PHONE_NO', 'PHONE_N', 'PHONE N', 'PHONE', 'MOBILE_NO', 'MOBILE'] },
       { key: 'CUSTOMER NAME', patterns: ['CUSTOMER_NAME', 'CUSTOMER NAME', 'CUSTOMER'] },
       { key: 'EMAIL_ID', patterns: ['EMAIL_ID', 'EMAIL ID', 'EMAIL'] }
     ];
@@ -1940,8 +1956,8 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
                   userData[fieldName] = null;
                 }
               } else if (fieldName === 'phoneNumber') {
-                // Clean phone number
-                userData[fieldName] = value.toString().replace(/[^0-9-]/g, '');
+                // Clean phone number - remove all non-numeric characters
+                userData[fieldName] = value.toString().replace(/[^0-9]/g, '');
                 userData.countryCode = '+91'; // Default to India
               } else {
                 userData[fieldName] = value.toString().trim();
@@ -1956,20 +1972,31 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
           continue;
         }
 
-        // Check if user already exists by email
+        // Clean phone number for comparison
+        const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+
+        // Check if user already exists by phone number (primary unique identifier)
         const existingUser = await UserModel.findOne({ 
-          email: userData.email.toLowerCase() 
+          phoneNumber: cleanPhoneNumber 
         });
 
         if (existingUser) {
-          // Update existing user
-          const updateData = { ...userData };
-          delete updateData.email; // Don't update email
-          delete updateData.phoneNumber; // Don't update phone number
-          delete updateData.firstName; // Don't update firstName
-          delete updateData.lastName; // Don't update lastName
+          // Check if this is a duplicate entry (same phone number)
+          fileResult.duplicateUsers++;
+          fileResult.totalUsers++;
+          
+          // Add to duplicate details
+          fileResult.duplicateDetails.push({
+            phoneNumber: cleanPhoneNumber,
+            email: userData.email,
+            action: 'updated'
+          });
 
-          // Update only the new fields from Excel
+          // Update existing user with new data from Excel
+          const updateData = { ...userData };
+          delete updateData.phoneNumber; // Don't update phone number as it's the unique identifier
+          
+          // Update user with new information
           const updatedUser = await UserModel.findByIdAndUpdate(
             existingUser._id,
             {
@@ -1981,12 +2008,13 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
 
           if (updatedUser) {
             fileResult.updatedUsers++;
-            fileResult.totalUsers++;
+            console.log(`Updated existing user with phone: ${cleanPhoneNumber}`);
           }
         } else {
           // Create new user
           const newUser = new UserModel({
             ...userData,
+            phoneNumber: cleanPhoneNumber, // Use cleaned phone number
             email: userData.email.toLowerCase(),
             role: 'user', // Default role
             userName: userData.email.split('@')[0], // Generate username from email
@@ -1998,6 +2026,7 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
           if (savedUser) {
             fileResult.newUsers++;
             fileResult.totalUsers++;
+            console.log(`Created new user with phone: ${cleanPhoneNumber}`);
           }
         }
 
