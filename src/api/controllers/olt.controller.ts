@@ -3104,8 +3104,8 @@ export const getCustomerNetworkTopology = async (req: Request, res: Response): P
 
     const topology = {
       customer,
-      networkInput: customer.networkInput,
-      networkOutputs: customer.networkOutputs
+      networkInput: (customer as any).networkInput,
+      networkOutputs: (customer as any).networkOutputs
     };
 
     res.status(200).json({
@@ -6034,6 +6034,57 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
           };
         })
       };
+
+      // Get customer data for this OLT and integrate into device arrays
+      let customerData = await CustomerModel.find({
+        oltId: olt._id
+      }).populate("userId","firstName lastName email profileImage location countryCode phoneNumber")
+      .populate("fdbId");
+
+      // Transform customer data and group by device type
+      const customersByFdb = new Map();
+      
+      for (const customer of customerData) {
+        const fdbData = customer.fdbId as any;
+        const modemDetails = await Modem.findOne({
+          userId: customer.userId
+        }).select("modemName ontType modelNumber serialNumber ontMac username password");
+
+        const customerInfo = {
+          _id: customer._id,
+          userId: customer.userId,
+          modemDetails: modemDetails,
+        };
+
+        // Group customers by their FDB device
+        if (!customersByFdb.has(fdbData.fdbId)) {
+          customersByFdb.set(fdbData.fdbId, []);
+        }
+        customersByFdb.get(fdbData.fdbId).push(customerInfo);
+      }
+
+      // Update FDB devices to include their connected customers
+      detailedOlt.fdb_devices = detailedOlt.fdb_devices.map(fdb => ({
+        ...fdb,
+        customers: customersByFdb.get(fdb.fdb_id) || []
+      }));
+
+      // Update X2 devices to include customers from their connected FDB devices
+      detailedOlt.x2_devices = detailedOlt.x2_devices.map(x2 => {
+        // Find all customers connected through FDB devices that connect to this X2
+        let x2Customers: any[] = [];
+        detailedOlt.fdb_devices.forEach(fdb => {
+          if (fdb.input.id === x2.x2_id) {
+            const fdbCustomers = customersByFdb.get(fdb.fdb_id) || [];
+            x2Customers = [...x2Customers, ...fdbCustomers];
+          }
+        });
+        
+        return {
+          ...x2,
+          customers: x2Customers
+        };
+      });
 
       return detailedOlt;
     }));
