@@ -866,7 +866,8 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       zone, 
       area, 
       mode, 
-      permanentAddress, 
+      permanentAddress,
+      residenceAddress, 
       billingAddress, 
       country, 
       language, 
@@ -874,30 +875,75 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       userName,
       fatherName,
       provider,
-      providerId
+      providerId,
+      state,
+      pincode,
+      areaFromPincode,
+      aadhaarNumber,
+      panNumber
     } = req.body;
 
-    // Handle uploaded profile image
+    // Handle uploaded files
     let profileImage = null;
-    if (req.file) {
+    let aadhaarFront = null;
+    let aadhaarBack = null;
+    let panCard = null;
+
+    if (req.files && typeof req.files === 'object') {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      
       try {
-        // Validate file type
-        if (!req.file.mimetype.startsWith('image/')) {
-          return sendError(res, 'Profile image must be an image file', 400);
+        // Process profile image
+        if (files.profileImage && files.profileImage[0]) {
+          const file = files.profileImage[0];
+          if (!file.mimetype.startsWith('image/')) {
+            return sendError(res, 'Profile image must be an image file', 400);
+          }
+          const absolutePath = file.path.replace(/\\/g, "/");
+          const viewIndex = absolutePath.lastIndexOf("/view/");
+          profileImage = viewIndex !== -1 ? absolutePath.substring(viewIndex) : file.path;
+          console.log('Profile image uploaded:', profileImage);
         }
-        
-        // Extract file URL from the uploaded file path
-        const absolutePath = req.file.path.replace(/\\/g, "/");
-        const viewIndex = absolutePath.lastIndexOf("/view/");
-        if (viewIndex !== -1) {
-          profileImage = absolutePath.substring(viewIndex);
-        } else {
-          profileImage = req.file.path;
+
+        // Process Aadhaar front
+        if (files.aadhaarFront && files.aadhaarFront[0]) {
+          const file = files.aadhaarFront[0];
+          if (!file.mimetype.startsWith('image/')) {
+            return sendError(res, 'Aadhaar front image must be an image file', 400);
+          }
+          const absolutePath = file.path.replace(/\\/g, "/");
+          const viewIndex = absolutePath.lastIndexOf("/view/");
+          aadhaarFront = viewIndex !== -1 ? absolutePath.substring(viewIndex) : file.path;
+          console.log('Aadhaar front uploaded:', aadhaarFront);
         }
-        console.log('Profile image uploaded:', profileImage);
+
+        // Process Aadhaar back
+        if (files.aadhaarBack && files.aadhaarBack[0]) {
+          const file = files.aadhaarBack[0];
+          if (!file.mimetype.startsWith('image/')) {
+            return sendError(res, 'Aadhaar back image must be an image file', 400);
+          }
+          const absolutePath = file.path.replace(/\\/g, "/");
+          const viewIndex = absolutePath.lastIndexOf("/view/");
+          aadhaarBack = viewIndex !== -1 ? absolutePath.substring(viewIndex) : file.path;
+          console.log('Aadhaar back uploaded:', aadhaarBack);
+        }
+
+        // Process PAN card
+        if (files.panCard && files.panCard[0]) {
+          const file = files.panCard[0];
+          if (!file.mimetype.startsWith('image/')) {
+            return sendError(res, 'PAN card image must be an image file', 400);
+          }
+          const absolutePath = file.path.replace(/\\/g, "/");
+          const viewIndex = absolutePath.lastIndexOf("/view/");
+          panCard = viewIndex !== -1 ? absolutePath.substring(viewIndex) : file.path;
+          console.log('PAN card uploaded:', panCard);
+        }
+
       } catch (fileError) {
-        console.error('Error processing uploaded file:', fileError);
-        return sendError(res, 'Error processing uploaded profile image', 400);
+        console.error('Error processing uploaded files:', fileError);
+        return sendError(res, 'Error processing uploaded files', 400);
       }
     }
 
@@ -936,6 +982,7 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       area,
       mode,
       permanentAddress,
+      residenceAddress,
       billingAddress,
       country,
       language,
@@ -944,6 +991,14 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       fatherName,
       provider,
       providerId,
+      state,
+      pincode,
+      areaFromPincode,
+      aadhaarNumber,
+      panNumber,
+      aadhaarFront: aadhaarFront || undefined,
+      aadhaarBack: aadhaarBack || undefined,
+      panCard: panCard || undefined,
       parentCompany: userId, // Set parentCompany to the logged in user's ID
       role: 'engineer',
       password: hashedPassword,
@@ -973,6 +1028,15 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       zone: engineer.zone,
       area: engineer.area,
       mode: engineer.mode,
+      state: engineer.state,
+      pincode: engineer.pincode,
+      areaFromPincode: engineer.areaFromPincode,
+      aadhaarNumber: engineer.aadhaarNumber,
+      panNumber: engineer.panNumber,
+      profileImage: engineer.profileImage,
+      aadhaarFront: engineer.aadhaarFront,
+      aadhaarBack: engineer.aadhaarBack,
+      panCard: engineer.panCard,
       message: 'Engineer account created successfully. Credentials sent to email.'
     };
 
@@ -1000,7 +1064,8 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       zone, 
       area, 
       mode, 
-      permanentAddress, 
+      permanentAddress,
+      residenceAddress, 
       billingAddress, 
       country, 
       language, 
@@ -1008,7 +1073,12 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       userName,
       fatherName,
       provider,
-      providerId
+      providerId,
+      state,
+      pincode,
+      areaFromPincode,
+      aadhaarNumber,
+      panNumber
     } = req.body;
 
     // Validate required fields
@@ -1038,27 +1108,67 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       return sendError(res, 'Engineer not found', 404);
     }
 
-    // Handle uploaded profile image
-    let profileImage = existingEngineer.profileImage; // Keep existing image by default
-    if (req.file) {
+    // Handle uploaded files - keep existing files by default
+    let profileImage = existingEngineer.profileImage;
+    let aadhaarFront = existingEngineer.aadhaarFront;
+    let aadhaarBack = existingEngineer.aadhaarBack;
+    let panCard = existingEngineer.panCard;
+
+    if (req.files && typeof req.files === 'object') {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      
       try {
-        // Validate file type
-        if (!req.file.mimetype.startsWith('image/')) {
-          return sendError(res, 'Profile image must be an image file', 400);
+        // Process profile image
+        if (files.profileImage && files.profileImage[0]) {
+          const file = files.profileImage[0];
+          if (!file.mimetype.startsWith('image/')) {
+            return sendError(res, 'Profile image must be an image file', 400);
+          }
+          const absolutePath = file.path.replace(/\\/g, "/");
+          const viewIndex = absolutePath.lastIndexOf("/view/");
+          profileImage = viewIndex !== -1 ? absolutePath.substring(viewIndex) : file.path;
+          console.log('New profile image uploaded:', profileImage);
         }
-        
-        // Extract file URL from the uploaded file path
-        const absolutePath = req.file.path.replace(/\\/g, "/");
-        const viewIndex = absolutePath.lastIndexOf("/view/");
-        if (viewIndex !== -1) {
-          profileImage = absolutePath.substring(viewIndex);
-        } else {
-          profileImage = req.file.path;
+
+        // Process Aadhaar front
+        if (files.aadhaarFront && files.aadhaarFront[0]) {
+          const file = files.aadhaarFront[0];
+          if (!file.mimetype.startsWith('image/')) {
+            return sendError(res, 'Aadhaar front image must be an image file', 400);
+          }
+          const absolutePath = file.path.replace(/\\/g, "/");
+          const viewIndex = absolutePath.lastIndexOf("/view/");
+          aadhaarFront = viewIndex !== -1 ? absolutePath.substring(viewIndex) : file.path;
+          console.log('New Aadhaar front uploaded:', aadhaarFront);
         }
-        console.log('New profile image uploaded:', profileImage);
+
+        // Process Aadhaar back
+        if (files.aadhaarBack && files.aadhaarBack[0]) {
+          const file = files.aadhaarBack[0];
+          if (!file.mimetype.startsWith('image/')) {
+            return sendError(res, 'Aadhaar back image must be an image file', 400);
+          }
+          const absolutePath = file.path.replace(/\\/g, "/");
+          const viewIndex = absolutePath.lastIndexOf("/view/");
+          aadhaarBack = viewIndex !== -1 ? absolutePath.substring(viewIndex) : file.path;
+          console.log('New Aadhaar back uploaded:', aadhaarBack);
+        }
+
+        // Process PAN card
+        if (files.panCard && files.panCard[0]) {
+          const file = files.panCard[0];
+          if (!file.mimetype.startsWith('image/')) {
+            return sendError(res, 'PAN card image must be an image file', 400);
+          }
+          const absolutePath = file.path.replace(/\\/g, "/");
+          const viewIndex = absolutePath.lastIndexOf("/view/");
+          panCard = viewIndex !== -1 ? absolutePath.substring(viewIndex) : file.path;
+          console.log('New PAN card uploaded:', panCard);
+        }
+
       } catch (fileError) {
-        console.error('Error processing uploaded file:', fileError);
-        return sendError(res, 'Error processing uploaded profile image', 400);
+        console.error('Error processing uploaded files:', fileError);
+        return sendError(res, 'Error processing uploaded files', 400);
       }
     }
 
@@ -1099,6 +1209,7 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
     if (area !== undefined) updateData.area = area;
     if (mode !== undefined) updateData.mode = mode;
     if (permanentAddress !== undefined) updateData.permanentAddress = permanentAddress;
+    if (residenceAddress !== undefined) updateData.residenceAddress = residenceAddress;
     if (billingAddress !== undefined) updateData.billingAddress = billingAddress;
     if (country !== undefined) updateData.country = country;
     if (language !== undefined) updateData.language = language;
@@ -1107,10 +1218,19 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
     if (fatherName !== undefined) updateData.fatherName = fatherName;
     if (provider !== undefined) updateData.provider = provider;
     if (providerId !== undefined) updateData.providerId = providerId;
+    if (state !== undefined) updateData.state = state;
+    if (pincode !== undefined) updateData.pincode = pincode;
+    if (areaFromPincode !== undefined) updateData.areaFromPincode = areaFromPincode;
+    if (aadhaarNumber !== undefined) updateData.aadhaarNumber = aadhaarNumber;
+    if (panNumber !== undefined) updateData.panNumber = panNumber;
     
-    // Update profile image if new one was uploaded
-    if (req.file) {
-      updateData.profileImage = profileImage;
+    // Update files if new ones were uploaded
+    if (req.files && typeof req.files === 'object') {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      if (files.profileImage && files.profileImage[0]) updateData.profileImage = profileImage;
+      if (files.aadhaarFront && files.aadhaarFront[0]) updateData.aadhaarFront = aadhaarFront;
+      if (files.aadhaarBack && files.aadhaarBack[0]) updateData.aadhaarBack = aadhaarBack;
+      if (files.panCard && files.panCard[0]) updateData.panCard = panCard;
     }
 
     // Update engineer
@@ -1118,7 +1238,7 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       engineerId,
       updateData,
       { new: true, runValidators: true }
-    ).select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode permanentAddress billingAddress country language companyPreference userName fatherName provider providerId updatedAt');
+    ).select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode permanentAddress residenceAddress billingAddress country language companyPreference userName fatherName provider providerId state pincode areaFromPincode aadhaarNumber panNumber aadhaarFront aadhaarBack panCard updatedAt');
 
     if (!updatedEngineer) {
       return sendError(res, 'Failed to update engineer', 500);
@@ -1139,6 +1259,7 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       area: updatedEngineer.area,
       mode: updatedEngineer.mode,
       permanentAddress: updatedEngineer.permanentAddress,
+      residenceAddress: updatedEngineer.residenceAddress,
       billingAddress: updatedEngineer.billingAddress,
       country: updatedEngineer.country,
       language: updatedEngineer.language,
@@ -1147,6 +1268,14 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       fatherName: updatedEngineer.fatherName,
       provider: updatedEngineer.provider,
       providerId: updatedEngineer.providerId,
+      state: updatedEngineer.state,
+      pincode: updatedEngineer.pincode,
+      areaFromPincode: updatedEngineer.areaFromPincode,
+      aadhaarNumber: updatedEngineer.aadhaarNumber,
+      panNumber: updatedEngineer.panNumber,
+      aadhaarFront: updatedEngineer.aadhaarFront,
+      aadhaarBack: updatedEngineer.aadhaarBack,
+      panCard: updatedEngineer.panCard,
       updatedAt: updatedEngineer.updatedAt,
       message: 'Engineer updated successfully.'
     };

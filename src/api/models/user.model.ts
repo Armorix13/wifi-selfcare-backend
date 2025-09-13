@@ -61,6 +61,18 @@ export interface IUser extends Document {
   mode?: Mode;
   provider?: string;
   providerId?: string;
+  
+  // Additional engineer fields
+  state?: string;
+  pincode?: string;
+  areaFromPincode?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  aadhaarFront?: string; // File path for Aadhaar front image
+  aadhaarBack?: string; // File path for Aadhaar back image
+  panCard?: string; // File path for PAN card image
+  residenceAddress?: string; // Alternative to residentialAddress
+  
   otp?: string;
   otpExpiry?: Date;
   otpVerified?: boolean;
@@ -181,6 +193,17 @@ const UserSchema = new Schema<IUser>({
   mode: { type: String, enum: Object.values(Mode) },
   provider: { type: String },
   providerId: { type: String },
+  
+  // Additional engineer fields
+  state: { type: String },
+  pincode: { type: String },
+  areaFromPincode: { type: String },
+  aadhaarNumber: { type: String },
+  panNumber: { type: String },
+  aadhaarFront: { type: String }, // File path for Aadhaar front image
+  aadhaarBack: { type: String }, // File path for Aadhaar back image
+  panCard: { type: String }, // File path for PAN card image
+  residenceAddress: { type: String }, // Alternative to residentialAddress
   otp: { type: String },
   otpExpiry: { type: Date },
   otpVerified: { type: Boolean, default: false },

@@ -12,8 +12,18 @@ dashboardRoute.get('/service-plans', authenticate, getAllServicePlans);
 // Engineer Analytics Routes
 dashboardRoute.get('/engineer-analytics', authenticate, getEngineerAnalytics);
 dashboardRoute.get('/engineers/:id', authenticate, getEngineerById);
-dashboardRoute.post('/add-engineer', authenticate, upload.single('profileImage'), addEngineer);
-dashboardRoute.put('/update-engineer', authenticate, upload.single('profileImage'), updateEngineer);
+dashboardRoute.post('/add-engineer', authenticate, upload.fields([
+  { name: 'profileImage', maxCount: 1 },
+  { name: 'aadhaarFront', maxCount: 1 },
+  { name: 'aadhaarBack', maxCount: 1 },
+  { name: 'panCard', maxCount: 1 }
+]), addEngineer);
+dashboardRoute.put('/update-engineer', authenticate, upload.fields([
+  { name: 'profileImage', maxCount: 1 },
+  { name: 'aadhaarFront', maxCount: 1 },
+  { name: 'aadhaarBack', maxCount: 1 },
+  { name: 'panCard', maxCount: 1 }
+]), updateEngineer);
 dashboardRoute.delete('/engineers/:id', authenticate, deleteEngineer);
 
 // User Management Routes
