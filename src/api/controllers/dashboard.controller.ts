@@ -3632,7 +3632,7 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
 
     // Get all installations
     const allInstallations = await WifiInstallationRequest.find({assignedEngineer: engineerId})
-      .populate("user", "firstName lastName email phoneNumber countryCode profileImage")
+      .populate("userId", "firstName lastName email phoneNumber countryCode profileImage")
       .sort({createdAt: -1});
 
     // Calculate installation analytics
