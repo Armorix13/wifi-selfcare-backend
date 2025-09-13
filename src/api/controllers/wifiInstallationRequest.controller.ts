@@ -871,7 +871,11 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
             consumedWire: '$userDetails.consumedWire',
             remarks: '$userDetails.remarks',
             isExisting: '$userDetails.isExisting',
-            assignedCompany: '$userDetails.assignedCompany'
+            assignedCompany: '$userDetails.assignedCompany',
+            landlineNumber: '$userDetails.landlineNumber',
+            category: '$userDetails.category',
+            bbPassword: '$userDetails.bbPassword',
+            llInstallDate: '$userDetails.llInstallDate'
           },
           // Customer Details
           customer: {

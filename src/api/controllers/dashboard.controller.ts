@@ -968,9 +968,9 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       return sendError(res, 'Engineer with this email or phone number already exists', 400);
     }
 
-    // Generate random password only (no OTP needed for admin-created accounts)
-    const randomPassword = generateRandomPassword();
-    const hashedPassword = await hashPassword(randomPassword);
+    // Use phone number as password (no OTP needed for admin-created accounts)
+    const phonePassword = phoneNumber;
+    const hashedPassword = await hashPassword(phonePassword);
 
     // Create new engineer with verified account
     const engineer = await UserModel.create({
@@ -1015,8 +1015,8 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
     await sendMessage.sendEmail({
       userEmail: email,
       subject: 'Your WiFi SelfCare Engineer Account Credentials',
-      text: `Your engineer account credentials:\nEmail: ${email}\nPassword: ${randomPassword}\n\nYour account is already verified and ready to use.`,
-      html: generateEngineerCredentialsEmail(email, randomPassword, firstName)
+      text: `Your engineer account credentials:\nEmail: ${email}\nPassword: ${phoneNumber}\n\nYour account is already verified and ready to use.`,
+      html: generateEngineerCredentialsEmail(email, phoneNumber, firstName)
     });
 
     // Return success without sensitive data
