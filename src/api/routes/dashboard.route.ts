@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload, excelUpload } from '../services/upload.service';
-import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById } from '../controllers/dashboard.controller';
+import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign } from '../controllers/dashboard.controller';
 import { getAllOltTOAdminPanel } from '../controllers/olt.controller';
 
 const dashboardRoute = Router();
@@ -34,6 +34,7 @@ dashboardRoute.get('/excel-users-incomplete', authenticate, getExcelUsersWithout
 dashboardRoute.get('/user/:id/details-for-update', authenticate, getUserDetailForUpdate);
 dashboardRoute.put('/update-user', authenticate, updateUser);
 dashboardRoute.get('/client/:id/full-details', authenticate, getFullClientDetailsById);
+dashboardRoute.get('/users-for-complaint-assign', authenticate, getAllUserForComplaintAssign);
 
 // Engineer Complaint Routes
 dashboardRoute.get('/engineer-complaints', authenticate, getAllComplaintForEnginer);

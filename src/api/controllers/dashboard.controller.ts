@@ -3728,5 +3728,25 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
 }
 
 
+export const getAllUserForComplaintAssign = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const companyId = (req as any).userId;
+    
+    // Find all users assigned to this company with USER role
+    const users = await UserModel.find({
+      assignedCompany: companyId, 
+      role: Role.USER
+    }).select('_id firstName lastName email phoneNumber countryCode profileImage customerId fatherName landlineNumber');
+
+    // Return success response with users data
+    return sendSuccess(res, users, 'Users retrieved successfully for complaint assignment');
+    
+  } catch (error: any) {
+    console.error("Error in getAllUserForComplaintAssign:", error);
+    return sendError(res, 'Failed to retrieve users', 500, error);
+  }
+};
+
+
 
 
