@@ -72,7 +72,7 @@ export interface IUser extends Document {
   aadhaarBack?: string; // File path for Aadhaar back image
   panCard?: string; // File path for PAN card image
   residenceAddress?: string; // Alternative to residentialAddress
-  
+
   otp?: string;
   otpExpiry?: Date;
   otpVerified?: boolean;
@@ -139,7 +139,8 @@ export interface IUser extends Document {
   lastBillingDate?: Date; // Last billing date
   assignedEngineer?: mongoose.Types.ObjectId; // Reference to engineer
   assignedCompany?: mongoose.Types.ObjectId; // Reference to company
-
+  
+  isExisting?: boolean; // Whether the user is an existing customer
 }
 
 // Interface for static methods
@@ -285,6 +286,10 @@ const UserSchema = new Schema<IUser>({
     ref: "User"
   },
   isActivated: {
+    type: Boolean,
+    default: false
+  },
+  isExisting: {
     type: Boolean,
     default: false
   }

@@ -626,7 +626,108 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
     }
     // Scenario 3: No isInstalled parameter - return all customers (no additional filter)
 
+    // Create aggregation pipeline for existing users
+    const existingUserMatchConditions: any = {
+      isExisting: true,
+      assignedCompany: new mongoose.Types.ObjectId(companyId),
+      role: 'user'
+    };
+
+    // Apply isInstalled filter for existing users if provided
+    if (isInstalled !== undefined) {
+      const isInstalledValue = isInstalled === 'true' || isInstalled === '1';
+      if (isInstalledValue) {
+        // For existing users, we need to check if they have customer records with isInstalled=true
+        existingUserMatchConditions['$expr'] = {
+          $eq: [
+            {
+              $let: {
+                vars: {
+                  customerRecord: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$customerDetails',
+                          cond: { $eq: ['$$this.userId', '$_id'] }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                },
+                in: '$$customerRecord.isInstalled'
+              }
+            },
+            true
+          ]
+        };
+      } else {
+        // For non-installed existing users
+        existingUserMatchConditions['$expr'] = {
+          $or: [
+            {
+              $eq: [
+                {
+                  $size: {
+                    $filter: {
+                      input: '$customerDetails',
+                      cond: { $eq: ['$$this.userId', '$_id'] }
+                    }
+                  }
+                },
+                0
+              ]
+            },
+            {
+              $ne: [
+                {
+                  $let: {
+                    vars: {
+                      customerRecord: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: '$customerDetails',
+                              cond: { $eq: ['$$this.userId', '$_id'] }
+                            }
+                          },
+                          0
+                        ]
+                      }
+                    },
+                    in: '$$customerRecord.isInstalled'
+                  }
+                },
+                true
+              ]
+            }
+          ]
+        };
+      }
+    }
+
+    const existingUsersPipeline = [
+      {
+        $lookup: {
+          from: 'customers',
+          localField: '_id',
+          foreignField: 'userId',
+          as: 'customerDetails'
+        }
+      },
+      {
+        $match: existingUserMatchConditions
+      },
+      {
+        $addFields: {
+          userType: 'existing'
+        }
+      }
+    ];
+
+    // Execute the combined aggregation
     const uniqueUsers = await WifiInstallationRequest.aggregate([
+      // WiFi Installation Pipeline
       {
         $lookup: {
           from: 'applicationforms',
@@ -659,6 +760,18 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
           countryCode: { $first: '$countryCode' },
           profileImage: { $first: '$profileImage' },
           location: { $first: '$location' }
+        }
+      },
+      {
+        $addFields: {
+          userType: 'wifiInstallation'
+        }
+      },
+      // Union with existing users
+      {
+        $unionWith: {
+          coll: 'users',
+          pipeline: existingUsersPipeline
         }
       },
       {
@@ -705,8 +818,20 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
         }
       },
       {
+        $group: {
+          _id: '$_id',
+          userType: { $first: '$userType' },
+          userDetails: { $first: '$userDetails' },
+          customerDetails: { $first: '$customerDetails' },
+          fdbDetails: { $first: '$fdbDetails' },
+          oltDetails: { $first: '$oltDetails' },
+          modemDetails: { $first: '$modemDetails' }
+        }
+      },
+      {
         $project: {
           _id: 1,
+          userType: 1,
           // User Details
           user: {
             firstName: '$userDetails.firstName',
@@ -744,7 +869,9 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
             ruralUrban: '$userDetails.ruralUrban',
             acquisitionType: '$userDetails.acquisitionType',
             consumedWire: '$userDetails.consumedWire',
-            remarks: '$userDetails.remarks'
+            remarks: '$userDetails.remarks',
+            isExisting: '$userDetails.isExisting',
+            assignedCompany: '$userDetails.assignedCompany'
           },
           // Customer Details
           customer: {
@@ -838,7 +965,7 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
     return sendSuccess(
       res,
       uniqueUsers,
-      `Successfully fetched ${uniqueUsers.length} unique user${uniqueUsers.length !== 1 ? 's' : ''} with customer, service, and modem details`
+      `Successfully fetched ${uniqueUsers.length} unique user${uniqueUsers.length !== 1 ? 's' : ''} (from WiFi installation requests and existing users) with customer, service, and modem details`
     );
 
   } catch (error: any) {
