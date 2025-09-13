@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload, excelUpload } from '../services/upload.service';
-import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData } from '../controllers/dashboard.controller';
+import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById } from '../controllers/dashboard.controller';
 import { getAllOltTOAdminPanel } from '../controllers/olt.controller';
 
 const dashboardRoute = Router();
@@ -12,6 +12,7 @@ dashboardRoute.get('/service-plans', authenticate, getAllServicePlans);
 // Engineer Analytics Routes
 dashboardRoute.get('/engineer-analytics', authenticate, getEngineerAnalytics);
 dashboardRoute.get('/engineers/:id', authenticate, getEngineerById);
+dashboardRoute.get('/engineers/:id/full-details', authenticate, getFullEngineerDetailsById);
 dashboardRoute.post('/add-engineer', authenticate, upload.fields([
   { name: 'profileImage', maxCount: 1 },
   { name: 'aadhaarFront', maxCount: 1 },

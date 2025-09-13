@@ -533,8 +533,6 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
 
   try {
     const { 
-      page = 1, 
-      limit = 6, 
       status, 
       group, 
       zone, 
@@ -593,19 +591,13 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
     const sortConditions: any = {};
     sortConditions[sortBy as string] = sortOrder === 'desc' ? -1 : 1;
 
-    // Calculate skip value for pagination
-    const skip = (Number(page) - 1) * Number(limit);
-
-    // Get total count for pagination
+    // Get total count for analytics
     const totalEngineers = await UserModel.countDocuments(filterConditions);
 
-    // Get engineers with pagination and population
+    // Get ALL engineers with complete data including new fields
     const engineers = await UserModel.find(filterConditions)
-      .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName')
-      .populate('profileImage', 'url')
-      .sort(sortConditions)
-      .skip(skip)
-      .limit(Number(limit));
+      .select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress residenceAddress country language userName fatherName provider providerId state pincode areaFromPincode aadhaarNumber panNumber aadhaarFront aadhaarBack panCard balanceDue deviceToken deviceType jti otpVerified')
+      .sort(sortConditions);
 
     // Calculate analytics with role-based filtering
     const totalEngineersCount = await UserModel.countDocuments(filterConditions);
@@ -700,7 +692,7 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
         avgRating: avgRating
       },
 
-      // Engineer List with pagination
+      // Complete Engineer List - All Data
       engineers: engineers.map(engineer => ({
         _id: engineer._id,
         firstName: engineer.firstName,
@@ -725,15 +717,31 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
           isAccountVerified: engineer.isAccountVerified,
           otpVerified: engineer.otpVerified
         },
-        // Additional details
+        // Address details
         permanentAddress: engineer.permanentAddress,
+        residenceAddress: engineer.residenceAddress,
         billingAddress: engineer.billingAddress,
         country: engineer.country,
         language: engineer.language,
         companyPreference: engineer.companyPreference,
         userName: engineer.userName,
         fatherName: engineer.fatherName,
+        provider: engineer.provider,
+        providerId: engineer.providerId,
         balanceDue: engineer.balanceDue,
+        
+        // Recently added fields - Location & Personal Details
+        state: engineer.state,
+        pincode: engineer.pincode,
+        areaFromPincode: engineer.areaFromPincode,
+        
+        // Recently added fields - Document Details
+        aadhaarNumber: engineer.aadhaarNumber,
+        panNumber: engineer.panNumber,
+        aadhaarFront: engineer.aadhaarFront, // File path
+        aadhaarBack: engineer.aadhaarBack,   // File path
+        panCard: engineer.panCard,           // File path
+        
         // Device and session info
         deviceToken: engineer.deviceToken,
         deviceType: engineer.deviceType,
@@ -758,14 +766,10 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
         availableModes: modeDistribution.map(m => m._id)
       },
 
-      // Pagination Info
-      pagination: {
-        currentPage: Number(page),
-        totalPages: Math.ceil(totalEngineers / Number(limit)),
+      // Data Info
+      dataInfo: {
         totalItems: totalEngineers,
-        itemsPerPage: Number(limit),
-        hasNextPage: Number(page) < Math.ceil(totalEngineers / Number(limit)),
-        hasPrevPage: Number(page) > 1
+        returnedItems: engineers.length
       }
     };
 
@@ -3549,6 +3553,177 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
   } catch (error) {
     console.error("Error in getFullClientDetailsById:", error);
     next(error);
+  }
+}
+
+export const getFullEngineerDetailsById = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const engineerId = req.params.id;
+    const userId = (req as any).userId; // Logged in user ID
+    const role = (req as any).role; // Logged in user role
+
+    // Validate engineer ID
+    if (!engineerId) {
+      return sendError(res, 'Engineer ID is required', 400);
+    }
+
+    // Build filter conditions based on role
+    const filterConditions: any = {
+      _id: engineerId,
+      role: 'engineer',
+      isDeleted: false
+    };
+
+    // Role-based filtering
+    if (role === 'superadmin') {
+      // Superadmin gets all data - no additional filters needed
+    } else if (role === 'admin') {
+      // Admin gets only engineers where parentCompany equals their userId
+      filterConditions.parentCompany = userId;
+    }
+
+    // Get engineer details
+    const engineer = await UserModel.findOne(filterConditions).select(
+      "_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode permanentAddress residenceAddress billingAddress country language companyPreference userName fatherName provider providerId state pincode areaFromPincode aadhaarNumber panNumber aadhaarFront aadhaarBack panCard createdAt updatedAt"
+    );
+
+    if (!engineer) {
+      return sendError(res, 'Engineer not found', 404);
+    }
+
+    // Get all assigned complaints with analytics
+    const allAssignedComplaints = await ComplaintModel.find({engineer: engineerId})
+      .populate("user", "firstName lastName email phoneNumber countryCode profileImage")
+      .sort({createdAt: -1});
+
+    // Calculate complaint analytics
+    const totalComplaints = allAssignedComplaints.length;
+    const resolvedComplaints = allAssignedComplaints.filter(complaint => complaint.status === 'resolved').length;
+    const pendingComplaints = allAssignedComplaints.filter(complaint => complaint.status === 'pending').length;
+    const inProgressComplaints = allAssignedComplaints.filter(complaint => complaint.status === 'in_progress').length;
+
+    // Get all leave requests
+    const allLeaveRequests = await LeaveRequestModel.find({engineer: engineerId})
+      .sort({createdAt: -1});
+
+    // Calculate leave request analytics
+    const totalLeaveRequests = allLeaveRequests.length;
+    const approvedLeaveRequests = allLeaveRequests.filter(leave => leave.status === 'approved').length;
+    const pendingLeaveRequests = allLeaveRequests.filter(leave => leave.status === 'pending').length;
+    const rejectedLeaveRequests = allLeaveRequests.filter(leave => leave.status === 'rejected').length;
+
+    // Get attendance records
+    const allAttendance = await EngineerAttendanceModel.find({engineer: engineerId})
+      .sort({createdAt: -1});
+
+    // Calculate attendance analytics
+    const totalAttendanceDays = allAttendance.length;
+    const presentDays = allAttendance.filter(attendance => attendance.status === 'present').length;
+    const absentDays = allAttendance.filter(attendance => attendance.status === 'absent').length;
+    // Calculate late days based on check-in time (assuming work starts at 9 AM)
+    const lateDays = allAttendance.filter(attendance => {
+      if (attendance.checkInTime) {
+        const checkInHour = attendance.checkInTime.getHours();
+        const checkInMinute = attendance.checkInTime.getMinutes();
+        return checkInHour > 9 || (checkInHour === 9 && checkInMinute > 15); // Late if after 9:15 AM
+      }
+      return false;
+    }).length;
+
+    // Get all installations
+    const allInstallations = await WifiInstallationRequest.find({assignedEngineer: engineerId})
+      .populate("user", "firstName lastName email phoneNumber countryCode profileImage")
+      .sort({createdAt: -1});
+
+    // Calculate installation analytics
+    const totalInstallations = allInstallations.length;
+    const approvedInstallations = allInstallations.filter(installation => installation.status === 'approved').length;
+    const inReviewInstallations = allInstallations.filter(installation => installation.status === 'inreview').length;
+    const rejectedInstallations = allInstallations.filter(installation => installation.status === 'rejected').length;
+
+    // Prepare comprehensive response
+    const engineerDetails = {
+      // Engineer basic info
+      engineer: {
+        _id: engineer._id,
+        firstName: engineer.firstName,
+        lastName: engineer.lastName,
+        email: engineer.email,
+        phoneNumber: engineer.phoneNumber,
+        countryCode: engineer.countryCode,
+        profileImage: engineer.profileImage,
+        role: engineer.role,
+        status: engineer.status,
+        group: engineer.group,
+        zone: engineer.zone,
+        area: engineer.area,
+        mode: engineer.mode,
+        permanentAddress: engineer.permanentAddress,
+        residenceAddress: engineer.residenceAddress,
+        billingAddress: engineer.billingAddress,
+        country: engineer.country,
+        language: engineer.language,
+        companyPreference: engineer.companyPreference,
+        userName: engineer.userName,
+        fatherName: engineer.fatherName,
+        provider: engineer.provider,
+        providerId: engineer.providerId,
+        state: engineer.state,
+        pincode: engineer.pincode,
+        areaFromPincode: engineer.areaFromPincode,
+        aadhaarNumber: engineer.aadhaarNumber,
+        panNumber: engineer.panNumber,
+        aadhaarFront: engineer.aadhaarFront,
+        aadhaarBack: engineer.aadhaarBack,
+        panCard: engineer.panCard,
+        createdAt: engineer.createdAt,
+        updatedAt: engineer.updatedAt
+      },
+
+      // Analytics summary
+      analytics: {
+        complaints: {
+          total: totalComplaints,
+          resolved: resolvedComplaints,
+          pending: pendingComplaints,
+          inProgress: inProgressComplaints
+        },
+        leaveRequests: {
+          total: totalLeaveRequests,
+          approved: approvedLeaveRequests,
+          pending: pendingLeaveRequests,
+          rejected: rejectedLeaveRequests
+        },
+        attendance: {
+          totalDays: totalAttendanceDays,
+          present: presentDays,
+          absent: absentDays,
+          late: lateDays,
+          attendancePercentage: totalAttendanceDays > 0 ? Math.round((presentDays / totalAttendanceDays) * 100) : 0
+        },
+        installations: {
+          total: totalInstallations,
+          approved: approvedInstallations,
+          inReview: inReviewInstallations,
+          rejected: rejectedInstallations,
+          approvalRate: totalInstallations > 0 ? Math.round((approvedInstallations / totalInstallations) * 100) : 0
+        }
+      },
+
+      // Detailed records - Complete arrays
+      records: {
+        complaints: allAssignedComplaints, // All complaints
+        leaveRequests: allLeaveRequests, // All leave requests
+        attendance: allAttendance, // All attendance records
+        installations: allInstallations // All installations
+      }
+    };
+
+    return sendSuccess(res, engineerDetails, 'Engineer details retrieved successfully');
+
+  } catch (error: any) {
+    console.error("Error in getFullEngineerDetailsById:", error);
+    return sendError(res, 'Failed to retrieve engineer details', 500, error);
   }
 }
 
