@@ -64,11 +64,22 @@ export const addComplaintByAdmin = async (req: Request, res: Response): Promise<
     const userId = (req as any).userId;
     const { title, issueDescription,priority, issueType, phoneNumber, complaintType, type , user , engineer} = req.body;
 
+    // Debug logging
+    console.log("Request files:", req.files);
+    console.log("Request body:", req.body);
+
     // Handle file uploads for attachments
-    const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
+    let attachments: string[] = [];
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      attachments = req.files.map(f => `/view/image/${f.filename}`);
+      console.log("Processed attachments:", attachments);
+    } else {
+      console.log("No files found in request");
+    }
 
     // Create complaint data object with required fields
     const complaintData: any = {
+      title,
       issueDescription,
       issueType,
       phoneNumber,
@@ -82,15 +93,15 @@ export const addComplaintByAdmin = async (req: Request, res: Response): Promise<
     // Add attachments if files were uploaded
     if (attachments.length > 0) {
       complaintData.attachments = attachments;
+      console.log("Added attachments to complaint data:", complaintData.attachments);
     }
     
     // Add engineer if provided
     if (engineer) {
       complaintData.engineer = engineer;
     }
-    if(title){
-        complaintData.title = title;
-    }
+
+    console.log("Final complaint data:", complaintData);
 
     const complaint = await ComplaintModel.create(complaintData);
 

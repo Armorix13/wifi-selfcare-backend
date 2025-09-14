@@ -24,6 +24,7 @@ const router = Router();
 router.post("/", authenticate, createComplaint);
 
 router.post("/admin", authenticate, upload.array('attachments', 4), addComplaintByAdmin);
+router.post("/admin/json", authenticate, addComplaintByAdmin);
 
 router.get("/", authenticate, getAllComplaints);
 
