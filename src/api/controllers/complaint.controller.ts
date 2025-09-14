@@ -20,11 +20,11 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
 
-        console.log("userId",userId);
-        
+        console.log("userId", userId);
+
         const { title, issueDescription, issueType, phoneNumber, attachments, complaintType, type }: CreateComplaintBody = req.body;
-        console.log("createComplaint",req.body);
-        
+        console.log("createComplaint", req.body);
+
 
         if (!title || !issueDescription || !issueType || !phoneNumber || !type) {
             return sendError(res, "Title, issue description, issue type, phone number, and type are required", 400);
@@ -60,57 +60,60 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
 };
 
 export const addComplaintByAdmin = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const userId = (req as any).userId;
-    const { title, issueDescription,priority, issueType, phoneNumber, complaintType, type , user , engineer} = req.body;
+    try {
+        const userId = (req as any).userId;
+        const { title, issueDescription, priority, issueType, phoneNumber, complaintType, type, user, engineer } = req.body;
 
-    // Debug logging
-    console.log("Request files:", req.files);
-    console.log("Request body:", req.body);
+        // Debug logging
+        console.log("Request files:", req.files);
+        console.log("Request body:", req.body);
 
-    // Handle file uploads for attachments
-    let attachments: string[] = [];
-    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      attachments = req.files.map(f => `/view/image/${f.filename}`);
-      console.log("Processed attachments:", attachments);
-    } else {
-      console.log("No files found in request");
+        // Handle file uploads for attachments
+        let attachments: string[] = [];
+        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            attachments = req.files.map(f => `/view/image/${f.filename}`);
+            console.log("Processed attachments:", attachments);
+        } else {
+            console.log("No files found in request");
+        }
+
+        // Create complaint data object with required fields
+        const complaintData: any = {
+            title,
+            issueDescription,
+            issueType,
+            phoneNumber,
+            complaintType,
+            type,
+            user,
+            priority,
+            assignedBy: userId,
+            status: ComplaintStatus.PENDING,
+        };
+
+        // Add attachments if files were uploaded
+        if (attachments.length > 0) {
+            complaintData.attachments = attachments;
+            console.log("Added attachments to complaint data:", complaintData.attachments);
+        }
+
+        // Add engineer if provided
+        if (engineer) {
+            complaintData.engineer = engineer;
+        }
+
+        console.log("Final complaint data:", complaintData);
+
+        const complaint = await ComplaintModel.create(complaintData);
+
+        await complaint.initializeStatusHistory(user);
+
+        return sendSuccess(res, complaint, "Complaint created successfully by admin", 201);
+
+    } catch (error) {
+        console.error("Add complaint error:", error);
+        return sendError(res, "Internal server error", 500, error);
     }
-
-    // Create complaint data object with required fields
-    const complaintData: any = {
-      title,
-      issueDescription,
-      issueType,
-      phoneNumber,
-      complaintType,
-      type,
-      user,
-      priority,
-      assignedBy: userId
-    };
-
-    // Add attachments if files were uploaded
-    if (attachments.length > 0) {
-      complaintData.attachments = attachments;
-      console.log("Added attachments to complaint data:", complaintData.attachments);
-    }
-    
-    // Add engineer if provided
-    if (engineer) {
-      complaintData.engineer = engineer;
-    }
-
-    console.log("Final complaint data:", complaintData);
-
-    const complaint = await ComplaintModel.create(complaintData);
-
-    return sendSuccess(res, complaint, "Complaint created successfully by admin", 201);
-
-  } catch (error) {
-    console.error("Add complaint error:", error);
-    return sendError(res, "Internal server error", 500, error); 
-  }  
 }
 
 // 2. Get All Complaints (Admin / Manager)
@@ -233,8 +236,8 @@ const getMyComplaints = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
 
-        console.log("user",userId);
-        
+        console.log("user", userId);
+
         const { status, page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc" } = req.query;
 
         const filter: any = { user: new mongoose.Types.ObjectId(userId) };
@@ -250,8 +253,8 @@ const getMyComplaints = async (req: Request, res: Response): Promise<any> => {
 
         const skip = (Number(page) - 1) * Number(limit);
 
-        console.log("filter",filter);
-        
+        console.log("filter", filter);
+
 
         const complaints = await ComplaintModel.find(filter)
             .populate("engineer", "firstName lastName email phoneNumber")
@@ -369,7 +372,7 @@ const getComplaintById = async (req: Request, res: Response): Promise<any> => {
 
         // Add status history to the response
         complaintData.statusHistory = complaint.getFormattedStatusHistory();
-        
+
         // Add engineer assignment information
         complaintData.hasEngineerAssigned = complaint.hasEngineerAssigned();
         complaintData.engineerAssignmentHistory = complaint.getEngineerAssignmentHistory();
@@ -467,17 +470,17 @@ const assignEngineer = async (req: Request, res: Response): Promise<any> => {
 // 6. Update Complaint Status (Engineer)
 const updateComplaintStatus = async (req: Request, res: Response): Promise<any> => {
     try {
-       
-        
+
+
         const { id } = req.params;
         const { status, resolved, remark, notResolvedReason, resolutionNotes }: UpdateStatusBody = req.body;
         const userId = (req as any).userId;
         const userRole = (req as any).role;
 
-        console.log("updateComplaintStatus",req.body);
-        console.log("userId",userId);
-        console.log("userRole",userRole);
-    
+        console.log("updateComplaintStatus", req.body);
+        console.log("userId", userId);
+        console.log("userRole", userRole);
+
 
         // Check if user is engineer or admin
         if (userRole !== Role.ENGINEER && ![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
@@ -755,7 +758,7 @@ const getComplaintStats = async (req: Request, res: Response): Promise<any> => {
             }
         };
 
-        return sendSuccess(res, { 
+        return sendSuccess(res, {
             stats,
             companyInfo: {
                 companyId,
@@ -987,7 +990,7 @@ const getDashboardData = async (req: Request, res: Response): Promise<any> => {
             const date = new Date(sevenDaysAgo);
             date.setDate(date.getDate() + i);
             const dateStr = date.toISOString().split('T')[0];
-            
+
             const existingData = dailyTrends.find(item => item._id === dateStr);
             filledDailyTrends.push({
                 date: dateStr,
@@ -1178,16 +1181,16 @@ const getDashboardData = async (req: Request, res: Response): Promise<any> => {
                 type: item.type,
                 priority: item.priority,
                 createdAt: item.createdAt,
-                user: item.user && typeof item.user === 'object' && 'firstName' in item.user 
-                    ? `${(item.user as any).firstName} ${(item.user as any).lastName}` 
+                user: item.user && typeof item.user === 'object' && 'firstName' in item.user
+                    ? `${(item.user as any).firstName} ${(item.user as any).lastName}`
                     : "Unknown",
-                engineer: item.engineer && typeof item.engineer === 'object' && 'firstName' in item.engineer 
-                    ? `${(item.engineer as any).firstName} ${(item.engineer as any).lastName}` 
+                engineer: item.engineer && typeof item.engineer === 'object' && 'firstName' in item.engineer
+                    ? `${(item.engineer as any).firstName} ${(item.engineer as any).lastName}`
                     : "Unassigned"
             }))
         };
 
-        return sendSuccess(res, { 
+        return sendSuccess(res, {
             dashboardData,
             companyInfo: {
                 companyId,
@@ -1279,7 +1282,7 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
         if (userRole !== Role.ENGINEER && ![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
             return sendError(res, "Access denied. Engineer access required", 403);
         }
-        
+
         // Validate resolution attachments
         if (!resolutionAttachments || resolutionAttachments.length < 2 || resolutionAttachments.length > 4) {
             return sendError(res, "Resolution attachments must be between 2 and 4 image URLs", 400);
@@ -1318,7 +1321,7 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
             const userEmail = (updatedComplaint.user as any).email;
             const otp = updatedComplaint.otp;
             const complaintId = updatedComplaint.id;
-            
+
             if (userEmail && otp && complaintId) {
                 const emailSubject = `Complaint Resolution OTP - ${complaintId}`;
                 const emailText = `Your complaint has been resolved. Please use OTP: ${otp} to complete the resolution process.`;
@@ -1334,14 +1337,14 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
                         <p>Best regards,<br>WiFi SelfCare Team</p>
                     </div>
                 `;
-                
+
                 await sendMessage.sendEmail({
                     userEmail,
                     subject: emailSubject,
                     text: emailText,
                     html: emailHtml
                 });
-                
+
                 console.log(`OTP email sent successfully to ${userEmail} for complaint ${id}`);
             } else {
                 console.warn(`Missing required data for email: email=${userEmail}, otp=${otp}, id=${complaintId}`);
@@ -1351,7 +1354,7 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
             // Don't fail the request if email fails
         }
 
-        return sendSuccess(res, { 
+        return sendSuccess(res, {
             complaint: updatedComplaint,
             message: `Complaint closed successfully. OTP ${updatedComplaint.otp} has been sent to customer's email.`
         }, "Complaint closed successfully");
@@ -1406,7 +1409,7 @@ const verifyOTP = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "Failed to retrieve updated complaint", 500);
         }
 
-        return sendSuccess(res, { 
+        return sendSuccess(res, {
             complaint: updatedComplaint,
             message: "OTP verified successfully. Complaint is now fully closed."
         }, "OTP verified successfully");
