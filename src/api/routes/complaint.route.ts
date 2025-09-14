@@ -1,5 +1,6 @@
 import { Router } from "express";
 import authenticate from "../../middleware/auth.middleware";
+import { upload } from "../services/upload.service";
 
 import {
     createComplaint,
@@ -14,12 +15,15 @@ import {
     getDashboardData,
     getComplaintStatusHistory,
     closeComplaint,
-    verifyOTP
+    verifyOTP,
+    addComplaintByAdmin
 } from "../controllers/complaint.controller";
 
 const router = Router();
 
 router.post("/", authenticate, createComplaint);
+
+router.post("/admin", authenticate, upload.array('attachments', 4), addComplaintByAdmin);
 
 router.get("/", authenticate, getAllComplaints);
 

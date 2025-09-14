@@ -59,6 +59,46 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+export const addComplaintByAdmin = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userId = (req as any).userId;
+    const { title, issueDescription, issueType, phoneNumber, complaintType, type , user , engineer} = req.body;
+
+    // Handle file uploads for attachments
+    const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
+
+    // Create complaint data object with required fields
+    const complaintData: any = {
+      title,
+      issueDescription,
+      issueType,
+      phoneNumber,
+      complaintType,
+      type,
+      user,
+      assignedBy: userId
+    };
+
+    // Add attachments if files were uploaded
+    if (attachments.length > 0) {
+      complaintData.attachments = attachments;
+    }
+    
+    // Add engineer if provided
+    if (engineer) {
+      complaintData.engineer = engineer;
+    }
+
+    const complaint = await ComplaintModel.create(complaintData);
+
+    return sendSuccess(res, complaint, "Complaint created successfully by admin", 201);
+
+  } catch (error) {
+    console.error("Add complaint error:", error);
+    return sendError(res, "Internal server error", 500, error); 
+  }  
+}
+
 // 2. Get All Complaints (Admin / Manager)
 const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
     try {
