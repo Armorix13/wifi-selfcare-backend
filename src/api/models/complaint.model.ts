@@ -239,7 +239,7 @@ const ComplaintSchema = new Schema<IComplaint>({
     ontTxPower: { type: String, trim: true },
     ontRxPower: { type: String, trim: true },
     // OTP
-    otp: { type: String, trim: true },
+    otp: { type: String, trim: true, default: null },
     otpVerified: { type: Boolean, default: false },
     otpVerifiedAt: { type: Date },
     // Re-complaint
@@ -315,6 +315,8 @@ ComplaintSchema.virtual('resolutionTimeInHours').get(function () {
 
 // Enforce min 1, max 4 attachments (photos) on save
 ComplaintSchema.pre('save', async function (next) {
+    console.log(`Pre-save middleware called. isNew: ${this.isNew}, otp: ${this.otp}`);
+    
     // Generate custom complaint ID only for new documents
     if (this.isNew && !this.id) {
         let generatedId: string;
@@ -335,8 +337,13 @@ ComplaintSchema.pre('save', async function (next) {
     }
 
     // Generate OTP for new complaints
-    if (this.isNew && !this.otp) {
-        this.otp = Math.floor(1000 + Math.random() * 9000).toString(); // Generate 4-digit OTP
+    if (this.isNew) {
+        if (!this.otp) {
+            this.otp = Math.floor(1000 + Math.random() * 9000).toString(); // Generate 4-digit OTP
+            console.log(`Generated OTP for new complaint: ${this.otp}`);
+        } else {
+            console.log(`OTP already exists for new complaint: ${this.otp}`);
+        }
     }
 
     if (this.attachments && this.attachments.length > 0) {
