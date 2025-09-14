@@ -334,6 +334,11 @@ ComplaintSchema.pre('save', async function (next) {
         this.id = generatedId!;
     }
 
+    // Generate OTP for new complaints
+    if (this.isNew && !this.otp) {
+        this.otp = Math.floor(1000 + Math.random() * 9000).toString(); // Generate 4-digit OTP
+    }
+
     if (this.attachments && this.attachments.length > 0) {
         if (this.attachments.length > 4) {
             return next(new Error('You can submit at most 4 photos.'));
@@ -571,11 +576,8 @@ ComplaintSchema.methods.getEngineerAssignmentHistory = function () {
 
 // Method to close complaint with OTP and resolution attachments
 ComplaintSchema.methods.closeComplaint = function (otp: string, resolutionAttachments: string[], notes?: string, updatedBy?: mongoose.Types.ObjectId) {
-    // Generate 4-digit OTP
-    const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
-    
-    // Set OTP
-    this.otp = generatedOTP;
+    // Use existing OTP (already generated when complaint was created)
+    const existingOTP = this.otp;
     
     // Add resolution attachments
     if (resolutionAttachments && resolutionAttachments.length > 0) {
@@ -603,7 +605,7 @@ ComplaintSchema.methods.closeComplaint = function (otp: string, resolutionAttach
         previousStatus: this.status,
         metadata: {
             action: "complaint_closed",
-            otp: generatedOTP,
+            otp: existingOTP,
             resolutionAttachments: resolutionAttachments,
             resolutionNotes: notes
         },

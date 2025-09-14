@@ -1319,23 +1319,23 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "Failed to retrieve updated complaint", 500);
         }
 
-        // Send OTP email to customer
+        // Send Happy Code email to customer
         try {
             const userEmail = (updatedComplaint.user as any).email;
-            const otp = updatedComplaint.otp;
+            const happyCode = updatedComplaint.otp;
             const complaintId = updatedComplaint.id;
 
-            if (userEmail && otp && complaintId) {
-                const emailSubject = `Complaint Resolution OTP - ${complaintId}`;
-                const emailText = `Your complaint has been resolved. Please use OTP: ${otp} to complete the resolution process.`;
+            if (userEmail && happyCode && complaintId) {
+                const emailSubject = `WiFi Service Restored - Happy Code ${complaintId}`;
+                const emailText = `Great news! Your WiFi service has been restored. Please use Happy Code: ${happyCode} to complete the resolution process.`;
                 const emailHtml = `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h2 style="color: #333;">Complaint Resolution Complete</h2>
-                        <p>Dear Customer,</p>
-                        <p>Your complaint (ID: ${complaintId}) has been successfully resolved by our engineering team.</p>
-                        <p><strong>OTP Code: ${otp}</strong></p>
-                        <p>Please use this OTP to verify and complete the complaint resolution process.</p>
-                        <p>Thank you for your patience.</p>
+                        <h2 style="color: #28A745;">🎉 WiFi Service Restored!</h2>
+                        <p>Dear Valued Customer,</p>
+                        <p>We're happy to inform you that your WiFi service (ID: ${complaintId}) has been successfully restored by our engineering team.</p>
+                        <p><strong>Happy Code: ${happyCode}</strong></p>
+                        <p>Please use this Happy Code to confirm that your WiFi service is working perfectly.</p>
+                        <p>Thank you for your patience and trust in our service.</p>
                         <br>
                         <p>Best regards,<br>WiFi SelfCare Team</p>
                     </div>
@@ -1348,9 +1348,9 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
                     html: emailHtml
                 });
 
-                console.log(`OTP email sent successfully to ${userEmail} for complaint ${id}`);
+                console.log(`Happy Code email sent successfully to ${userEmail} for complaint ${id}`);
             } else {
-                console.warn(`Missing required data for email: email=${userEmail}, otp=${otp}, id=${complaintId}`);
+                console.warn(`Missing required data for email: email=${userEmail}, happyCode=${happyCode}, id=${complaintId}`);
             }
         } catch (emailError) {
             console.error('Email sending error:', emailError);
@@ -1359,7 +1359,7 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
 
         return sendSuccess(res, {
             complaint: updatedComplaint,
-            message: `Complaint closed successfully. OTP ${updatedComplaint.otp} has been sent to customer's email.`
+            message: `Complaint closed successfully. Happy Code ${updatedComplaint.otp} has been sent to customer's email.`
         }, "Complaint closed successfully");
     } catch (error) {
         console.error("Close complaint error:", error);
