@@ -334,9 +334,9 @@ ComplaintSchema.pre('save', async function (next) {
         this.id = generatedId!;
     }
 
-    if (this.attachments) {
-        if (this.attachments.length < 1 || this.attachments.length > 4) {
-            return next(new Error('You must submit at least 1 and at most 4 photos.'));
+    if (this.attachments && this.attachments.length > 0) {
+        if (this.attachments.length > 4) {
+            return next(new Error('You can submit at most 4 photos.'));
         }
     }
     // Set statusColor based on status
