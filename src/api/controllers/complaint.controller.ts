@@ -62,20 +62,20 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
 export const addComplaintByAdmin = async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
-    const { title, issueDescription, issueType, phoneNumber, complaintType, type , user , engineer} = req.body;
+    const { title, issueDescription,priority, issueType, phoneNumber, complaintType, type , user , engineer} = req.body;
 
     // Handle file uploads for attachments
     const attachments = req.files ? (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`) : [];
 
     // Create complaint data object with required fields
     const complaintData: any = {
-      title,
       issueDescription,
       issueType,
       phoneNumber,
       complaintType,
       type,
       user,
+      priority,
       assignedBy: userId
     };
 
@@ -87,6 +87,9 @@ export const addComplaintByAdmin = async (req: Request, res: Response): Promise<
     // Add engineer if provided
     if (engineer) {
       complaintData.engineer = engineer;
+    }
+    if(title){
+        complaintData.title = title;
     }
 
     const complaint = await ComplaintModel.create(complaintData);
