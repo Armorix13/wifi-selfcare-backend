@@ -502,7 +502,7 @@ const updateComplaintStatus = async (req: Request, res: Response): Promise<any> 
         }
 
         // Update status with notes and track who made the change
-        await complaint.updateStatus(status, resolutionNotes, userId);
+        await complaint.updateStatus(status,remark || resolutionNotes, userId);
 
         // Update additional fields if provided
         if (remark) {
@@ -511,6 +511,9 @@ const updateComplaintStatus = async (req: Request, res: Response): Promise<any> 
 
         if (notResolvedReason) {
             complaint.notResolvedReason = notResolvedReason;
+        }
+        if(resolutionNotes){
+            complaint.resolutionNotes = resolutionNotes;
         }
 
         if (resolved !== undefined) {
