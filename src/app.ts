@@ -8,10 +8,6 @@ import logger from './utils/logger';
 import parentRouter from './api/routes';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import https from 'https';
-import fs from 'fs';
-import path from "path";
-
 
 dotenv.config();
 
@@ -63,14 +59,6 @@ app.use('/view', express.static('view', {
     }
 }));
 
-const sslOptions = {
-    key: fs.readFileSync(path.join(__dirname, '../../ssl/privkey.pem')),
-    cert: fs.readFileSync(path.join(__dirname, '../../ssl/fullchain.pem')),
-    ca: fs.readFileSync(path.join(__dirname, '../../ssl/chain.pem')),
-};
-
-
-
 // Routes
 app.use("/api/v1", parentRouter);
 
@@ -79,9 +67,8 @@ app.use(errorHandler);
 const startServer = async () => {
     try {
         await connectDB();
-
-        https.createServer(sslOptions, app).listen(port, () => {
-            logger.info(`HTTPS Server running on port ${port}`);
+        app.listen(port, () => {
+            logger.info(`Server running on port ${port}`);
         });
     } catch (error) {
         logger.error('Server startup error:', error);
