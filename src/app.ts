@@ -10,6 +10,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import https from 'https';
 import fs from 'fs';
+import path from "path";
 
 
 dotenv.config();
@@ -63,9 +64,9 @@ app.use('/view', express.static('view', {
 }));
 
 const sslOptions = {
-    key: fs.readFileSync('./ssl/privkey.pem'),
-    cert: fs.readFileSync('./ssl/fullchain.pem'),
-    ca: fs.readFileSync('./ssl/chain.pem'),
+    key: fs.readFileSync(path.join(__dirname, '../ssl/privkey.pem')),
+    cert: fs.readFileSync(path.join(__dirname, '../ssl/fullchain.pem')),
+    ca: fs.readFileSync(path.join(__dirname, '../ssl/chain.pem')),
 };
 
 
