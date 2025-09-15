@@ -64,10 +64,11 @@ app.use('/view', express.static('view', {
 }));
 
 const sslOptions = {
-    key: fs.readFileSync(path.join(__dirname, '../ssl/privkey.pem')),
-    cert: fs.readFileSync(path.join(__dirname, '../ssl/fullchain.pem')),
-    ca: fs.readFileSync(path.join(__dirname, '../ssl/chain.pem')),
+    key: fs.readFileSync(path.join(__dirname, '../../ssl/privkey.pem')),
+    cert: fs.readFileSync(path.join(__dirname, '../../ssl/fullchain.pem')),
+    ca: fs.readFileSync(path.join(__dirname, '../../ssl/chain.pem')),
 };
+
 
 
 // Routes
