@@ -63,9 +63,9 @@ app.use('/view', express.static('view', {
 }));
 
 const sslOptions = {
-    key: fs.readFileSync('/etc/letsencrypt/live/wifiselfcare.com/privkey.pem'),
-    cert: fs.readFileSync('/etc/letsencrypt/live/wifiselfcare.com/fullchain.pem'),
-    ca: fs.readFileSync('/etc/letsencrypt/live/wifiselfcare.com/chain.pem'), // optional
+    key: fs.readFileSync('./ssl/privkey.pem'),
+    cert: fs.readFileSync('./ssl/fullchain.pem'),
+    ca: fs.readFileSync('./ssl/chain.pem'),
 };
 
 
