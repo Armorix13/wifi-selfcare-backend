@@ -28,6 +28,7 @@ enum ComplaintType {
 
 export interface IComplaint extends Document {
     id: string; // Custom complaint ID (WIFI-XXXXX or CCTV-XXXXX)
+    complaintId: string; // New complaint ID field
     user: mongoose.Types.ObjectId; // Client/user who submitted the complaint
     engineer?: mongoose.Types.ObjectId; // Engineer assigned to handle the complaint
     assignedBy?: mongoose.Types.ObjectId; // Admin who assigned the engineer
@@ -132,6 +133,12 @@ const ComplaintSchema = new Schema<IComplaint>({
     id: {
         type: String,
         // required: true,
+        unique: true,
+        trim: true
+    },
+    complaintId: {
+        type: String,
+        required: true,
         unique: true,
         trim: true
     },
