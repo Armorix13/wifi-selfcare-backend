@@ -24,7 +24,7 @@ import {
 const optionalFileUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, 'uploads/view/image');
+      cb(null, 'view/image');
     },
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

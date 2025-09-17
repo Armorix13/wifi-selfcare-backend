@@ -138,9 +138,9 @@ const ComplaintSchema = new Schema<IComplaint>({
     },
     complaintId: {
         type: String,
-        required: true,
-        unique: true,
-        trim: true
+        // required: true,
+        // unique: true,
+        // trim: true
     },
     user: {
         type: Schema.Types.ObjectId,
