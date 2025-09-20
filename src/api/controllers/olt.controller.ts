@@ -1193,55 +1193,9 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
           input: input,
           modemDetails: modemDetails,
         }
-      })
-
-      // let DataToSend:any;
-
-      // if(olt.oltId === "OLT1551"){
-      //   DataToSend = [
-      //     {
-      //         _id: "68b89d4c36c81210ddd574c7",
-      //         userId: {
-      //             _id: "68719fcc42c04664bee8186b",
-      //             email: "sukh@yopmail.com",
-      //             countryCode: "+91",
-      //             phoneNumber: "9876543210",
-      //             firstName: "sukh",
-      //             lastName: "jivan",
-      //             location: {
-      //                 type: "Point",
-      //                 coordinates: [76.7092654, 30.6991405]
-      //             }
-      //         },
-      //         modemDetails: {
-      //             modemName: "Tplink Archer C6",
-      //             ontType: "DUAL_BAND",
-      //             modelNumber: "AC1200",
-      //             serialNumber: "SN1234567890",
-      //             ontMac: "00:1A:2B:3C:4D:5E",
-      //             username: "rohitop",
-      //             password: "123456"
-      //         },
-      //         input: {
-      //             type: "fdb",
-      //             id: "FDB1653",
-      //             port: 1
-      //         },
-      //         fdbId: "FDB5053"
-      //     }
-      // ];
-
-      // }else{
-      //   DataToSend = []
-      // }
-
-     
-    
+      });
       
      let DataToSend = await Promise.all(transformedCustomerData);
-
-     console.log("DataToSend",DataToSend);
-     
 
       return {
         ...olt.toObject(),
@@ -1269,6 +1223,223 @@ export const searchOLTsBySerialNumber = async (req: Request, res: Response): Pro
     res.status(500).json({
       success: false,
       message: "Error searching OLTs by serial number",
+      error: error.message
+    });
+  }
+};
+
+// Get single OLT with complete topology and customer details by MongoDB _id
+export const getOLTCompleteDetails = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    // Find OLT by MongoDB _id
+    const olt = await OLTModel.findById(id).populate('ownedBy', 'name email company');
+    
+    if (!olt) {
+      return res.status(404).json({
+        success: false,
+        message: "OLT not found"
+      });
+    }
+
+    // Get all connected devices
+    const [connectedMS, connectedFDB, connectedSUBMS, connectedX2] = await Promise.all([
+      MSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      FDBModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      SUBMSModel.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      }),
+      X2Model.find({
+        "input.type": "olt",
+        "input.id": olt.oltId
+      })
+    ]);
+
+    // Build simplified topology for MS devices
+    const msWithTopology = await Promise.all(connectedMS.map(async (ms) => {
+      // Get SUBMS devices connected to this MS
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+      //get FDB devices connected to this MS
+      const connectedFDB = await FDBModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+
+      return {
+        ms_id: ms.msId,
+        ms_name: ms.msName,
+        ms_power: ms.msType || 0,
+        location: [ms.latitude, ms.longitude],
+        input: { type: "olt", id: olt.oltId },
+        attachments: ms.attachments,
+        outputs: [
+          ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+        ]
+      };
+    }));
+
+    // Get all FDB devices connected to any MS of this OLT
+    const allConnectedFDB = await Promise.all(connectedMS.map(async (ms) => {
+      const connectedFDB = await FDBModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+      return connectedFDB;
+    }));
+    const flattenedFDB = allConnectedFDB.flat();
+
+    // Get all SUBMS devices connected to any MS of this OLT
+    const allConnectedSUBMS = await Promise.all(connectedMS.map(async (ms) => {
+      const connectedSUBMS = await SUBMSModel.find({
+        "input.type": "ms",
+        "input.id": ms.msId
+      });
+      return connectedSUBMS;
+    }));
+    const flattenedSUBMS = allConnectedSUBMS.flat();
+
+    // Get all FDB devices connected to SUBMS devices
+    const allConnectedFDBFromSUBMS = await Promise.all(flattenedSUBMS.map(async (subms) => {
+      const connectedFDB = await FDBModel.find({
+        "input.type": "subms",
+        "input.id": subms.submsId
+      });
+      return connectedFDB;
+    }));
+    const flattenedFDBFromSUBMS = allConnectedFDBFromSUBMS.flat();
+
+    // Build simplified topology for FDB devices (both direct OLT connections, MS connections, and SUBMS connections)
+    const fdbWithTopology = await Promise.all([...connectedFDB, ...flattenedFDB, ...flattenedFDBFromSUBMS].map(async (fdb) => {
+      // Get X2 devices connected to this FDB
+      const connectedX2 = await X2Model.find({
+        "input.type": "fdb",
+        "input.id": fdb.fdbId
+      })
+      return {
+        fdb_id: fdb.fdbId,
+        fdb_name: fdb.fdbName,
+        fdb_power: fdb.fdbPower || 0,
+        location: [fdb.latitude, fdb.longitude],
+        input: fdb.input, // Keep the original input (either "olt", "ms", or "subms")
+        attachments: fdb.attachments,
+        outputs: [
+          ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id })),
+          // Include existing user connections from FDB outputs
+          ...(fdb.outputs || []).filter(output => output.type === 'user').map(userOutput => ({
+            type: "user",
+            id: userOutput.id,
+            description: userOutput.description
+          }))
+        ]
+      };
+    }));
+
+    // Build simplified topology for SUBMS devices
+    const submsWithTopology = await Promise.all(flattenedSUBMS.map(async (subms) => {
+      const connectedFDB = await FDBModel.find({
+        "input.type": "subms",
+        "input.id": subms.submsId
+      });
+      return {
+        subms_id: subms.submsId,
+        subms_name: subms.submsName,
+        subms_power: subms.submsType || 0,
+        location: [subms.latitude, subms.longitude],
+        input: { type: "ms", id: subms.input.id },
+        attachments: subms.attachments,
+        outputs: [
+          ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId }))
+        ]
+      };
+    }));
+
+    // Get all X2 devices connected to any FDB of this OLT (both direct, MS-connected, and SUBMS-connected FDBs)
+    const allConnectedX2 = await Promise.all([...connectedFDB, ...flattenedFDB, ...flattenedFDBFromSUBMS].map(async (fdb) => {
+      const connectedX2 = await X2Model.find({
+        "input.type": "fdb",
+        "input.id": fdb.fdbId
+      });
+      return connectedX2;
+    }));
+    const flattenedX2 = allConnectedX2.flat();
+
+    // Build simplified topology for X2 devices
+    const x2WithTopology = await Promise.all(flattenedX2.map(async (x2) => {
+      return {
+        x2_id: x2.x2Id,
+        x2_name: x2.x2Name,
+        x2_power: x2.x2Power || 0,
+        location: [x2.latitude, x2.longitude],
+        input: { type: "fdb", id: x2.input.id },
+        attachments: x2.attachments,
+        outputs: []
+      };
+    }));
+
+    // Get customer data
+    let customerData = await CustomerModel.find({
+      oltId: olt._id
+    }).populate("userId","firstName lastName email profileImage location countryCode phoneNumber")
+    .populate("fdbId");
+
+    const transformedCustomerData = customerData.map(async(c)=>{
+      const fdbData = c.fdbId as any; // Type assertion for populated data
+      const modemDetails = await Modem.findOne({
+        userId: c.userId
+      }).select("modemName ontType modelNumber serialNumber ontMac username password");
+
+      const input = {
+        type: "fdb",
+        id: fdbData.fdbId,
+        port: 1
+      }
+      return {
+        _id: c._id,
+        userId: c.userId,
+        fdbId: fdbData.fdbId,
+        input: input,
+        modemDetails: modemDetails,
+      }
+    });
+    
+    let DataToSend = await Promise.all(transformedCustomerData);
+
+    const oltWithCompleteDetails = {
+      ...olt.toObject(),
+      outputs: [
+        ...connectedMS.map(ms => ({ type: "ms", id: ms.msId })),
+        ...connectedFDB.map(fdb => ({ type: "fdb", id: fdb.fdbId })),
+        ...connectedSUBMS.map(subms => ({ type: "subms", id: subms.submsId })),
+        ...connectedX2.map(x2 => ({ type: "x2", id: x2.x2Id }))
+      ],
+      // Include simplified topology data for each device type
+      ms_devices: msWithTopology,
+      fdb_devices: fdbWithTopology,
+      subms_devices: submsWithTopology,
+      x2_devices: x2WithTopology,
+      customers: DataToSend
+    };
+
+    res.status(200).json({
+      success: true,
+      data: oltWithCompleteDetails
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching OLT complete details",
       error: error.message
     });
   }

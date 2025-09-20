@@ -71,7 +71,8 @@ import {
   getTopologyExamples,
   fdbInput,
   selectNodeAdmin,
-  getOLTByOLTIdForEngineer
+  getOLTByOLTIdForEngineer,
+  getOLTCompleteDetails
 } from "../controllers/olt.controller";
 import { OLTModel } from "../models/olt.model";
 import { MSModel } from "../models/ms.model";
@@ -94,6 +95,9 @@ router.get("/olt", getAllOLTs);
 
 // Get OLT by ID
 router.get("/olt/:id", getOLTById);
+
+// Get OLT complete details with topology and customers by MongoDB _id
+router.get("/olt/complete/:id", getOLTCompleteDetails);
 
 // Update OLT
 router.put("/olt/:id", updateOLT);
