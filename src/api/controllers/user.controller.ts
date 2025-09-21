@@ -1543,6 +1543,7 @@ const getCompanyProfile = async (req: Request, res: Response): Promise<any> => {
 
         // Extract company profile data
         const companyProfile = {
+            _id: user._id,
             companyName: user.companyName,
             contactPerson: user.contactPerson,
             companyEmail: user.companyEmail,
