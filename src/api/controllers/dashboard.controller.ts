@@ -29,7 +29,7 @@ import { RequestBill } from '../models/requestBill.model';
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { 
+    const {
       dateRange,
       category,
       productType,
@@ -69,8 +69,8 @@ export const getProductDashboardAnalytics = async (req: Request, res: Response, 
 
     // Calculate average rating
     const productsWithRating = allProducts.filter(p => p.averageRating && p.averageRating > 0);
-    const averageRating = productsWithRating.length > 0 
-      ? productsWithRating.reduce((sum, p) => sum + (p.averageRating || 0), 0) / productsWithRating.length 
+    const averageRating = productsWithRating.length > 0
+      ? productsWithRating.reduce((sum, p) => sum + (p.averageRating || 0), 0) / productsWithRating.length
       : 0;
 
     // Calculate order analytics
@@ -84,8 +84,8 @@ export const getProductDashboardAnalytics = async (req: Request, res: Response, 
 
     // Calculate positive reviews (assuming 4+ stars is positive)
     const positiveReviews = productsWithRating.filter(p => (p.averageRating || 0) >= 4).length;
-    const positiveReviewPercentage = productsWithRating.length > 0 
-      ? (positiveReviews / productsWithRating.length) * 100 
+    const positiveReviewPercentage = productsWithRating.length > 0
+      ? (positiveReviews / productsWithRating.length) * 100
       : 0;
 
     // Category distribution
@@ -204,7 +204,7 @@ export const getProductDashboardAnalytics = async (req: Request, res: Response, 
         averageRating: Math.round(averageRating * 10) / 10,
         lowStockAlerts,
         positiveReviews: Math.round(positiveReviewPercentage),
-        
+
         // Order Metrics
         totalOrders,
         completedOrders,
@@ -212,12 +212,12 @@ export const getProductDashboardAnalytics = async (req: Request, res: Response, 
         totalRevenue,
         completedRevenue,
         averageOrderValue: totalOrders > 0 ? Math.round((totalRevenue / totalOrders) * 100) / 100 : 0,
-        
+
         // Recent Activity
         recentProducts,
         recentOrders
       },
-      
+
       // Distributions
       categoryDistribution,
       productTypeDistribution,
@@ -226,10 +226,10 @@ export const getProductDashboardAnalytics = async (req: Request, res: Response, 
 
       allOrders,
       allProducts,
-      
+
       // Top Performers
       topSellingProducts,
-      
+
       // Filter Options
       filters: {
         categories,
@@ -255,12 +255,12 @@ export const getProductDashboardAnalytics = async (req: Request, res: Response, 
   } catch (error: any) {
     return sendError(res, 'Failed to fetch dashboard analytics', 500, error);
   }
-}; 
+};
 
 
 export const getAllServicePlans = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { 
+    const {
       search,
       provider,
       planType,
@@ -274,7 +274,7 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
 
     // Build filters
     const filters: any = {};
-    
+
     if (search) {
       filters.$or = [
         { title: { $regex: search, $options: 'i' } },
@@ -282,25 +282,25 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
         { description: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     if (provider && provider !== 'All Providers') {
       filters.provider = { $regex: provider, $options: 'i' };
     }
-    
+
     if (planType && planType !== 'All Types') {
       filters.planType = planType;
     }
-    
+
     if (minPrice || maxPrice) {
       filters.price = {};
       if (minPrice) filters.price.$gte = Number(minPrice);
       if (maxPrice) filters.price.$lte = Number(maxPrice);
     }
-    
+
     if (quality) {
       filters.quality = quality;
     }
-    
+
     if (speed) {
       filters.$or = [
         { speed: { $regex: speed, $options: 'i' } },
@@ -321,7 +321,7 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
       });
     }
     delete iptvFilters.title;
-    
+
     const iptvPlans = await IptvPlan.find(iptvFilters)
       .select('name totalChannels payChannels freeToAirChannels price lcoMarginPercent planType quality provider logo description channelList')
       .sort({ price: 1 })
@@ -337,7 +337,7 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
       });
     }
     delete ottFilters.name;
-    
+
     const ottPlans = await OttPlan.find(ottFilters)
       .select('title price speedBeforeLimit speedAfterLimit dataLimitGB isUnlimited validity ottApps callBenefit provider logo description')
       .sort({ price: 1 })
@@ -355,22 +355,22 @@ export const getAllServicePlans = async (req: Request, res: Response, next: Next
       });
     }
     delete fibreFilters.name;
-    
+
     // Remove the restrictive planType filter since fibre plans can have various planType values
     // Instead, we'll identify them by the presence of fibre-related fields
     delete fibreFilters.planType;
-    
+
     const fibrePlans = await Plan.find(fibreFilters)
       .select('title price validity speed dataLimit provider logo benefits description planType')
       .sort({ price: 1 })
       .skip(skip)
       .limit(Number(limit));
-    
+
     // Debug logging
     console.log('Fibre filters:', JSON.stringify(fibreFilters, null, 2));
     console.log('Fibre plans found:', fibrePlans.length);
     console.log('Fibre plans:', fibrePlans.map(p => ({ title: p.title, planType: p.planType, provider: p.provider })));
-    
+
     // Test: Get all plans without filters to see if the model is working
     const allPlansTest = await Plan.find({}).limit(5);
     console.log('All plans test (first 5):', allPlansTest.map(p => ({ title: p.title, planType: p.planType, provider: p.provider })));
@@ -532,11 +532,11 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
   const role = (req as any).role;
 
   try {
-    const { 
-      status, 
-      group, 
-      zone, 
-      area, 
+    const {
+      status,
+      group,
+      zone,
+      area,
       mode,
       search,
       sortBy = 'createdAt',
@@ -601,11 +601,11 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
 
     // Calculate analytics with role-based filtering
     const totalEngineersCount = await UserModel.countDocuments(filterConditions);
-    const activeEngineersCount = await UserModel.countDocuments({ 
+    const activeEngineersCount = await UserModel.countDocuments({
       ...filterConditions,
-      isDeactivated: false, 
-      isSuspended: false, 
-      isAccountVerified: true 
+      isDeactivated: false,
+      isSuspended: false,
+      isAccountVerified: true
     });
     const inactiveEngineersCount = totalEngineersCount - activeEngineersCount;
 
@@ -677,7 +677,7 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
     // Get recent activity (last 7 days) with role-based filtering
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
+
     const recentActivity = await UserModel.countDocuments({
       ...filterConditions,
       lastLogin: { $gte: sevenDaysAgo }
@@ -729,19 +729,19 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
         provider: engineer.provider,
         providerId: engineer.providerId,
         balanceDue: engineer.balanceDue,
-        
+
         // Recently added fields - Location & Personal Details
         state: engineer.state,
         pincode: engineer.pincode,
         areaFromPincode: engineer.areaFromPincode,
-        
+
         // Recently added fields - Document Details
         aadhaarNumber: engineer.aadhaarNumber,
         panNumber: engineer.panNumber,
         aadhaarFront: engineer.aadhaarFront, // File path
         aadhaarBack: engineer.aadhaarBack,   // File path
         panCard: engineer.panCard,           // File path
-        
+
         // Device and session info
         deviceToken: engineer.deviceToken,
         deviceType: engineer.deviceType,
@@ -790,8 +790,8 @@ export const getEngineerById = async (req: Request, res: Response, next: NextFun
     // Build filter conditions based on role
     const filterConditions: any = {
       _id: id,
-      role: 'engineer', 
-      isDeleted: false 
+      role: 'engineer',
+      isDeleted: false
     };
 
     // Role-based filtering
@@ -859,22 +859,22 @@ export const getEngineerById = async (req: Request, res: Response, next: NextFun
 export const addEngineer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const userId = (req as any).userId; // Logged in user ID
-    const { 
-      firstName, 
-      lastName, 
-      email, 
-      phoneNumber, 
-      countryCode, 
-      status, 
-      group, 
-      zone, 
-      area, 
-      mode, 
+    const {
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      countryCode,
+      status,
+      group,
+      zone,
+      area,
+      mode,
       permanentAddress,
-      residenceAddress, 
-      billingAddress, 
-      country, 
-      language, 
+      residenceAddress,
+      billingAddress,
+      country,
+      language,
       companyPreference,
       userName,
       fatherName,
@@ -895,7 +895,7 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
 
     if (req.files && typeof req.files === 'object') {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      
+
       try {
         // Process profile image
         if (files.profileImage && files.profileImage[0]) {
@@ -957,11 +957,11 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
     }
 
     // Check if engineer already exists
-    const existingEngineer = await UserModel.findOne({ 
+    const existingEngineer = await UserModel.findOne({
       $or: [
-        { email }, 
+        { email },
         { phoneNumber: `${countryCode}${phoneNumber}` }
-      ] 
+      ]
     });
 
     if (existingEngineer) {
@@ -1056,23 +1056,23 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
   try {
     const userId = (req as any).userId; // Logged in user ID
     const role = (req as any).role; // Logged in user role
-    const { 
+    const {
       engineerId,
-      firstName, 
-      lastName, 
-      email, 
-      phoneNumber, 
-      countryCode, 
-      status, 
-      group, 
-      zone, 
-      area, 
-      mode, 
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      countryCode,
+      status,
+      group,
+      zone,
+      area,
+      mode,
       permanentAddress,
-      residenceAddress, 
-      billingAddress, 
-      country, 
-      language, 
+      residenceAddress,
+      billingAddress,
+      country,
+      language,
       companyPreference,
       userName,
       fatherName,
@@ -1093,8 +1093,8 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
     // Build filter conditions based on role
     const filterConditions: any = {
       _id: engineerId,
-      role: 'engineer', 
-      isDeleted: false 
+      role: 'engineer',
+      isDeleted: false
     };
 
     // Role-based filtering
@@ -1120,7 +1120,7 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
 
     if (req.files && typeof req.files === 'object') {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      
+
       try {
         // Process profile image
         if (files.profileImage && files.profileImage[0]) {
@@ -1187,7 +1187,7 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       if (email) {
         conflictQuery.email = email;
       }
-      
+
       if (phoneNumber && countryCode) {
         conflictQuery.phoneNumber = `${countryCode}${phoneNumber}`;
       }
@@ -1200,7 +1200,7 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
 
     // Prepare update data
     const updateData: any = {};
-    
+
     // Only update fields that are provided
     if (firstName !== undefined) updateData.firstName = firstName;
     if (lastName !== undefined) updateData.lastName = lastName;
@@ -1227,7 +1227,7 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
     if (areaFromPincode !== undefined) updateData.areaFromPincode = areaFromPincode;
     if (aadhaarNumber !== undefined) updateData.aadhaarNumber = aadhaarNumber;
     if (panNumber !== undefined) updateData.panNumber = panNumber;
-    
+
     // Update files if new ones were uploaded
     if (req.files && typeof req.files === 'object') {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -1306,8 +1306,8 @@ export const deleteEngineer = async (req: Request, res: Response, next: NextFunc
     // Build filter conditions based on role
     const filterConditions: any = {
       _id: id,
-      role: 'engineer', 
-      isDeleted: false 
+      role: 'engineer',
+      isDeleted: false
     };
 
     // Role-based filtering
@@ -1328,7 +1328,7 @@ export const deleteEngineer = async (req: Request, res: Response, next: NextFunc
     // Soft delete the engineer by setting isDeleted to true
     const deletedEngineer = await UserModel.findByIdAndUpdate(
       id,
-      { 
+      {
         isDeleted: true,
         deletedAt: new Date(),
         // Optionally, you can also deactivate the account
@@ -1369,32 +1369,32 @@ export const deleteEngineer = async (req: Request, res: Response, next: NextFunc
 export const getEngineerDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const userId = (req as any).userId;
-    const engineer:any = await UserModel.findById(userId).select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName').populate("parentCompany",
+    const engineer: any = await UserModel.findById(userId).select('_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode lastLogin createdAt updatedAt isDeactivated isSuspended isAccountVerified permanentAddress billingAddress country language companyPreference userName fatherName').populate("parentCompany",
       "_id companyName companyAddress companyPhone companyEmail companyWebsite companyLogo companyDescription"
     );
-    
+
     if (!engineer) {
       return sendError(res, 'Engineer not found', 404);
     }
 
     // Set timezone to India (Asia/Kolkata)
     moment.tz.setDefault('Asia/Kolkata');
-    
+
     // Get current month start and end dates in India timezone
     const currentMonthStart = moment().startOf('month').toDate();
     const currentMonthEnd = moment().endOf('month').toDate();
 
     // Get all complaints for engineer
     const complaints = await ComplaintModel.find({ engineer: userId }).select('_id id title status priority createdAt user');
-    
+
     // Get monthly complaints for current month
-    const monthlyComplaints = complaints.filter(c => 
+    const monthlyComplaints = complaints.filter(c =>
       c.createdAt && c.createdAt >= currentMonthStart && c.createdAt <= currentMonthEnd
     );
-    
+
     // Calculate complaint statistics for all statuses
     const totalComplaints = complaints.length;
-    
+
     // Count complaints by each status
     const statusCounts = {
       pending: complaints.filter(c => c.status === 'pending').length,
@@ -1406,15 +1406,15 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
       cancelled: complaints.filter(c => c.status === 'cancelled').length,
       reopened: complaints.filter(c => c.status === 'reopened').length
     };
-    
+
     // Calculate pending complaints (all non-final statuses)
-    const pendingComplaints = complaints.filter(c => 
+    const pendingComplaints = complaints.filter(c =>
       ['pending', 'assigned', 'in_progress', 'visited'].includes(c.status)
     ).length;
-    
+
     // Calculate resolved complaints (final resolved status)
     const resolvedComplaints = statusCounts.resolved;
-    
+
     // Calculate this week complaints
     const thisWeekComplaints = complaints.filter(c => {
       const weekAgo = new Date();
@@ -1432,11 +1432,11 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
 
     // Calculate monthly repeated complaints for current month
     const monthlyRepeatedComplaints = await ComplaintModel.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           engineer: engineer._id,
           createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
-        } 
+        }
       },
       { $group: { _id: '$user', count: { $sum: 1 } } },
       { $match: { count: { $gt: 1 } } }
@@ -1446,7 +1446,7 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
     const monthlyComplaintSummary = {
       total: monthlyComplaints.length,
       done: monthlyComplaints.filter(c => c.status === 'resolved').length,
-      pending: monthlyComplaints.filter(c => 
+      pending: monthlyComplaints.filter(c =>
         ['pending', 'assigned', 'in_progress', 'visited'].includes(c.status)
       ).length,
       repeated: monthlyRepeatedComplaints.length
@@ -1490,7 +1490,7 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
     const monthlyInstallationSummary = {
       total: monthlyInstallations.length,
       done: monthlyInstallations.filter(inst => inst.status === 'approved').length,
-      pending: monthlyInstallations.filter(inst => 
+      pending: monthlyInstallations.filter(inst =>
         ['inreview'].includes(inst.status)
       ).length,
       newLead: monthlyLeads.length
@@ -1502,54 +1502,54 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
     const today = new Date();
     const currentHour = today.getHours();
     const currentTime = today.getTime();
-    
+
     // Check if engineer has marked attendance for today
     try {
-        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-        
-        const todayAttendance = await EngineerAttendanceModel.findOne({
-            engineer: userId,
-            date: {
-                $gte: todayStart,
-                $lte: todayEnd
-            }
-        });
-        
-        isTodayAttendance = !!todayAttendance;
-        
-        // Define attendance time restrictions
-        const canMarkStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 5, 0, 0); // 5:00 AM
-        const canMarkEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 22, 0, 0); // 10:00 PM
-        
-        // Check if current time is within allowed attendance window
-        if (currentTime >= canMarkStart.getTime() && currentTime <= canMarkEnd.getTime()) {
-            canMarkAttendance = true;
-            if (isTodayAttendance) {
-                attendanceMessage = 'Attendance already marked for today';
-            } else {
-                attendanceMessage = 'You can mark attendance now';
-            }
-        } else if (currentTime > canMarkEnd.getTime() && currentTime < new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0).getTime()) {
-            // Between 10:00 PM and 12:00 AM (before new day starts)
-            canMarkAttendance = false;
-            attendanceMessage = 'Attendance marking is closed for today. You are too late to mark attendance.';
-        } else if (currentTime >= new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0).getTime() && currentTime < canMarkStart.getTime()) {
-            // Between 12:00 AM and 5:00 AM (new day but before allowed time)
-            canMarkAttendance = false;
-            attendanceMessage = 'You can only mark attendance after 5:00 AM';
-        }
-        
-    } catch (error) {
-        console.error('Error checking today attendance:', error);
-        isTodayAttendance = false;
-        canMarkAttendance = false;
-        attendanceMessage = 'Error checking attendance status';
-    } 
-    
-    
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
-    const dashboardData = {      
+      const todayAttendance = await EngineerAttendanceModel.findOne({
+        engineer: userId,
+        date: {
+          $gte: todayStart,
+          $lte: todayEnd
+        }
+      });
+
+      isTodayAttendance = !!todayAttendance;
+
+      // Define attendance time restrictions
+      const canMarkStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 5, 0, 0); // 5:00 AM
+      const canMarkEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 22, 0, 0); // 10:00 PM
+
+      // Check if current time is within allowed attendance window
+      if (currentTime >= canMarkStart.getTime() && currentTime <= canMarkEnd.getTime()) {
+        canMarkAttendance = true;
+        if (isTodayAttendance) {
+          attendanceMessage = 'Attendance already marked for today';
+        } else {
+          attendanceMessage = 'You can mark attendance now';
+        }
+      } else if (currentTime > canMarkEnd.getTime() && currentTime < new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0).getTime()) {
+        // Between 10:00 PM and 12:00 AM (before new day starts)
+        canMarkAttendance = false;
+        attendanceMessage = 'Attendance marking is closed for today. You are too late to mark attendance.';
+      } else if (currentTime >= new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0).getTime() && currentTime < canMarkStart.getTime()) {
+        // Between 12:00 AM and 5:00 AM (new day but before allowed time)
+        canMarkAttendance = false;
+        attendanceMessage = 'You can only mark attendance after 5:00 AM';
+      }
+
+    } catch (error) {
+      console.error('Error checking today attendance:', error);
+      isTodayAttendance = false;
+      canMarkAttendance = false;
+      attendanceMessage = 'Error checking attendance status';
+    }
+
+
+
+    const dashboardData = {
       // Current month information
       currentMonth: {
         name: moment().format('MMMM YYYY'),
@@ -1557,7 +1557,7 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
         endDate: currentMonthEnd,
         timezone: 'Asia/Kolkata'
       },
-      company:{
+      company: {
         _id: engineer?.parentCompany?._id,
         companyName: engineer?.parentCompany?.companyName,
         companyAddress: engineer?.parentCompany?.companyAddress,
@@ -1638,12 +1638,12 @@ export const getEngineerDashboardAnalytics = async (req: Request, res: Response,
 export const getAllComplaintForEnginer = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const userId = (req as any).userId; // engineerId
-    
+
     // Get pagination parameters
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
-    
+
     // Get status filter parameter
     const statusFilter = req.query.status as string;
 
@@ -1655,7 +1655,7 @@ export const getAllComplaintForEnginer = async (req: Request, res: Response, nex
 
     // Get total count of complaints for this engineer (with status filter if applied)
     const totalComplaints = await ComplaintModel.countDocuments(queryFilters);
-    
+
     // Get complaints with pagination, sorted by latest assigned first
     const complaints = await ComplaintModel.find(queryFilters)
       .populate('user', 'firstName lastName phoneNumber countryCode email address')
@@ -1672,13 +1672,13 @@ export const getAllComplaintForEnginer = async (req: Request, res: Response, nex
       { $group: { _id: '$status', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
-    
+
     // Convert to object format for easier access
     const statusBreakdown: any = {};
     statusCounts.forEach((item: any) => {
       statusBreakdown[item._id] = item.count;
     });
-    
+
     // Ensure all statuses are represented (even if count is 0)
     const allStatuses = ['pending', 'assigned', 'in_progress', 'visited', 'resolved', 'not_resolved', 'cancelled', 'reopened'];
     allStatuses.forEach(status => {
@@ -1686,7 +1686,7 @@ export const getAllComplaintForEnginer = async (req: Request, res: Response, nex
         statusBreakdown[status] = 0;
       }
     });
-    
+
     const totalPages = Math.ceil(totalComplaints / limit);
 
     const response = {
@@ -1748,7 +1748,7 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
         path: file?.path,
         keys: file ? Object.keys(file) : 'undefined'
       });
-      
+
       if (!file || typeof file !== 'object') {
         return sendError(res, `File at index ${i} is invalid`, 400);
       }
@@ -1811,7 +1811,7 @@ export const addUserFromExcel = async (req: Request, res: Response, next: NextFu
         results.errors.push(...fileResult.errors);
       } catch (fileError: any) {
         console.error(`Error processing file ${file.originalname}:`, fileError);
-        const errorMessage = file.originalname 
+        const errorMessage = file.originalname
           ? `File ${file.originalname}: ${fileError.message}`
           : `Unknown file: ${fileError.message}`;
         results.errors.push(errorMessage);
@@ -1895,7 +1895,7 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
       // Disk storage - read file from disk
       try {
         fileBuffer = fs.readFileSync(file.path);
-        
+
         if (!fileBuffer || fileBuffer.length === 0) {
           throw new Error('File read from disk is empty or corrupted');
         }
@@ -1920,7 +1920,7 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
     let workbook;
     try {
       // Try different parsing options
-      workbook = XLSX.read(fileBuffer, { 
+      workbook = XLSX.read(fileBuffer, {
         type: 'buffer',
         cellDates: true,
         cellNF: false,
@@ -1928,11 +1928,11 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
       });
     } catch (xlsxError: any) {
       console.error('XLSX parsing error:', xlsxError);
-      
+
       // Try alternative parsing method
       try {
         console.log('Trying alternative parsing method...');
-        workbook = XLSX.read(fileBuffer, { 
+        workbook = XLSX.read(fileBuffer, {
           type: 'buffer',
           cellDates: false,
           cellNF: false,
@@ -1940,7 +1940,7 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         });
       } catch (altError: any) {
         console.error('Alternative parsing also failed:', altError);
-        
+
         // Provide more specific error messages based on the error type
         if (xlsxError.message.includes('Cannot read properties of undefined')) {
           throw new Error('Excel file appears to be corrupted or in an unsupported format. Please ensure the file is a valid Excel file (.xls, .xlsx) and try again.');
@@ -1951,18 +1951,18 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         }
       }
     }
-    
+
     if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
       throw new Error('Excel file contains no sheets');
     }
-    
+
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
+
     if (!worksheet) {
       throw new Error('Could not read worksheet from Excel file');
     }
-    
+
     const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
     if (!data || data.length < 2) {
@@ -1974,7 +1974,7 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
     if (!headers || !Array.isArray(headers)) {
       throw new Error('Invalid header row in Excel file');
     }
-    
+
     const rows = data.slice(1) as any[][];
     if (!rows || !Array.isArray(rows)) {
       throw new Error('No data rows found in Excel file');
@@ -2023,12 +2023,12 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
       { key: 'CUSTOMER NAME', patterns: ['CUSTOMER_NAME', 'CUSTOMER NAME', 'CUSTOMER'] },
       { key: 'EMAIL_ID', patterns: ['EMAIL_ID', 'EMAIL ID', 'EMAIL'] }
     ];
-    
+
     const missingHeaders: string[] = [];
-    
+
     requiredHeaders.forEach(required => {
-      const found = headers.some(header => 
-        header && required.patterns.some(pattern => 
+      const found = headers.some(header =>
+        header && required.patterns.some(pattern =>
           header.toString().toUpperCase().includes(pattern.replace('_', '').replace(' ', ''))
         )
       );
@@ -2036,10 +2036,10 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         missingHeaders.push(required.key);
       }
     });
-    
+
     console.log('Found headers:', headers);
     console.log('Missing headers:', missingHeaders);
-    
+
     // Debug header mapping
     console.log('Header mapping results:');
     headers.forEach((header, index) => {
@@ -2066,7 +2066,7 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         // Map row data to user object
         const userData: any = {
           addedBy: addedBy,
-          assignedCompany:addedBy,
+          assignedCompany: addedBy,
           isActivated: true,
           isAccountVerified: true,
           isDeactivated: false,
@@ -2113,15 +2113,15 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
         const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
 
         // Check if user already exists by phone number (primary unique identifier)
-        const existingUser = await UserModel.findOne({ 
-          phoneNumber: cleanPhoneNumber 
+        const existingUser = await UserModel.findOne({
+          phoneNumber: cleanPhoneNumber
         });
 
         if (existingUser) {
           // Check if this is a duplicate entry (same phone number)
           fileResult.duplicateUsers++;
           fileResult.totalUsers++;
-          
+
           // Add to duplicate details
           fileResult.duplicateDetails.push({
             phoneNumber: cleanPhoneNumber,
@@ -2132,7 +2132,7 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
           // Update existing user with new data from Excel
           const updateData = { ...userData };
           delete updateData.phoneNumber; // Don't update phone number as it's the unique identifier
-          
+
           // Update user with new information
           const updatedUser = await UserModel.findByIdAndUpdate(
             existingUser._id,
@@ -2245,11 +2245,11 @@ export const getLeaveRequestAnalytics = async (req: Request, res: Response, next
     const userId = (req as any).userId;
 
     // Get filter parameters from query
-    const { 
-      dateRange, 
-      status, 
-      leaveType, 
-      reason, 
+    const {
+      dateRange,
+      status,
+      leaveType,
+      reason,
       engineerId,
       month,
       year
@@ -2349,10 +2349,10 @@ export const getLeaveRequestAnalytics = async (req: Request, res: Response, next
       .reduce((sum, lr) => sum + (lr.totalDays || 0), 0);
 
     // Calculate average processing time (days from creation to approval/rejection)
-    const processedRequests = leaveRequests.filter(lr => 
+    const processedRequests = leaveRequests.filter(lr =>
       lr.status === 'approved' || lr.status === 'rejected'
     );
-    
+
     let avgProcessingDays = 0;
     if (processedRequests.length > 0) {
       const totalProcessingTime = processedRequests.reduce((sum, lr) => {
@@ -2395,12 +2395,12 @@ export const getLeaveRequestAnalytics = async (req: Request, res: Response, next
       date.setMonth(date.getMonth() - i);
       const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
       const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
-      
+
       const monthCount = await LeaveRequestModel.countDocuments({
         engineer: { $in: ourEngineerIds },
         createdAt: { $gte: monthStart, $lte: monthEnd }
       });
-      
+
       monthlyTrend.push({
         month: date.toLocaleString('default', { month: 'short' }),
         year: date.getFullYear(),
@@ -2414,12 +2414,12 @@ export const getLeaveRequestAnalytics = async (req: Request, res: Response, next
       const year = new Date().getFullYear() - i;
       const yearStart = new Date(year, 0, 1);
       const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
-      
+
       const yearCount = await LeaveRequestModel.countDocuments({
         engineer: { $in: ourEngineerIds },
         createdAt: { $gte: yearStart, $lte: yearEnd }
       });
-      
+
       yearlyTrend.push({
         year: year,
         count: yearCount
@@ -2438,11 +2438,11 @@ export const getLeaveRequestAnalytics = async (req: Request, res: Response, next
         $group: {
           _id: '$engineer',
           totalRequests: { $sum: 1 },
-          approvedRequests: { 
+          approvedRequests: {
             $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
           },
           totalDays: { $sum: '$totalDays' },
-          approvedDays: { 
+          approvedDays: {
             $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$totalDays', 0] }
           }
         }
@@ -2458,7 +2458,7 @@ export const getLeaveRequestAnalytics = async (req: Request, res: Response, next
       {
         $project: {
           engineerId: '$_id',
-          engineerName: { 
+          engineerName: {
             $concat: [
               { $arrayElemAt: ['$engineerData.firstName', 0] },
               ' ',
@@ -2612,7 +2612,7 @@ export const approveRejectLeaveRequest = async (req: Request, res: Response, nex
       updateData,
       { new: true, runValidators: true }
     ).populate('engineer', 'firstName lastName email phoneNumber')
-     .populate('approvedBy', 'firstName lastName email companyName');
+      .populate('approvedBy', 'firstName lastName email companyName');
 
     if (!updatedLeaveRequest) {
       return res.status(500).json({
@@ -2648,7 +2648,7 @@ export const approveRejectLeaveRequest = async (req: Request, res: Response, nex
 export const getExcelUsersWithoutCompleteData = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const companyId = (req as any).userId;
-    
+
     // Get pagination parameters
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -2824,7 +2824,7 @@ export const getExcelUsersWithoutCompleteData = async (req: Request, res: Respon
 export const getUserManagementData = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const companyId = (req as any).userId;
-    
+
     // Get pagination parameters
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -2854,10 +2854,10 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
 
     // Handle search functionality
     let filteredUserIds = allUserIds;
-    if(req.query.search){
+    if (req.query.search) {
       const searchTerm = req.query.search as string;
       console.log('Search term:', searchTerm);
-      
+
       // Search in User collection across ALL users (both customer and Excel users)
       const userSearchQuery = {
         $or: [
@@ -2879,7 +2879,7 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
           { workingStatus: { $regex: searchTerm, $options: 'i' } }
         ]
       };
-      
+
       // Search in Modem collection across ALL modems
       const modemSearchQuery = {
         $or: [
@@ -2891,35 +2891,35 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
           { password: { $regex: searchTerm, $options: 'i' } }
         ]
       };
-      
+
       // Get user IDs from both searches
       const [userResults, modemResults] = await Promise.all([
         UserModel.find(userSearchQuery).select('_id'),
         Modem.find(modemSearchQuery).select('userId')
       ]);
-      
+
       const userUserIds = userResults.map((user: any) => user._id.toString());
       const modemUserIds = modemResults.map((modem: any) => modem.userId.toString());
-      
+
       // Combine all user IDs and remove duplicates
       const searchResultUserIds = [...new Set([...userUserIds, ...modemUserIds])];
       console.log('Search results found:', searchResultUserIds.length);
       console.log('Search result IDs:', searchResultUserIds);
-      
+
       // Filter to only include users who are in our combined list AND match search
       filteredUserIds = allUserIds.filter(id => searchResultUserIds.includes(id.toString()));
       console.log('Filtered user IDs:', filteredUserIds.length);
     }
 
     // Get total count for pagination (users with customer records + Excel users + search filter)
-    const totalUsersCount = await UserModel.countDocuments({ 
+    const totalUsersCount = await UserModel.countDocuments({
       _id: { $in: filteredUserIds },
       assignedCompany: companyId,
       role: Role.USER
     });
 
     // Get paginated users (both customer users and Excel users with search filter)
-    const userManagementData = await UserModel.find({ 
+    const userManagementData = await UserModel.find({
       _id: { $in: filteredUserIds },
       assignedCompany: companyId,
       role: Role.USER
@@ -3006,29 +3006,29 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
     // Calculate summary statistics (GLOBAL - from ALL users, not just current page)
     const totalUsers = totalUsersCount;
     const usersWithCustomerData = customerData.length;
-    
+
     // Get ALL modem data for global statistics
     const allModemData = await Modem.find({
       userId: { $in: allUserIds }
     }).select("_id userId");
-    
+
     const usersWithModemData = allModemData.length;
-    
+
     // Get ALL customer data for global statistics
     const allCustomerData = await CustomerModel.find({
       userId: { $in: allUserIds }
     }).select("_id userId isInstalled");
-    
+
     const installedUsers = allCustomerData.filter(customer => customer.isInstalled === true).length;
     const pendingInstallation = allCustomerData.filter(customer => customer.isInstalled === false).length;
-    
+
     // Calculate Excel users statistics
     const excelUsersCount = excelUsers.length;
     const usersWithCompleteData = combinedData.filter(item => item.dataStatus.isComplete).length;
     const usersWithoutCustomerData = totalUsers - usersWithCustomerData;
     const usersWithoutModemData = totalUsers - usersWithModemData;
     const usersWithIncompleteData = totalUsers - usersWithCompleteData;
-    
+
     // Calculate pagination info
     const totalPages = Math.ceil(totalUsersCount / limit);
     const hasNextPage = page < totalPages;
@@ -3096,9 +3096,9 @@ export const addUser = async (
       mtceFranchise,
       bbUserId,
       bbPassword,
-      ruralUrban, 
-      acquisitionType, 
-      category, 
+      ruralUrban,
+      acquisitionType,
+      category,
       ftthExchangePlan,
       llInstallDate,
       bbPlan,
@@ -3110,7 +3110,7 @@ export const addUser = async (
 
     // Check if user already exists
     const checkUser = await UserModel.findOne({ email });
-    if(checkUser){
+    if (checkUser) {
       return res.status(400).json({
         success: false,
         message: "User already exists"
@@ -3119,17 +3119,17 @@ export const addUser = async (
 
     // Check if landline number already exists
     const checkLandLine = await UserModel.findOne({ landlineNumber });
-    if(checkLandLine){
+    if (checkLandLine) {
       return res.status(400).json({
         success: false,
         message: "Landline number already exists"
       });
     }
-    
+
     // Generate random password using a-z and 0-9
     const generatedPassword = generateRandomPassword(8);
     const hashedPassword = await hashPassword(generatedPassword);
-    
+
     // Prepare user data
     const userData = {
       email,
@@ -3152,24 +3152,24 @@ export const addUser = async (
       llInstallDate,
       bbPlan,
       workingStatus,
-      assignedCompany:companyId,
-      password:hashedPassword,
-      isAccountVerified:true,
-      isDeactivated:false,
-      isSuspended:false
+      assignedCompany: companyId,
+      password: hashedPassword,
+      isAccountVerified: true,
+      isDeactivated: false,
+      isSuspended: false
     };
 
     // Validate OLT and FDB before starting transaction
-    const olt = await OLTModel.findOne({oltId});
-    if(!olt){
+    const olt = await OLTModel.findOne({ oltId });
+    if (!olt) {
       return res.status(400).json({
         success: false,
         message: "OLT not found"
       });
     }
 
-    const fdb = await FDBModel.findOne({fdbId});
-    if(!fdb){
+    const fdb = await FDBModel.findOne({ fdbId });
+    if (!fdb) {
       return res.status(400).json({
         success: false,
         message: "FDB not found"
@@ -3178,7 +3178,7 @@ export const addUser = async (
 
     // Use database transaction to ensure atomicity
     const session = await UserModel.startSession();
-    
+
     try {
       const result = await session.withTransaction(async () => {
         // Create new user
@@ -3199,8 +3199,8 @@ export const addUser = async (
           }], { session }),
           CustomerModel.create([{
             userId: newUser._id,
-            fdbId:fdb._id,
-            oltId:olt._id,
+            fdbId: fdb._id,
+            oltId: olt._id,
             isInstalled: isInstalled
           }], { session })
         ]);
@@ -3273,7 +3273,7 @@ export const getUserDetailForUpdate = async (req: Request, res: Response, next: 
 
     // Fetch related modem details
     const modemDetails = await Modem.findOne({ userId: userId }).lean();
-    
+
     // Fetch related customer details
     const customerDetails = await CustomerModel.findOne({ userId: userId }).populate("fdbId", "fdbId fdbName").populate("oltId", "oltId serialNumber oltIp macAddress ").lean();
 
@@ -3350,7 +3350,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
 
     // Use database transaction to ensure atomicity
     const session = await UserModel.startSession();
-    
+
     try {
       const result = await session.withTransaction(async () => {
         // Prepare user update data
@@ -3404,8 +3404,8 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         // Always update customer record
         let updatedCustomer = null;
         const customerUpdateData: any = {};
-        
-        
+
+
         // Update isInstalled if provided
         if (isInstalled !== undefined) {
           customerUpdateData.isInstalled = isInstalled;
@@ -3450,8 +3450,8 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
 
     // First, check if client exists (this needs to be done first)
     const client = await UserModel.findById(id).select("_id name firstName lastName email countryCode phoneNumber fullName profileImage permanentAddress residentialAddress landlineNumber fatherName oltIp mtceFranchise category mobile bbUserId bbPassword ftthExchangePlan bbPlan llInstallDate workingStatus assigned ruralUrban acquisitionType createdAt updatedAt");
-    
-    if(!client){
+
+    if (!client) {
       return sendError(res, "Client not found", 404);
     }
 
@@ -3470,44 +3470,44 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
     ] = await Promise.all([
       // Get modem details
       Modem.findOne({ userId: id }),
-      
+
       // Get customer details
       CustomerModel.findOne({ userId: id }).populate("oltId").populate("fdbId"),
-      
+
       // Get all complaints by this client
       ComplaintModel.find({ user: id })
         .populate('engineer', 'name email phoneNumber')
         .sort({ createdAt: -1 }),
-      
+
       // Get all orders purchased by this client
-      orderModel.find({user: id})
+      orderModel.find({ user: id })
         .populate("products.product")
         .sort({ createdAt: -1 }),
-      
+
       // Get all leads created by this client
-      Leads.find({byUserId: id})
+      Leads.find({ byUserId: id })
         .populate('assignedTo', 'name email phoneNumber')
         .sort({ createdAt: -1 }),
-      
+
       // Get all bill requests uploaded by this client
-      RequestBill.find({userId: id})
+      RequestBill.find({ userId: id })
         .sort({ createdAt: -1 }),
-      
+
       // Get WiFi installation requests
       WifiInstallationRequest.find({ userId: id })
         .populate('assignedEngineer', 'name email phoneNumber')
         .sort({ createdAt: -1 }),
-      
+
       // Get IPTV installation requests
       IptvInstallationRequest.find({ userId: id })
         .populate('assignedEngineer', 'name email phoneNumber')
         .sort({ createdAt: -1 }),
-      
+
       // Get OTT installation requests
       OttInstallationRequest.find({ userId: id })
         .populate('assignedEngineer', 'name email phoneNumber')
         .sort({ createdAt: -1 }),
-      
+
       // Get Fibre installation requests
       FibreInstallationRequest.find({ userId: id })
         .populate('assignedEngineer', 'name email phoneNumber')
@@ -3592,9 +3592,9 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
     }
 
     // Get all assigned complaints with analytics
-    const allAssignedComplaints = await ComplaintModel.find({engineer: engineerId})
+    const allAssignedComplaints = await ComplaintModel.find({ engineer: engineerId })
       .populate("user", "firstName lastName email phoneNumber countryCode profileImage")
-      .sort({createdAt: -1});
+      .sort({ createdAt: -1 });
 
     // Calculate complaint analytics
     const totalComplaints = allAssignedComplaints.length;
@@ -3603,8 +3603,8 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
     const inProgressComplaints = allAssignedComplaints.filter(complaint => complaint.status === 'in_progress').length;
 
     // Get all leave requests
-    const allLeaveRequests = await LeaveRequestModel.find({engineer: engineerId})
-      .sort({createdAt: -1});
+    const allLeaveRequests = await LeaveRequestModel.find({ engineer: engineerId })
+      .sort({ createdAt: -1 });
 
     // Calculate leave request analytics
     const totalLeaveRequests = allLeaveRequests.length;
@@ -3613,8 +3613,8 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
     const rejectedLeaveRequests = allLeaveRequests.filter(leave => leave.status === 'rejected').length;
 
     // Get attendance records
-    const allAttendance = await EngineerAttendanceModel.find({engineer: engineerId})
-      .sort({createdAt: -1});
+    const allAttendance = await EngineerAttendanceModel.find({ engineer: engineerId })
+      .sort({ createdAt: -1 });
 
     // Calculate attendance analytics
     const totalAttendanceDays = allAttendance.length;
@@ -3631,9 +3631,9 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
     }).length;
 
     // Get all installations
-    const allInstallations = await WifiInstallationRequest.find({assignedEngineer: engineerId})
+    const allInstallations = await WifiInstallationRequest.find({ assignedEngineer: engineerId })
       .populate("userId", "firstName lastName email phoneNumber countryCode profileImage")
-      .sort({createdAt: -1});
+      .sort({ createdAt: -1 });
 
     // Calculate installation analytics
     const totalInstallations = allInstallations.length;
@@ -3731,19 +3731,135 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
 export const getAllUserForComplaintAssign = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const companyId = (req as any).userId;
-    
+
     // Find all users assigned to this company with USER role
     const users = await UserModel.find({
-      assignedCompany: companyId, 
+      assignedCompany: companyId,
       role: Role.USER
     }).select('_id firstName lastName email phoneNumber countryCode profileImage customerId fatherName landlineNumber');
 
     // Return success response with users data
     return sendSuccess(res, users, 'Users retrieved successfully for complaint assignment');
-    
+
   } catch (error: any) {
     console.error("Error in getAllUserForComplaintAssign:", error);
     return sendError(res, 'Failed to retrieve users', 500, error);
+  }
+};
+
+export const mainDashboardData = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const companyId = (req as any).userId;
+
+    // Get all users assigned to this company
+    const getOurCompanyUsers = await UserModel.find({ assignedCompany: companyId }).select("_id");
+    const companyUserIds = getOurCompanyUsers.map(user => user._id);
+
+    // Basic counts
+    const totalUsers = await UserModel.countDocuments({ assignedCompany: companyId });
+    const totalEngineers = await UserModel.countDocuments({ parentCompany: companyId, role: Role.ENGINEER });
+    const totalComplaints = await ComplaintModel.countDocuments({ user: { $in: companyUserIds } });
+    const totalOrders = await orderModel.countDocuments({ user: { $in: companyUserIds } });
+    const totalLeads = await Leads.countDocuments({ byUserId: { $in: companyUserIds } });
+    const totalBillRequests = await RequestBill.countDocuments({ userId: { $in: companyUserIds } });
+    const totalInstallationRequests = await WifiInstallationRequest.countDocuments({ userId: { $in: companyUserIds } });
+
+    // Complaint status breakdown
+    const resolvedComplaints = await ComplaintModel.countDocuments({ 
+      user: { $in: companyUserIds }, 
+      status: ComplaintStatus.RESOLVED 
+    });
+    const pendingComplaints = await ComplaintModel.countDocuments({ 
+      user: { $in: companyUserIds }, 
+      status: { $in: [ComplaintStatus.PENDING, ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS, ComplaintStatus.VISITED] } 
+    });
+
+    // Installation status breakdown
+    const approvedInstallations = await WifiInstallationRequest.countDocuments({ 
+      userId: { $in: companyUserIds }, 
+      status: 'approved' 
+    });
+    const pendingInstallations = await WifiInstallationRequest.countDocuments({ 
+      userId: { $in: companyUserIds }, 
+      status: 'inreview' 
+    });
+
+    // Recent data (last 5 items)
+    const recentComplaints = await ComplaintModel.find({ user: { $in: companyUserIds } })
+      .populate('user', 'firstName lastName email phoneNumber')
+      .populate('engineer', 'firstName lastName')
+      .select('id title status priority createdAt user engineer')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    const recentLeads = await Leads.find({ byUserId: { $in: companyUserIds } })
+      .populate('byUserId', 'firstName lastName')
+      .populate('assignedTo', 'firstName lastName')
+      .select('firstName lastName phoneNumber status leadPlatform priority createdAt byUserId assignedTo')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    const recentInstallations = await WifiInstallationRequest.find({ userId: { $in: companyUserIds } })
+      .populate('userId', 'firstName lastName email')
+      .populate('assignedEngineer', 'firstName lastName')
+      .select('name email phoneNumber status createdAt userId assignedEngineer')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Recent orders
+    const recentOrders = await orderModel.find({ user: { $in: companyUserIds } })
+      .populate('user', 'firstName lastName email')
+      .populate('products.product', 'name price')
+      .select('orderId orderStatus totalAmount paymentMethod createdAt user products')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Calculate completion rates
+    const complaintResolutionRate = totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 0;
+    const installationApprovalRate = totalInstallationRequests > 0 ? Math.round((approvedInstallations / totalInstallationRequests) * 100) : 0;
+
+    // Prepare dashboard data
+    const dashboardData = {
+      // Key Metrics
+      metrics: {
+        totalUsers,
+        totalEngineers,
+        totalComplaints,
+        resolvedComplaints,
+        pendingComplaints,
+        complaintResolutionRate,
+        totalOrders,
+        totalLeads,
+        totalBillRequests,
+        totalInstallationRequests,
+        approvedInstallations,
+        pendingInstallations,
+        installationApprovalRate
+      },
+      
+      // Recent Activity
+      recentActivity: {
+        complaints: recentComplaints,
+        leads: recentLeads,
+        installations: recentInstallations,
+        orders: recentOrders
+      },
+
+      // Summary Stats
+      summary: {
+        totalActiveRequests: pendingComplaints + pendingInstallations,
+        totalCompletedRequests: resolvedComplaints + approvedInstallations,
+        overallCompletionRate: totalComplaints + totalInstallationRequests > 0 
+          ? Math.round(((resolvedComplaints + approvedInstallations) / (totalComplaints + totalInstallationRequests)) * 100) 
+          : 0
+      }
+    };
+
+    return sendSuccess(res, dashboardData, 'Dashboard data retrieved successfully');
+
+  } catch (error: any) {
+    console.error("Error in mainDashboardData:", error);
+    return sendError(res, 'Failed to retrieve dashboard data', 500, error);
   }
 };
 
