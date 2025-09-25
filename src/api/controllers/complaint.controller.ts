@@ -1326,16 +1326,17 @@ const closeComplaint = async (req: Request, res: Response): Promise<any> => {
             const complaintId = updatedComplaint.id;
 
             if (userEmail && happyCode && complaintId) {
-                const emailSubject = `WiFi Service Restored - Happy Code ${complaintId}`;
-                const emailText = `Great news! Your WiFi service has been restored. Please use Happy Code: ${happyCode} to complete the resolution process.`;
+                const emailSubject = `✅ WiFi Issue Resolved – Please Confirm with Happy Code`;
+                const emailText = `Dear Customer,\n\nWe hope you're doing well.\n\nWe're pleased to inform you that our engineer has successfully worked on your recent WiFi service complaint (ID: ${complaintId}). As per our records, the issue has now been resolved.\n\nTo help us confirm that everything is working perfectly on your end, please use the Happy Code: ${happyCode}.\n\nYou may be asked to provide this code during confirmation with our team.\n\nWe truly appreciate your patience and cooperation throughout the process. Thank you for choosing our service.\n\nBest regards,\nWiFi SelfCare Team`;
                 const emailHtml = `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                        <h2 style="color: #28A745;">🎉 WiFi Service Restored!</h2>
-                        <p>Dear Valued Customer,</p>
-                        <p>We're happy to inform you that your WiFi service (ID: ${complaintId}) has been successfully restored by our engineering team.</p>
-                        <p><strong>Happy Code: ${happyCode}</strong></p>
-                        <p>Please use this Happy Code to confirm that your WiFi service is working perfectly.</p>
-                        <p>Thank you for your patience and trust in our service.</p>
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <h2 style="color: #28A745;">✅ WiFi Issue Resolved – Please Confirm with Happy Code</h2>
+                        <p>Dear Customer,</p>
+                        <p>We hope you're doing well.</p>
+                        <p>We're pleased to inform you that our engineer has successfully worked on your recent WiFi service complaint (ID: <strong>${complaintId}</strong>). As per our records, the issue has now been resolved.</p>
+                        <p>To help us confirm that everything is working perfectly on your end, please use the Happy Code: <strong style="color: #007bff; font-size: 18px;">${happyCode}</strong>.</p>
+                        <p>You may be asked to provide this code during confirmation with our team.</p>
+                        <p>We truly appreciate your patience and cooperation throughout the process. Thank you for choosing our service.</p>
                         <br>
                         <p>Best regards,<br>WiFi SelfCare Team</p>
                     </div>
