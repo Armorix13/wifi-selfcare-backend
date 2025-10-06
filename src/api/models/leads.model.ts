@@ -16,6 +16,7 @@ export enum LeadPlatform {
 export interface ILeads extends Document {
     byUserId: mongoose.Types.ObjectId;
     byEngineerId?: mongoose.Types.ObjectId;
+    byCompanyId?: mongoose.Types.ObjectId;
     firstName: string;
     lastName: string;
     phoneNumber: string;
@@ -52,6 +53,10 @@ const leadsSchema = new Schema<ILeads>(
             ref: "User",
         },
         byEngineerId: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+        },
+        byCompanyId: {
             type: Schema.Types.ObjectId,
             ref: "User",
         },

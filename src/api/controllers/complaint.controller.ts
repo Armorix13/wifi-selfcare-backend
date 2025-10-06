@@ -1426,12 +1426,128 @@ const verifyOTP = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+// Reassign complaint to different engineer
+const reassignComplaint = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const adminUserId = (req as any).userId; // Logged in admin ID
+        const { complaintId, engineerId } = req.body;
+
+        console.log("Admin reassigning complaint with data:", req.body);
+
+        // Validate required fields
+        if (!complaintId || !engineerId) {
+            return sendError(res, "Complaint ID and Engineer ID are required", 400);
+        }
+
+        // Validate complaint exists
+        const complaint = await ComplaintModel.findById(complaintId)
+            .populate('user', 'firstName lastName email phoneNumber')
+            .populate('engineer', 'firstName lastName email phoneNumber role')
+            .populate('assignedBy', 'firstName lastName email phoneNumber role');
+
+        if (!complaint) {
+            return sendError(res, "Complaint not found", 404);
+        }
+
+        // Validate engineer exists and is an engineer
+        const engineer = await UserModel.findById(engineerId);
+        if (!engineer) {
+            return sendError(res, "Engineer not found", 404);
+        }
+
+        if (engineer.role !== Role.ENGINEER) {
+            return sendError(res, "Selected user is not an engineer", 400);
+        }
+
+        if (engineer.isDeleted) {
+            return sendError(res, "Engineer account is deleted", 400);
+        }
+
+        if (engineer.isDeactivated) {
+            return sendError(res, "Engineer account is deactivated", 400);
+        }
+
+        if (engineer.isSuspended) {
+            return sendError(res, "Engineer account is suspended", 400);
+        }
+
+        // Check if complaint is already assigned to the same engineer
+        if (complaint.engineer && complaint.engineer.toString() === engineerId) {
+            return sendError(res, "Complaint is already assigned to this engineer", 400);
+        }
+
+        // Check if complaint can be reassigned (not in certain statuses)
+        const nonReassignableStatuses = [
+            ComplaintStatus.RESOLVED,
+            ComplaintStatus.CANCELLED,
+            ComplaintStatus.NOT_RESOLVED
+        ];
+
+        if (nonReassignableStatuses.includes(complaint.status)) {
+            return sendError(res, `Cannot reassign complaint with status: ${complaint.status}`, 400);
+        }
+
+        // Store previous engineer for history
+        const previousEngineer = complaint.engineer;
+
+        // Update complaint with new engineer
+        const updatedComplaint = await ComplaintModel.findByIdAndUpdate(
+            complaintId,
+            {
+                engineer: engineerId,
+                assignedBy: adminUserId,
+                status: ComplaintStatus.ASSIGNED, // Reset to assigned status
+                statusColor: "#007BFF" // Blue color for assigned status
+            },
+            { new: true, runValidators: true }
+        ).populate('user', 'firstName lastName email phoneNumber')
+         .populate('engineer', 'firstName lastName email phoneNumber role')
+         .populate('assignedBy', 'firstName lastName email phoneNumber role');
+
+        // Add status history entry for reassignment
+        const statusHistoryEntry = {
+            status: ComplaintStatus.ASSIGNED,
+            remarks: `Complaint reassigned from ${previousEngineer ? 'previous engineer' : 'unassigned'} to new engineer`,
+            metadata: {
+                previousEngineer: previousEngineer || null,
+                newEngineer: engineerId,
+                reassignedBy: adminUserId,
+                reassignmentDate: new Date()
+            },
+            updatedBy: adminUserId,
+            previousStatus: complaint.status,
+            additionalInfo: {
+                action: 'reassignment',
+                reason: 'admin_reassignment'
+            }
+        };
+
+        // Add to status history
+        await ComplaintModel.findByIdAndUpdate(
+            complaintId,
+            { $push: { statusHistory: statusHistoryEntry } }
+        );
+
+        // Get the updated complaint with all populated fields
+        const finalComplaint = await ComplaintModel.findById(complaintId)
+            .populate('user', 'firstName lastName email phoneNumber')
+            .populate('engineer', 'firstName lastName email phoneNumber role')
+            .populate('assignedBy', 'firstName lastName email phoneNumber role');
+
+        return sendSuccess(res, finalComplaint, "Complaint reassigned successfully");
+    } catch (error: any) {
+        console.error("Reassign complaint error:", error);
+        return sendError(res, "Failed to reassign complaint", 500, error);
+    }
+};
+
 export {
     createComplaint,
     getAllComplaints,
     getMyComplaints,
     getComplaintById,
     assignEngineer,
+    reassignComplaint,
     updateComplaintStatus,
     deleteComplaint,
     getAssignedComplaints,

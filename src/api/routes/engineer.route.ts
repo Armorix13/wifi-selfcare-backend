@@ -24,6 +24,9 @@ router.put("/attendance/update", authenticate, engineerController.updateAttendan
 router.post("/leave/apply", authenticate, engineerController.applyLeave);
 router.get("/leave/all", authenticate, engineerController.getAllMyLeaves);
 
+// Admin Leave Request routes (for admins only)
+router.post("/leave/admin", authenticate, engineerController.createLeaveRequestByAdmin);
+
 // Leave Approval routes (for managers, agents, admins)
 router.post("/leave/approve", authenticate, engineerController.approveLeaveRequest);
 router.get("/leave/pending", authenticate, engineerController.getAllPendingLeaveRequests);

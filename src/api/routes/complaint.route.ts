@@ -9,6 +9,7 @@ import {
     getMyComplaints,
     getComplaintById,
     assignEngineer,
+    reassignComplaint,
     updateComplaintStatus,
     deleteComplaint,
     getAssignedComplaints,
@@ -74,6 +75,8 @@ router.get("/my/:id", authenticate, getComplaintById);
 router.get("/:id", authenticate, getComplaintById);
 
 router.put("/:id/assign", authenticate, assignEngineer);
+
+router.put("/reassign", authenticate, reassignComplaint);
 
 router.put("/:id/status", authenticate, updateComplaintStatus);
 

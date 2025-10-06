@@ -207,7 +207,8 @@ export const getAllLeads = async (req: Request, res: Response) => {
       $or: [
         { byUserId: { $in: companyUserIds } },
         { byEngineerId: { $in: companyEngineerIds } },
-        { assignedTo: companyId }
+        { assignedTo: companyId },
+        { byCompanyId: companyId }
       ]
     };
 
@@ -749,6 +750,134 @@ export const getLeadStatistics = async (req: Request, res: Response): Promise<an
     });
   } catch (error) {
     console.error("Error getting lead statistics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+// Create lead by admin
+export const createLeadByAdmin = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const {
+      firstName,
+      lastName,
+      phoneNumber,
+      countryCode,
+      email,
+      installationAddress,
+      leadPlatform,
+      source,
+      priority,
+      status,
+      remarks,
+      connectionType,
+      companyName,
+      expectedInstallationDate,
+      preferredTimeSlot,
+      additionalRequirements,
+      estimatedCost,
+      assignedTo,
+      trackingNotes,
+      nextFollowUpDate
+    } = req.body;
+
+    console.log("Admin creating lead with data:", req.body);
+
+    // Validate required fields
+    if (!firstName || !lastName || !phoneNumber || !countryCode || !installationAddress) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: firstName, lastName, phoneNumber, countryCode, installationAddress",
+      });
+    }
+
+    // Validate leadPlatform enum
+    if (leadPlatform && !Object.values(LeadPlatform).includes(leadPlatform)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid lead platform",
+      });
+    }
+
+    // Validate status enum
+    if (status && !Object.values(LeadStatus).includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status",
+      });
+    }
+
+    // Validate priority
+    if (priority && !['low', 'medium', 'high'].includes(priority)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid priority. Must be 'low', 'medium', or 'high'",
+      });
+    }
+
+    // Check if assignedTo user exists if provided
+    if (assignedTo) {
+      const assignedUser = await UserModel.findById(assignedTo);
+      if (!assignedUser) {
+        return res.status(404).json({
+          success: false,
+          message: "Assigned user not found",
+        });
+      }
+    }
+
+    // Get admin user ID from request (set by auth middleware)
+    const adminUserId = (req as any).userId;
+
+    // Create new lead with admin-specific fields
+    const newLead = new Leads({
+      byCompanyId: adminUserId, // Admin who created the lead
+      firstName,
+      lastName,
+      phoneNumber,
+      countryCode,
+      email: email || undefined,
+      installationAddress,
+      leadPlatform: leadPlatform || LeadPlatform.FROM_ADMIN_PANEL,
+      source: source || "from admin panel",
+      priority: priority || 'medium',
+      status: status || LeadStatus.UNTRACKED,
+      remarks: remarks || undefined,
+      connectionType: connectionType || undefined,
+      companyName: companyName || undefined,
+      expectedInstallationDate: expectedInstallationDate ? new Date(expectedInstallationDate) : undefined,
+      preferredTimeSlot: preferredTimeSlot || undefined,
+      additionalRequirements: additionalRequirements || undefined,
+      estimatedCost: estimatedCost || undefined,
+      assignedTo: assignedTo || undefined,
+      isTracked: status === LeadStatus.TRACKED,
+      trackingNotes: trackingNotes || undefined,
+      nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : undefined,
+      contactAttempts: 0,
+    });
+
+    // If status is tracked, set tracking date
+    if (status === LeadStatus.TRACKED) {
+      newLead.trackingDate = new Date();
+    }
+
+    const savedLead = await newLead.save();
+
+    // Populate the saved lead for response
+    const populatedLead = await Leads.findById(savedLead._id)
+      .populate("byUserId", "firstName lastName email phoneNumber role")
+      .populate("assignedTo", "firstName lastName email phoneNumber role");
+
+    res.status(201).json({
+      success: true,
+      message: "Lead created successfully by admin",
+      data: populatedLead,
+    });
+  } catch (error) {
+    console.error("Error creating lead by admin:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",

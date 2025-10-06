@@ -1,6 +1,7 @@
 import express from "express";
 import { 
   createLead,
+  createLeadByAdmin,
   getAllLeads,
   getLeadById,
   updateLead,
@@ -21,6 +22,9 @@ router.post("/", createLead);
 
 // Apply authentication middleware to all other routes
 router.use(authMiddleware);
+
+// Create lead by admin - REQUIRES AUTHENTICATION
+router.post("/admin", createLeadByAdmin);
 
 // Get all leads with pagination, filters, and statistics (6 per page)
 router.get("/", getAllLeads);

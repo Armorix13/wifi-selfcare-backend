@@ -703,6 +703,178 @@ const applyLeave = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+// Create leave request by admin
+const createLeaveRequestByAdmin = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const adminUserId = (req as any).userId; // Logged in admin ID
+        const {
+            engineer,
+            leaveType,
+            fromDate,
+            toDate,
+            reason,
+            description,
+            totalDays,
+            status,
+            remarks,
+            documents,
+            approvedBy,
+            approvedAt,
+            rejectionReason
+        } = req.body;
+
+        console.log("Admin creating leave request with data:", req.body);
+
+        // Validate required fields
+        if (!engineer || !leaveType || !fromDate || !toDate || !reason || !description) {
+            return sendError(res, "Engineer, leave type, from date, to date, reason, and description are required", 400);
+        }
+
+        // Validate leave type
+        if (!Object.values(LeaveType).includes(leaveType)) {
+            return sendError(res, "Invalid leave type. Must be one of: " + Object.values(LeaveType).join(", "), 400);
+        }
+
+        // Validate reason
+        if (!Object.values(LeaveReason).includes(reason)) {
+            return sendError(res, "Invalid leave reason. Must be one of: " + Object.values(LeaveReason).join(", "), 400);
+        }
+
+        // Validate status if provided
+        if (status && !Object.values(LeaveStatus).includes(status)) {
+            return sendError(res, "Invalid status. Must be one of: " + Object.values(LeaveStatus).join(", "), 400);
+        }
+
+        // Parse and validate dates
+        const fromDateObj = new Date(fromDate);
+        const toDateObj = new Date(toDate);
+        
+        if (isNaN(fromDateObj.getTime()) || isNaN(toDateObj.getTime())) {
+            return sendError(res, "Invalid date format. Please provide valid ISO date strings", 400);
+        }
+
+        // Check if to date is not before from date (allows same date for one day leave)
+        if (toDateObj < fromDateObj) {
+            return sendError(res, "To date cannot be before from date", 400);
+        }
+
+        // Validate engineer exists and is an engineer
+        const engineerUser = await UserModel.findById(engineer);
+        if (!engineerUser) {
+            return sendError(res, "Engineer not found", 404);
+        }
+
+        if (engineerUser.role !== Role.ENGINEER) {
+            return sendError(res, "Selected user is not an engineer", 400);
+        }
+
+        if (engineerUser.isDeleted) {
+            return sendError(res, "Engineer account is deleted", 400);
+        }
+
+        if (engineerUser.isDeactivated) {
+            return sendError(res, "Engineer account is deactivated", 400);
+        }
+
+        if (engineerUser.isSuspended) {
+            return sendError(res, "Engineer account is suspended", 400);
+        }
+
+        // Validate approvedBy if provided
+        if (approvedBy) {
+            const approver = await UserModel.findById(approvedBy);
+            if (!approver) {
+                return sendError(res, "Approver not found", 404);
+            }
+        }
+
+        // Calculate total days if not provided
+        let calculatedTotalDays = totalDays;
+        if (!calculatedTotalDays) {
+            const timeDiff = toDateObj.getTime() - fromDateObj.getTime();
+            calculatedTotalDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+        }
+
+        // Validate total days
+        if (calculatedTotalDays < 0.5) {
+            return sendError(res, "Total days cannot be less than 0.5", 400);
+        }
+
+        if (calculatedTotalDays > 365) {
+            return sendError(res, "Total days cannot exceed 365", 400);
+        }
+
+        // Check for overlapping leave requests only if status is PENDING or APPROVED
+        const finalStatus = status || LeaveStatus.PENDING;
+        if (finalStatus === LeaveStatus.PENDING || finalStatus === LeaveStatus.APPROVED) {
+            const overlappingLeaves = await LeaveRequestModel.find({
+                engineer: engineer,
+                status: { $in: [LeaveStatus.PENDING, LeaveStatus.APPROVED] },
+                $or: [
+                    // Case 1: New leave starts during existing leave
+                    { 
+                        fromDate: { $lte: fromDateObj }, 
+                        toDate: { $gte: fromDateObj } 
+                    },
+                    // Case 2: New leave ends during existing leave
+                    { 
+                        fromDate: { $lte: toDateObj }, 
+                        toDate: { $gte: toDateObj } 
+                    },
+                    // Case 3: New leave completely encompasses existing leave
+                    { 
+                        fromDate: { $gte: fromDateObj }, 
+                        toDate: { $lte: toDateObj } 
+                    }
+                ]
+            });
+
+            if (overlappingLeaves.length > 0) {
+                return sendError(res, "Engineer already has a leave request for these dates", 400);
+            }
+        }
+
+        // Validate status-specific fields
+        if (finalStatus === LeaveStatus.APPROVED && !approvedBy) {
+            // If no approvedBy is provided, use the admin who is creating the request
+            console.log("No approvedBy provided, using admin user as approver");
+        }
+
+        if (finalStatus === LeaveStatus.REJECTED && !rejectionReason) {
+            return sendError(res, "Rejection reason is required when status is rejected", 400);
+        }
+
+        // Create leave request
+        const leaveRequestData: any = {
+            engineer,
+            leaveType,
+            fromDate: fromDateObj,
+            toDate: toDateObj,
+            totalDays: calculatedTotalDays,
+            reason,
+            description,
+            status: finalStatus,
+            remarks: remarks || undefined,
+            documents: documents || [],
+            approvedBy: approvedBy || (finalStatus === LeaveStatus.APPROVED ? adminUserId : undefined),
+            approvedAt: approvedAt ? new Date(approvedAt) : (finalStatus === LeaveStatus.APPROVED ? new Date() : undefined),
+            rejectionReason: rejectionReason || undefined
+        };
+
+        const leaveRequest = await LeaveRequestModel.create(leaveRequestData);
+
+        // Populate the created leave request
+        const populatedLeaveRequest = await LeaveRequestModel.findById(leaveRequest._id)
+            .populate('engineer', 'firstName lastName email phoneNumber role')
+            .populate('approvedBy', 'firstName lastName email phoneNumber role');
+
+        return sendSuccess(res, populatedLeaveRequest, "Leave request created successfully by admin");
+    } catch (error: any) {
+        console.error("Create leave request by admin error:", error);
+        return sendError(res, "Failed to create leave request", 500, error);
+    }
+};
+
 // Get all leave requests for engineer with pagination and filtering
 const getAllMyLeaves = async (req: Request, res: Response): Promise<any> => {
     try {
@@ -1053,6 +1225,7 @@ export const engineerController = {
     markCheckOut,
     getMonthlyAttendance,
     applyLeave,
+    createLeaveRequestByAdmin,
     getAllMyLeaves,
     updateAttendance,
     approveLeaveRequest,

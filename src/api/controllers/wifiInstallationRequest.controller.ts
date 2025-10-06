@@ -994,6 +994,28 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
 };
 
 
+export const getAllUserForToAttachments = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const companyId = (req as any).userId;
+    const getAllEngineer = await UserModel.find({
+      parentCompany: companyId,
+      role: 'engineer'
+    });
+
+    return sendSuccess(res, getAllEngineer, 'Successfully fetched all engineers');
+    
+    
+  } catch (error:any) {
+    return sendError(
+      res,
+      'Failed to fetch unique users',
+      500,
+      process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    ); 
+  }
+}
+
+
 export const makeInstallationRequestActive = async (req: Request, res: Response): Promise<any> => {
   try {
     const engineerId = (req as any).userId;
