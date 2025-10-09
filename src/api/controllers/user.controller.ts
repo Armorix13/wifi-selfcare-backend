@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { Role, UserModel } from "../models/user.model";
 import { hashPassword, sendSuccess, sendError, generateOtp, sendMessage, generateAccessToken, generateRefreshToken, generateRandomJti, comparePassword, generateRandomPassword, generateClientRegistrationEmail } from '../../utils/helper';
 import { Advertisement } from '../models/advertisement.model';
@@ -1844,6 +1845,145 @@ const userManagement  = async (req: Request, res: Response): Promise<any> => {
     }
 }
 
+const giveUserCompanyDetails = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId;
+        
+        // Validate user ID
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return sendError(res, "Invalid user ID", 400);
+        }
+
+        // Get user details with populated company information
+        const user = await UserModel.findById(userId)
+            .populate('assignedCompany', 'companyName companyAddress companyPhone companyEmail companyWebsite companyLogo companyDescription companyCity companyState companyCountry companySize contactPerson industry')
+            .select('-password -otp -otpExpiry -otpVerified -jti -deviceToken');
+
+        if (!user) {
+            return sendError(res, "User not found", 404);
+        }
+
+        // Extract essential user details based on actual user model fields
+        const userDetails = {
+            id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            countryCode: user.countryCode,
+            role: user.role,
+            userName: user.userName,
+            profileImage: user.profileImage,
+            country: user.country,
+            state: user.state,
+            pincode: user.pincode,
+            permanentAddress: user.permanentAddress,
+            residentialAddress: user.residentialAddress,
+            billingAddress: user.billingAddress,
+            fatherName: user.fatherName,
+            landlineNumber: user.landlineNumber,
+            customerId: user.customerId,
+            customerType: user.customerType,
+            customerPower: user.customerPower,
+            bandwidth: user.bandwidth,
+            planId: user.planId,
+            installationDate: user.installationDate,
+            lastBillingDate: user.lastBillingDate,
+            activationDate: user.activationDate,
+            expirationDate: user.expirationDate,
+            staticIp: user.staticIp,
+            macIp: user.macIp,
+            area: user.area,
+            mode: user.mode,
+            provider: user.provider,
+            providerId: user.providerId,
+            bbUserId: user.bbUserId,
+            bbPlan: user.bbPlan,
+            modemUserName: user.modemUserName,
+            modemPassword: user.modemPassword,
+            oltIp: user.oltIp,
+            workingStatus: user.workingStatus,
+            assigned: user.assigned,
+            isAccountVerified: user.isAccountVerified,
+            isDeleted: user.isDeleted,
+            isDeactivated: user.isDeactivated,
+            isSuspended: user.isSuspended,
+            isActivated: user.isActivated,
+            isExisting: user.isExisting,
+            lastLogin: user.lastLogin,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
+        };
+
+        // Extract company details if user has an assigned company
+        let companyDetails = null;
+        if (user.assignedCompany && typeof user.assignedCompany === 'object') {
+            const company = user.assignedCompany as any;
+            companyDetails = {
+                id: company._id,
+                companyName: company.companyName,
+                companyAddress: company.companyAddress,
+                companyPhone: company.companyPhone,
+                companyEmail: company.companyEmail,
+                companyWebsite: company.companyWebsite,
+                companyLogo: company.companyLogo,
+                companyDescription: company.companyDescription,
+                companyCity: company.companyCity,
+                companyState: company.companyState,
+                companyCountry: company.companyCountry,
+                companySize: company.companySize,
+                contactPerson: company.contactPerson,
+                industry: company.industry
+            };
+        }
+
+        // Get user statistics based on role
+        const userStats = {
+            totalComplaints: 0,
+            activeComplaints: 0,
+            resolvedComplaints: 0,
+            assignedComplaints: 0
+        };
+
+        // If user is a customer (role: "USER"), get complaint statistics
+        if (user.role === Role.USER) {
+            const ComplaintModel = mongoose.model('Complaint');
+            const totalComplaints = await ComplaintModel.countDocuments({ user: userId });
+            const activeComplaints = await ComplaintModel.countDocuments({ 
+                user: userId, 
+                status: { $ne: 'resolved' } 
+            });
+            const resolvedComplaints = await ComplaintModel.countDocuments({ 
+                user: userId, 
+                status: 'resolved' 
+            });
+
+            userStats.totalComplaints = totalComplaints;
+            userStats.activeComplaints = activeComplaints;
+            userStats.resolvedComplaints = resolvedComplaints;
+        }
+
+        // If user is an engineer, get assigned complaint statistics
+        if (user.role === Role.ENGINEER) {
+            const ComplaintModel = mongoose.model('Complaint');
+            const assignedComplaints = await ComplaintModel.countDocuments({ engineer: userId });
+            
+            userStats.assignedComplaints = assignedComplaints;
+        }
+
+        return sendSuccess(res, {
+            user: userDetails,
+            company: companyDetails,
+            statistics: userStats,
+            hasCompany: !!companyDetails
+        }, "User and company details retrieved successfully");
+
+    } catch (error) {
+        console.error("Get user company details error:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+}
+
 export const userController = {
     signUp,
     verifyOtp,
@@ -1861,5 +2001,6 @@ export const userController = {
     getCompanyProfile,
     addCompany,
     getAdminDashboardData,
-    deleteAdmin
+    deleteAdmin,
+    giveUserCompanyDetails
 }

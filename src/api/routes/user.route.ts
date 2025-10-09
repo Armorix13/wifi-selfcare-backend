@@ -17,6 +17,7 @@ userRouter.post("/reset-password", userController.resetPassword);
 
 // Protected routes
 userRouter.get("/me", authenticate, userController.getUserDetails);
+userRouter.get("/details", authenticate, userController.giveUserCompanyDetails);
 userRouter.patch("/me", authenticate, userController.updateUser);
 userRouter.post("/logout", authenticate, userController.logout);
 userRouter.get("/dashboard", authenticate, userController.dashboard);

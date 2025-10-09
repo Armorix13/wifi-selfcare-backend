@@ -60,3 +60,8 @@ export interface CloseComplaintBody {
   resolutionAttachments: string[]; // Array of image URLs (2-4 images)
   notes?: string; // Optional resolution notes
 }
+
+export interface AdminResolveComplaintBody {
+  resolutionNotes?: string; // Optional resolution notes
+  resolutionAttachments?: string[]; // Optional array of image URLs
+}

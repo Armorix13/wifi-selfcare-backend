@@ -18,7 +18,8 @@ import {
     getComplaintStatusHistory,
     closeComplaint,
     verifyOTP,
-    addComplaintByAdmin
+    addComplaintByAdmin,
+    adminResolveComplaint
 } from "../controllers/complaint.controller";
 
 // Custom multer configuration for optional file uploads
@@ -81,6 +82,8 @@ router.put("/reassign", authenticate, reassignComplaint);
 router.put("/:id/status", authenticate, updateComplaintStatus);
 
 router.put("/:id/close", authenticate, closeComplaint);
+
+router.put("/:id/admin-resolve", authenticate, adminResolveComplaint);
 
 router.post("/:id/verify-otp", authenticate, verifyOTP);
 

@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { ComplaintModel, ComplaintStatus, Priority } from "../models/complaint.model";
 import { UserModel, Role } from "../models/user.model";
 import { sendSuccess, sendError, sendMessage } from "../../utils/helper";
-import { AssignEngineerBody, CreateComplaintBody, UpdateStatusBody, CloseComplaintBody } from "../../type/complaint.interface";
+import { AssignEngineerBody, CreateComplaintBody, UpdateStatusBody, CloseComplaintBody, AdminResolveComplaintBody } from "../../type/complaint.interface";
 import { CustomerModel } from "../models/customer.model";
 import Modem from "../models/modem.model";
 
@@ -116,7 +116,7 @@ export const addComplaintByAdmin = async (req: Request, res: Response): Promise<
     }
 }
 
-// 2. Get All Complaints (Admin / Manager)
+// 2. Get All Complaints (Admin / Manager) - Returns active complaints and resolved complaints separately
 const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
     try {
         // const userRole = (req as any).role;
@@ -141,8 +141,15 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
         // If no users found in company, return empty result
         if (companyUserIds.length === 0) {
             return sendSuccess(res, {
-                complaints: [],
-                pagination: {
+                activeComplaints: [],
+                resolvedComplaints: [],
+                activePagination: {
+                    page: 1,
+                    limit: 10,
+                    total: 0,
+                    pages: 0
+                },
+                resolvedPagination: {
                     page: 1,
                     limit: 10,
                     total: 0,
@@ -152,7 +159,6 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
         }
 
         const {
-            status,
             priority,
             issueType,
             type,
@@ -161,63 +167,102 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
             page = 1,
             limit = 10,
             sortBy = "createdAt",
-            sortOrder = "desc"
+            sortOrder = "desc",
+            // Separate pagination for resolved complaints
+            resolvedPage = 1,
+            resolvedLimit = 10
         } = req.query;
 
-        // Build filter object - only include complaints from users in our company
-        const filter: any = {
+        // Base filter for company users
+        const baseFilter: any = {
             user: { $in: companyUserIds } // Filter complaints by company users only
         };
 
         console.log(`Filtering complaints for company users:`, companyUserIds);
 
-        if (status && validateStatus(status as string)) {
-            filter.status = status;
-        }
+        // Build active complaints filter (exclude resolved)
+        const activeFilter: any = {
+            ...baseFilter,
+            status: { $ne: ComplaintStatus.RESOLVED } // Exclude resolved complaints
+        };
 
+        // Build resolved complaints filter
+        const resolvedFilter: any = {
+            ...baseFilter,
+            status: ComplaintStatus.RESOLVED // Only resolved complaints
+        };
+
+        // Apply common filters to both
         if (priority && validatePriority(priority as string)) {
-            filter.priority = priority;
+            activeFilter.priority = priority;
+            resolvedFilter.priority = priority;
         }
 
         if (issueType) {
-            filter.issueType = issueType;
+            activeFilter.issueType = issueType;
+            resolvedFilter.issueType = issueType;
         }
 
         if (type) {
-            filter.type = type;
+            activeFilter.type = type;
+            resolvedFilter.type = type;
         }
 
         if (startDate || endDate) {
-            filter.createdAt = {};
-            if (startDate) filter.createdAt.$gte = new Date(startDate as string);
-            if (endDate) filter.createdAt.$lte = new Date(endDate as string);
+            const dateFilter: any = {};
+            if (startDate) dateFilter.$gte = new Date(startDate as string);
+            if (endDate) dateFilter.$lte = new Date(endDate as string);
+            
+            activeFilter.createdAt = dateFilter;
+            resolvedFilter.createdAt = dateFilter;
         }
 
         // Build sort object
         const sort: any = {};
         sort[sortBy as string] = sortOrder === "desc" ? -1 : 1;
 
-        // Calculate pagination
-        const skip = (Number(page) - 1) * Number(limit);
+        // Calculate pagination for active complaints
+        const activeSkip = (Number(page) - 1) * Number(limit);
+        const resolvedSkip = (Number(resolvedPage) - 1) * Number(resolvedLimit);
 
-        const complaints = await ComplaintModel.find(filter)
+        // Fetch active complaints (excluding resolved)
+        const activeComplaints = await ComplaintModel.find(activeFilter)
             .populate("user", "firstName lastName email phoneNumber")
             .populate("engineer", "firstName lastName email phoneNumber")
             .populate("assignedBy", "firstName lastName email")
             .populate("statusHistory.updatedBy", "firstName lastName email")
             .sort(sort)
-            .skip(skip)
+            .skip(activeSkip)
             .limit(Number(limit));
 
-        const total = await ComplaintModel.countDocuments(filter);
+        // Fetch resolved complaints with independent pagination
+        const resolvedComplaints = await ComplaintModel.find(resolvedFilter)
+            .populate("user", "firstName lastName email phoneNumber")
+            .populate("engineer", "firstName lastName email phoneNumber")
+            .populate("assignedBy", "firstName lastName email")
+            .populate("statusHistory.updatedBy", "firstName lastName email")
+            .sort(sort)
+            .skip(resolvedSkip)
+            .limit(Number(resolvedLimit));
+
+        // Get total counts
+        const activeTotal = await ComplaintModel.countDocuments(activeFilter);
+        const resolvedTotal = await ComplaintModel.countDocuments(resolvedFilter);
 
         return sendSuccess(res, {
-            complaints,
-            pagination: {
+            activeComplaints,
+            resolvedComplaints,
+            activePagination: {
                 page: Number(page),
                 limit: Number(limit),
-                total,
-                pages: Math.ceil(total / Number(limit))
+                total: activeTotal,
+                pages: Math.ceil(activeTotal / Number(limit))
+            },
+            resolvedPagination: {
+                page: Number(resolvedPage),
+                limit: Number(resolvedLimit),
+                total: resolvedTotal,
+                pages: Math.ceil(resolvedTotal / Number(resolvedLimit))
             },
             companyInfo: {
                 companyId,
@@ -1541,6 +1586,142 @@ const reassignComplaint = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
+// Admin direct resolve/close complaint
+const adminResolveComplaint = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const adminUserId = (req as any).userId;
+        const userRole = (req as any).role;
+        const { id } = req.params;
+        const { resolutionNotes, resolutionAttachments }: AdminResolveComplaintBody = req.body;
+
+        console.log("Admin resolving complaint with data:", req.body);
+
+        // Check admin permission
+        if (![Role.ADMIN, Role.MANAGER, Role.SUPERADMIN].includes(userRole)) {
+            return sendError(res, "Access denied. Admin access required", 403);
+        }
+
+        // Validate complaint exists
+        const complaint = await ComplaintModel.findById(id)
+            .populate('user', 'firstName lastName email phoneNumber')
+            .populate('engineer', 'firstName lastName email phoneNumber role')
+            .populate('assignedBy', 'firstName lastName email phoneNumber role');
+
+        if (!complaint) {
+            return sendError(res, "Complaint not found", 404);
+        }
+
+        // Check if complaint is already resolved
+        if (complaint.status === ComplaintStatus.RESOLVED) {
+            return sendError(res, "Complaint is already resolved", 400);
+        }
+
+        // Store previous status for history
+        const previousStatus = complaint.status;
+
+        // Update complaint to resolved status
+        const updatedComplaint = await ComplaintModel.findByIdAndUpdate(
+            id,
+            {
+                status: ComplaintStatus.RESOLVED,
+                statusColor: "#28A745", // Green color for resolved status
+                resolved: true,
+                resolutionDate: new Date(),
+                resolutionNotes: resolutionNotes || "Resolved by admin",
+                resolutionAttachments: resolutionAttachments || []
+            },
+            { new: true, runValidators: true }
+        ).populate('user', 'firstName lastName email phoneNumber')
+         .populate('engineer', 'firstName lastName email phoneNumber role')
+         .populate('assignedBy', 'firstName lastName email phoneNumber role');
+
+        // Add status history entry for admin resolution
+        const statusHistoryEntry = {
+            status: ComplaintStatus.RESOLVED,
+            remarks: resolutionNotes || "Complaint resolved directly by admin",
+            metadata: {
+                action: "admin_resolution",
+                resolvedBy: adminUserId,
+                resolutionDate: new Date(),
+                resolutionNotes: resolutionNotes,
+                resolutionAttachments: resolutionAttachments,
+                adminDirectResolve: true
+            },
+            updatedBy: adminUserId,
+            previousStatus: previousStatus,
+            additionalInfo: {
+                action: 'admin_resolve',
+                reason: 'direct_admin_resolution',
+                bypassEngineer: true
+            }
+        };
+
+        // Add to status history
+        await ComplaintModel.findByIdAndUpdate(
+            id,
+            { $push: { statusHistory: statusHistoryEntry } }
+        );
+
+        // Get the final updated complaint with all populated fields
+        const finalComplaint = await ComplaintModel.findById(id)
+            .populate('user', 'firstName lastName email phoneNumber')
+            .populate('engineer', 'firstName lastName email phoneNumber role')
+            .populate('assignedBy', 'firstName lastName email phoneNumber role')
+            .populate('statusHistory.updatedBy', 'firstName lastName email');
+
+        // Send resolution notification email to customer
+        try {
+            if (finalComplaint) {
+                const userEmail = (finalComplaint.user as any).email;
+                const complaintId = finalComplaint.id;
+
+                if (userEmail && complaintId) {
+                const emailSubject = `✅ Complaint Resolved - Admin Resolution`;
+                const emailText = `Dear Customer,\n\nWe hope you're doing well.\n\nWe're pleased to inform you that your complaint (ID: ${complaintId}) has been resolved by our admin team.\n\nResolution Notes: ${resolutionNotes || 'Issue has been resolved by admin.'}\n\nWe truly appreciate your patience and cooperation throughout the process. Thank you for choosing our service.\n\nBest regards,\nWiFi SelfCare Team`;
+                const emailHtml = `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <h2 style="color: #28A745;">✅ Complaint Resolved - Admin Resolution</h2>
+                        <p>Dear Customer,</p>
+                        <p>We hope you're doing well.</p>
+                        <p>We're pleased to inform you that your complaint (ID: <strong>${complaintId}</strong>) has been resolved by our admin team.</p>
+                        <p><strong>Resolution Notes:</strong> ${resolutionNotes || 'Issue has been resolved by admin.'}</p>
+                        <p>We truly appreciate your patience and cooperation throughout the process. Thank you for choosing our service.</p>
+                        <br>
+                        <p>Best regards,<br>WiFi SelfCare Team</p>
+                    </div>
+                `;
+
+                await sendMessage.sendEmail({
+                    userEmail,
+                    subject: emailSubject,
+                    text: emailText,
+                    html: emailHtml
+                });
+
+                    console.log(`Resolution notification email sent successfully to ${userEmail} for complaint ${id}`);
+                } else {
+                    console.warn(`Missing required data for email: email=${userEmail}, id=${complaintId}`);
+                }
+            }
+        } catch (emailError) {
+            console.error('Email sending error:', emailError);
+            // Don't fail the request if email fails
+        }
+
+        if (!finalComplaint) {
+            return sendError(res, "Failed to retrieve updated complaint", 500);
+        }
+
+        return sendSuccess(res, {
+            complaint: finalComplaint,
+            message: "Complaint resolved successfully by admin"
+        }, "Complaint resolved successfully by admin");
+    } catch (error: any) {
+        console.error("Admin resolve complaint error:", error);
+        return sendError(res, "Failed to resolve complaint", 500, error);
+    }
+};
+
 export {
     createComplaint,
     getAllComplaints,
@@ -1555,5 +1736,6 @@ export {
     getDashboardData,
     getComplaintStatusHistory,
     closeComplaint,
-    verifyOTP
+    verifyOTP,
+    adminResolveComplaint
 };
