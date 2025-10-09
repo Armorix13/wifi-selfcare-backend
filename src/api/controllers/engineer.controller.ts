@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { Role, UserModel } from "../models/user.model";
 import { EngineerAttendanceModel, AttendanceStatus } from "../models/engineerAttendance.model";
 import { LeaveRequestModel, LeaveType, LeaveStatus, LeaveReason } from "../models/leaveRequest.model";
@@ -1215,6 +1216,145 @@ const getAllPendingLeaveRequests = async (req: Request, res: Response): Promise<
     }
 };
 
+
+const getEngineerCompanyDetails = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const userId = (req as any).userId;
+        
+        // Validate user ID
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return sendError(res, "Invalid user ID", 400);
+        }
+
+        // Get engineer details with populated company information
+        const engineer = await UserModel.findById(userId)
+            .populate('parentCompany', 'companyName companyAddress companyPhone companyEmail companyWebsite companyLogo companyDescription companyCity companyState companyCountry companySize contactPerson industry')
+            .select('-password -otp -otpExpiry -otpVerified -jti -deviceToken');
+
+        if (!engineer) {
+            return sendError(res, "Engineer not found", 404);
+        }
+
+        // Verify user is an engineer
+        if (engineer.role !== Role.ENGINEER) {
+            return sendError(res, "User is not an engineer", 403);
+        }
+
+        // Extract essential engineer details based on actual user model fields
+        const engineerDetails = {
+            id: engineer._id,
+            firstName: engineer.firstName,
+            lastName: engineer.lastName,
+            email: engineer.email,
+            phoneNumber: engineer.phoneNumber,
+            countryCode: engineer.countryCode,
+            role: engineer.role,
+            userName: engineer.userName,
+            profileImage: engineer.profileImage,
+            country: engineer.country,
+            state: engineer.state,
+            pincode: engineer.pincode,
+            permanentAddress: engineer.permanentAddress,
+            residentialAddress: engineer.residentialAddress,
+            billingAddress: engineer.billingAddress,
+            fatherName: engineer.fatherName,
+            landlineNumber: engineer.landlineNumber,
+            aadhaarNumber: engineer.aadhaarNumber,
+            panNumber: engineer.panNumber,
+            aadhaarFront: engineer.aadhaarFront,
+            aadhaarBack: engineer.aadhaarBack,
+            panCard: engineer.panCard,
+            residenceAddress: engineer.residenceAddress,
+            area: engineer.area,
+            mode: engineer.mode,
+            provider: engineer.provider,
+            providerId: engineer.providerId,
+            assigned: engineer.assigned,
+            isAccountVerified: engineer.isAccountVerified,
+            isDeleted: engineer.isDeleted,
+            isDeactivated: engineer.isDeactivated,
+            isSuspended: engineer.isSuspended,
+            isActivated: engineer.isActivated,
+            lastLogin: engineer.lastLogin,
+            createdAt: engineer.createdAt,
+            updatedAt: engineer.updatedAt,
+            parentCompany: engineer.parentCompany
+        };
+
+        // Extract company details if engineer has a parent company
+        let companyDetails = null;
+        if (engineer.parentCompany && typeof engineer.parentCompany === 'object') {
+            const company = engineer.parentCompany as any;
+            companyDetails = {
+                id: company._id,
+                companyName: company.companyName,
+                companyAddress: company.companyAddress,
+                companyPhone: company.companyPhone,
+                companyEmail: company.companyEmail,
+                companyWebsite: company.companyWebsite,
+                companyLogo: company.companyLogo,
+                companyDescription: company.companyDescription,
+                companyCity: company.companyCity,
+                companyState: company.companyState,
+                companyCountry: company.companyCountry,
+                companySize: company.companySize,
+                contactPerson: company.contactPerson,
+                industry: company.industry
+            };
+        }
+
+        // Get engineer statistics
+        const engineerStats = {
+            assignedComplaints: 0,
+            completedComplaints: 0,
+            pendingComplaints: 0,
+            totalAttendance: 0,
+            totalLeaves: 0,
+            pendingLeaves: 0
+        };
+
+        // Get complaint statistics
+        const assignedComplaints = await mongoose.model('Complaint').countDocuments({ engineer: userId });
+        const completedComplaints = await mongoose.model('Complaint').countDocuments({ 
+            engineer: userId, 
+            status: 'resolved' 
+        });
+        const pendingComplaints = await mongoose.model('Complaint').countDocuments({ 
+            engineer: userId, 
+            status: { $ne: 'resolved' } 
+        });
+
+        engineerStats.assignedComplaints = assignedComplaints;
+        engineerStats.completedComplaints = completedComplaints;
+        engineerStats.pendingComplaints = pendingComplaints;
+
+        // Get attendance statistics
+        const totalAttendance = await EngineerAttendanceModel.countDocuments({ engineer: userId });
+        engineerStats.totalAttendance = totalAttendance;
+
+        // Get leave statistics
+        const totalLeaves = await LeaveRequestModel.countDocuments({ engineer: userId });
+        const pendingLeaves = await LeaveRequestModel.countDocuments({ 
+            engineer: userId, 
+            status: 'pending' 
+        });
+
+        engineerStats.totalLeaves = totalLeaves;
+        engineerStats.pendingLeaves = pendingLeaves;
+
+        return sendSuccess(res, {
+            engineer: engineerDetails,
+            company: companyDetails,
+            statistics: engineerStats,
+            hasCompany: !!companyDetails
+        }, "Engineer and company details retrieved successfully");
+
+    } catch (error) {
+        console.error("Get engineer company details error:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+}
+
 export const engineerController = {
     engineerLogin,
     getEngineerProfile,
@@ -1229,5 +1369,6 @@ export const engineerController = {
     getAllMyLeaves,
     updateAttendance,
     approveLeaveRequest,
-    getAllPendingLeaveRequests
+    getAllPendingLeaveRequests,
+    getEngineerCompanyDetails
 };

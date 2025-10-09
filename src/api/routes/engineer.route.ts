@@ -10,6 +10,7 @@ router.post("/login", engineerController.engineerLogin);
 
 // Protected routes (authentication required)
 router.get("/profile", authenticate, engineerController.getEngineerProfile);
+router.get("/details", authenticate, engineerController.getEngineerCompanyDetails);
 router.put("/profile", authenticate, engineerController.updateEngineerProfile);
 router.post("/logout", authenticate, engineerController.engineerLogout);
 
