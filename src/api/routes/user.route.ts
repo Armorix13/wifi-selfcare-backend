@@ -1,7 +1,7 @@
 import { Router } from "express";
 import authenticate from "../../middleware/auth.middleware";
 import { userController } from "../controllers/user.controller";
-import { upload } from "../services/upload.service";
+import { upload, multerUpload } from "../services/upload.service";
 
 
 const userRouter = Router();
@@ -28,7 +28,8 @@ userRouter.get("/admin-dashboard", authenticate, userController.getAdminDashboar
 userRouter.delete("/admin/:adminId", authenticate, userController.deleteAdmin);
 
 // Company routes
-userRouter.post("/add-company", userController.addCompany);
+userRouter.post("/add-company", multerUpload, userController.addCompany);
+userRouter.put("/update-company/:id", multerUpload, userController.updateCompany);
 
 // Company profile routes
 userRouter.get("/company-profile", authenticate, userController.getCompanyProfile);

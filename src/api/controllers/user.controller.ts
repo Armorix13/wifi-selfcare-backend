@@ -1435,6 +1435,21 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             internetProviders
         } = req.body;
 
+        // Handle company logo upload
+        let companyLogo = "";
+        if (req.file) {
+            const absolutePath = req.file.path.replace(/\\/g, "/");
+            const viewIndex = absolutePath.lastIndexOf("/view/");
+            let fileUrl = absolutePath;
+            if (viewIndex !== -1) {
+                fileUrl = absolutePath.substring(viewIndex);
+            }
+            if (!fileUrl.startsWith("/view/")) {
+                fileUrl = `/view/${fileUrl.split("/view/")[1]}`;
+            }
+            companyLogo = fileUrl;
+        }
+
         // Validate required fields
         if (!firstName || !lastName || !email || !companyName || !companyAddress) {
             return sendError(res, "firstName, lastName, email, companyName, and companyAddress are required", 400);
@@ -1463,6 +1478,7 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             companyPhone: companyPhone || "",
             companyName,
             companyAddress,
+            companyLogo,
             contactPerson,
             internetProviders: internetProviders || [],
             password: hashedPassword,
@@ -1504,6 +1520,7 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             companyName: newCompany.companyName,
             companyAddress: newCompany.companyAddress,
             companyPhone: newCompany.companyPhone,
+            companyLogo: newCompany.companyLogo,
             contactPerson: newCompany.contactPerson,
             internetProviders: newCompany.internetProviders,
             role: newCompany.role,
@@ -1524,6 +1541,120 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
 
     } catch (error) {
         console.error("Error adding company:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+};
+
+const updateCompany = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const { id } = req.params;
+        const {
+            firstName,
+            lastName,
+            email,
+            companyName,
+            companyAddress,
+            companyPhone,
+            internetProviders
+        } = req.body;
+
+        // Handle company logo upload
+        let companyLogo = "";
+        if (req.file) {
+            const absolutePath = req.file.path.replace(/\\/g, "/");
+            const viewIndex = absolutePath.lastIndexOf("/view/");
+            let fileUrl = absolutePath;
+            if (viewIndex !== -1) {
+                fileUrl = absolutePath.substring(viewIndex);
+            }
+            if (!fileUrl.startsWith("/view/")) {
+                fileUrl = `/view/${fileUrl.split("/view/")[1]}`;
+            }
+            companyLogo = fileUrl;
+        }
+
+        // Validate required fields
+        if (!firstName || !lastName || !email || !companyName || !companyAddress) {
+            return sendError(res, "firstName, lastName, email, companyName, and companyAddress are required", 400);
+        }
+
+        // Check if company exists
+        const existingCompany = await UserModel.findById(id);
+        if (!existingCompany) {
+            return sendError(res, "Company not found", 404);
+        }
+
+        // Check if email is being changed and if new email already exists
+        if (email !== existingCompany.email) {
+            const emailExists = await UserModel.findOne({ email, _id: { $ne: id } });
+            if (emailExists) {
+                return sendError(res, "User with this email already exists", 400);
+            }
+        }
+
+        // Generate contact person name from firstName and lastName
+        const contactPerson = `${firstName} ${lastName}`;
+
+        // Prepare update data
+        const updateData: any = {
+            firstName,
+            lastName,
+            email,
+            companyPhone: companyPhone || "",
+            companyName,
+            companyAddress,
+            contactPerson,
+            internetProviders: internetProviders || [],
+            userName: `${firstName.toLowerCase()}${lastName.toLowerCase()}${Date.now()}`, // Generate unique username
+            phoneNumber: companyPhone || "", // Use company phone as phone number
+        };
+
+        // Only update companyLogo if a new file was uploaded
+        if (companyLogo) {
+            updateData.companyLogo = companyLogo;
+        }
+
+        // Update company
+        const updatedCompany = await UserModel.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedCompany) {
+            return sendError(res, "Failed to update company", 500);
+        }
+
+        // Remove sensitive fields from response
+        const companyResponse = {
+            _id: updatedCompany._id,
+            firstName: updatedCompany.firstName,
+            lastName: updatedCompany.lastName,
+            email: updatedCompany.email,
+            companyName: updatedCompany.companyName,
+            companyAddress: updatedCompany.companyAddress,
+            companyPhone: updatedCompany.companyPhone,
+            companyLogo: updatedCompany.companyLogo,
+            contactPerson: updatedCompany.contactPerson,
+            internetProviders: updatedCompany.internetProviders,
+            role: updatedCompany.role,
+            userName: updatedCompany.userName,
+            createdAt: updatedCompany.createdAt,
+            updatedAt: updatedCompany.updatedAt
+        };
+
+        return sendSuccess(
+            res, 
+            { 
+                company: companyResponse,
+                message: "Company updated successfully"
+            }, 
+            "Company updated successfully", 
+            200
+        );
+
+    } catch (error) {
+        console.error("Error updating company:", error);
         return sendError(res, "Internal server error", 500, error);
     }
 };
@@ -1982,7 +2113,7 @@ const giveUserCompanyDetails = async (req: Request, res: Response): Promise<any>
         console.error("Get user company details error:", error);
         return sendError(res, "Internal server error", 500, error);
     }
-}
+};
 
 export const userController = {
     signUp,
@@ -2000,6 +2131,7 @@ export const userController = {
     updateCompanyProfile,
     getCompanyProfile,
     addCompany,
+    updateCompany,
     getAdminDashboardData,
     deleteAdmin,
     giveUserCompanyDetails
