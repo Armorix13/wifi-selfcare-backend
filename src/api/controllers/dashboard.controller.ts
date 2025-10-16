@@ -3519,8 +3519,8 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         const customerUpdateData: any = {};
 
         // Update FDB and OLT references if provided (use MongoDB _id from found records)
-        if (fdbId) customerUpdateData.fdbId = fdb._id;
-        if (oltId) customerUpdateData.oltId = olt._id;
+        if (fdbId && fdb !== null) customerUpdateData.fdbId = fdb._id;
+        if (oltId && olt !== null) customerUpdateData.oltId = olt._id;
 
         // Update isInstalled if provided
         if (isInstalled !== undefined) {
@@ -3540,8 +3540,8 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           // Create new customer record
           updatedCustomer = await CustomerModel.create([{
             userId: userId,
-            fdbId: fdbId ? fdb._id : null,
-            oltId: oltId ? olt._id : null,
+            fdbId: fdbId && fdb !== null ? fdb._id : null,
+            oltId: oltId && olt !== null ? olt._id : null,
             isInstalled: customerUpdateData.isInstalled || false,
             installationDate: customerUpdateData.installationDate || null
           }], { session });
