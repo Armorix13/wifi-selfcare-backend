@@ -3429,17 +3429,20 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
 
         // Handle FDB port connection if fdbId, oltId, and portNumber are provided
         let fdbConnectionResult = null;
+        let fdb = null;
+        let olt = null;
+        
         if (fdbId && oltId && portNumber) {
-          // Validate FDB exists
-          const fdb = await FDBModel.findById(fdbId, null, { session });
+          // Find FDB by custom fdbId (not MongoDB _id)
+          fdb = await FDBModel.findOne({ fdbId: fdbId }, null, { session });
           if (!fdb) {
-            throw new Error("FDB not found");
+            throw new Error(`FDB with ID ${fdbId} not found`);
           }
 
-          // Validate OLT exists
-          const olt = await OLTModel.findById(oltId, null, { session });
+          // Find OLT by custom oltId (not MongoDB _id)
+          olt = await OLTModel.findOne({ oltId: oltId }, null, { session });
           if (!olt) {
-            throw new Error("OLT not found");
+            throw new Error(`OLT with ID ${oltId} not found`);
           }
 
           // Generate ports if they don't exist
@@ -3504,7 +3507,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           await fdb.save({ session });
 
           fdbConnectionResult = {
-            fdbId: fdb._id,
+            fdbId: fdb.fdbId,
             fdbName: fdb.fdbName,
             portNumber: portNumber,
             connected: true
@@ -3515,9 +3518,9 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         let updatedCustomer = null;
         const customerUpdateData: any = {};
 
-        // Update FDB and OLT references if provided
-        if (fdbId) customerUpdateData.fdbId = fdbId;
-        if (oltId) customerUpdateData.oltId = oltId;
+        // Update FDB and OLT references if provided (use MongoDB _id from found records)
+        if (fdbId) customerUpdateData.fdbId = fdb._id;
+        if (oltId) customerUpdateData.oltId = olt._id;
 
         // Update isInstalled if provided
         if (isInstalled !== undefined) {
@@ -3537,8 +3540,8 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           // Create new customer record
           updatedCustomer = await CustomerModel.create([{
             userId: userId,
-            fdbId: fdbId || null,
-            oltId: oltId || null,
+            fdbId: fdbId ? fdb._id : null,
+            oltId: oltId ? olt._id : null,
             isInstalled: customerUpdateData.isInstalled || false,
             installationDate: customerUpdateData.installationDate || null
           }], { session });
