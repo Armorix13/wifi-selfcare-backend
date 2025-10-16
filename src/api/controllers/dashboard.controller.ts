@@ -3318,7 +3318,10 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
       llInstallDate,
       bbPlan,
       workingStatus,
-      isInstalled
+      isInstalled,
+      fdbId,
+      oltId,
+      portNumber,
     } = req.body;
 
     // Validate userId
@@ -3401,34 +3404,167 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           );
         }
 
+        // Handle FDB port disconnection if user was previously connected
+        const currentCustomer = await CustomerModel.findOne({ userId: userId }, null, { session });
+        if (currentCustomer && currentCustomer.fdbId) {
+          const previousFdb = await FDBModel.findById(currentCustomer.fdbId, null, { session });
+          if (previousFdb && previousFdb.outputs) {
+            // Find and remove user from previous FDB outputs
+            const userOutputIndex = previousFdb.outputs.findIndex(output =>
+              output.type === "user" && output.id === userId
+            );
+
+            if (userOutputIndex !== -1) {
+              const previousPortNumber = previousFdb.outputs[userOutputIndex].portNumber;
+              if (previousPortNumber) {
+                // Disconnect from previous port
+                await previousFdb.disconnectFromPort(previousPortNumber);
+                // Remove from outputs
+                previousFdb.outputs.splice(userOutputIndex, 1);
+                await previousFdb.save({ session });
+              }
+            }
+          }
+        }
+
+        // Handle FDB port connection if fdbId, oltId, and portNumber are provided
+        let fdbConnectionResult = null;
+        if (fdbId && oltId && portNumber) {
+          // Validate FDB exists
+          const fdb = await FDBModel.findById(fdbId, null, { session });
+          if (!fdb) {
+            throw new Error("FDB not found");
+          }
+
+          // Validate OLT exists
+          const olt = await OLTModel.findById(oltId, null, { session });
+          if (!olt) {
+            throw new Error("OLT not found");
+          }
+
+          // Generate ports if they don't exist
+          if (!fdb.ports || fdb.ports.length === 0) {
+            fdb.generatePorts();
+            await fdb.save({ session });
+          }
+
+          // Validate port number format (P1, P2, etc.)
+          if (!portNumber.match(/^P\d+$/)) {
+            throw new Error("Invalid port number format. Must be P1, P2, P3, etc.");
+          }
+
+          // Check if port exists for this FDB power
+          const portExists = fdb.ports?.some(port => port.portNumber === portNumber);
+          if (!portExists) {
+            throw new Error(`Port ${portNumber} does not exist for FDB with power ${fdb.fdbPower}`);
+          }
+
+          // Check if port is available
+          const port = fdb.getPort(portNumber);
+          if (!port || port.status !== 'available') {
+            throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
+          }
+
+          // Connect user to port
+          await fdb.connectToPort(portNumber, {
+            type: "user",
+            id: userId,
+            description: `User ${existingUser.firstName} ${existingUser.lastName}`
+          });
+
+          // Add to FDB outputs with validation
+          const maxOutputs = fdb.fdbPower || 2; // Default to 2 if power not set
+          if (!fdb.outputs) {
+            fdb.outputs = [];
+          }
+
+          // Check if user is already in outputs
+          const existingOutput = fdb.outputs.find(output =>
+            output.type === "user" && output.id === userId
+          );
+
+          if (existingOutput) {
+            // Update existing output with new port
+            existingOutput.portNumber = portNumber;
+          } else {
+            // Check output limit
+            if (fdb.outputs.length >= maxOutputs) {
+              throw new Error(`FDB with power ${fdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
+            }
+
+            // Add new output
+            fdb.outputs.push({
+              type: "user",
+              id: userId,
+              portNumber: portNumber,
+              description: `User ${existingUser.firstName} ${existingUser.lastName}`
+            });
+          }
+
+          await fdb.save({ session });
+
+          fdbConnectionResult = {
+            fdbId: fdb._id,
+            fdbName: fdb.fdbName,
+            portNumber: portNumber,
+            connected: true
+          };
+        }
+
         // Always update customer record
         let updatedCustomer = null;
         const customerUpdateData: any = {};
 
+        // Update FDB and OLT references if provided
+        if (fdbId) customerUpdateData.fdbId = fdbId;
+        if (oltId) customerUpdateData.oltId = oltId;
 
         // Update isInstalled if provided
         if (isInstalled !== undefined) {
           customerUpdateData.isInstalled = isInstalled;
         }
 
-        // Always update customer record (even if no fields changed, it will refresh the record)
-        updatedCustomer = await CustomerModel.findOneAndUpdate(
-          { userId: userId },
-          customerUpdateData,
-          { new: true, session }
-        );
+        // Set installation date if connecting to FDB
+        if (fdbId && oltId && portNumber) {
+          customerUpdateData.installationDate = new Date();
+          customerUpdateData.isInstalled = true;
+        }
+
+        // Check if customer exists, if not create one
+        // Note: currentCustomer was already fetched above for FDB disconnection
+        
+        if (!currentCustomer) {
+          // Create new customer record
+          updatedCustomer = await CustomerModel.create([{
+            userId: userId,
+            fdbId: fdbId || null,
+            oltId: oltId || null,
+            isInstalled: customerUpdateData.isInstalled || false,
+            installationDate: customerUpdateData.installationDate || null
+          }], { session });
+          updatedCustomer = updatedCustomer[0];
+        } else {
+          // Update existing customer record
+          updatedCustomer = await CustomerModel.findOneAndUpdate(
+            { userId: userId },
+            customerUpdateData,
+            { new: true, session }
+          );
+        }
 
         return {
           updatedUser,
           updatedModem,
-          updatedCustomer
+          updatedCustomer,
+          fdbConnection: fdbConnectionResult
         };
       });
 
       return sendSuccess(res, {
         user: result.updatedUser,
         modem: result.updatedModem,
-        customer: result.updatedCustomer
+        customer: result.updatedCustomer,
+        fdbConnection: result.fdbConnection
       }, "User updated successfully");
 
     } catch (transactionError) {
@@ -3765,23 +3901,23 @@ export const mainDashboardData = async (req: Request, res: Response, next: NextF
     const totalInstallationRequests = await WifiInstallationRequest.countDocuments({ userId: { $in: companyUserIds } });
 
     // Complaint status breakdown
-    const resolvedComplaints = await ComplaintModel.countDocuments({ 
-      user: { $in: companyUserIds }, 
-      status: ComplaintStatus.RESOLVED 
+    const resolvedComplaints = await ComplaintModel.countDocuments({
+      user: { $in: companyUserIds },
+      status: ComplaintStatus.RESOLVED
     });
-    const pendingComplaints = await ComplaintModel.countDocuments({ 
-      user: { $in: companyUserIds }, 
-      status: { $in: [ComplaintStatus.PENDING, ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS, ComplaintStatus.VISITED] } 
+    const pendingComplaints = await ComplaintModel.countDocuments({
+      user: { $in: companyUserIds },
+      status: { $in: [ComplaintStatus.PENDING, ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS, ComplaintStatus.VISITED] }
     });
 
     // Installation status breakdown
-    const approvedInstallations = await WifiInstallationRequest.countDocuments({ 
-      userId: { $in: companyUserIds }, 
-      status: 'approved' 
+    const approvedInstallations = await WifiInstallationRequest.countDocuments({
+      userId: { $in: companyUserIds },
+      status: 'approved'
     });
-    const pendingInstallations = await WifiInstallationRequest.countDocuments({ 
-      userId: { $in: companyUserIds }, 
-      status: 'inreview' 
+    const pendingInstallations = await WifiInstallationRequest.countDocuments({
+      userId: { $in: companyUserIds },
+      status: 'inreview'
     });
 
     // Recent data (last 5 items)
@@ -3836,7 +3972,7 @@ export const mainDashboardData = async (req: Request, res: Response, next: NextF
         pendingInstallations,
         installationApprovalRate
       },
-      
+
       // Recent Activity
       recentActivity: {
         complaints: recentComplaints,
@@ -3849,8 +3985,8 @@ export const mainDashboardData = async (req: Request, res: Response, next: NextF
       summary: {
         totalActiveRequests: pendingComplaints + pendingInstallations,
         totalCompletedRequests: resolvedComplaints + approvedInstallations,
-        overallCompletionRate: totalComplaints + totalInstallationRequests > 0 
-          ? Math.round(((resolvedComplaints + approvedInstallations) / (totalComplaints + totalInstallationRequests)) * 100) 
+        overallCompletionRate: totalComplaints + totalInstallationRequests > 0
+          ? Math.round(((resolvedComplaints + approvedInstallations) / (totalComplaints + totalInstallationRequests)) * 100)
           : 0
       }
     };
@@ -3863,6 +3999,220 @@ export const mainDashboardData = async (req: Request, res: Response, next: NextF
   }
 };
 
+export const fdbAvailablePort = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const fdbId = req.params.fdbId;
 
+    // Validate fdbId
+    if (!fdbId) {
+      return res.status(400).json({
+        success: false,
+        message: "FDB ID is required"
+      });
+    }
 
+    // Find FDB by ID
+    const fdb = await FDBModel.findOne({fdbId: fdbId}).populate('ownedBy', 'name email').populate('assignedEngineer', 'name email').populate('assignedCompany', 'name email');
+
+    if (!fdb) {
+      return res.status(404).json({
+        success: false,
+        message: "FDB not found"
+      });
+    }
+
+    // Generate ports if they don't exist
+    if (!fdb.ports || fdb.ports.length === 0) {
+      fdb.generatePorts();
+      await fdb.save();
+    }
+
+    // Get port details with allocation information
+    const portDetails = fdb.ports?.map(port => ({
+      portNumber: port.portNumber,
+      status: port.status,
+      isAvailable: port.status === 'available',
+      isAllocated: port.status === 'occupied',
+      allocatedTo: port.connectedDevice ? {
+        type: port.connectedDevice.type,
+        id: port.connectedDevice.id,
+        description: port.connectedDevice.description
+      } : null,
+      connectionDate: port.connectionDate,
+      lastMaintenance: port.lastMaintenance
+    })) || [];
+
+    // Calculate summary statistics
+    const totalPorts = fdb.totalPorts || fdb.ports?.length || 0;
+    const availablePorts = fdb.getAvailablePorts().length;
+    const occupiedPorts = fdb.getOccupiedPorts().length;
+    const maintenancePorts = fdb.ports?.filter(port => port.status === 'maintenance').length || 0;
+    const faultyPorts = fdb.ports?.filter(port => port.status === 'faulty').length || 0;
+
+    // Response data
+    const responseData = {
+      fdbInfo: {
+        fdbId: fdb.fdbId,
+        fdbName: fdb.fdbName,
+        fdbType: fdb.fdbType,
+        fdbPower: fdb.fdbPower,
+        status: fdb.status,
+        location: {
+          latitude: fdb.latitude,
+          longitude: fdb.longitude,
+          address: fdb.address,
+          city: fdb.city,
+          state: fdb.state
+        },
+        ownedBy: fdb.ownedBy,
+        assignedEngineer: fdb.assignedEngineer,
+        assignedCompany: fdb.assignedCompany
+      },
+      portSummary: {
+        totalPorts,
+        availablePorts,
+        occupiedPorts,
+        maintenancePorts,
+        faultyPorts,
+        utilizationPercentage: totalPorts > 0 ? Math.round((occupiedPorts / totalPorts) * 100) : 0
+      },
+      portDetails,
+      powerConfiguration: {
+        fdbPower: fdb.fdbPower,
+        expectedPorts: fdb.fdbPower ? Array.from({ length: fdb.fdbPower }, (_, i) => `P${i + 1}`) : [],
+        portGenerationStatus: fdb.ports && fdb.ports.length > 0 ? 'generated' : 'not_generated'
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "FDB port information retrieved successfully",
+      data: responseData
+    });
+
+  } catch (error: any) {
+    console.error("Error in fdbAvailablePort:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : "Something went wrong"
+    });
+  }
+}
+
+// API to connect device to FDB port
+export const connectDeviceToPort = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { fdbId, portNumber, deviceType, deviceId, description } = req.body;
+
+    // Validate required fields
+    if (!fdbId || !portNumber || !deviceType || !deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: "FDB ID, port number, device type, and device ID are required"
+      });
+    }
+
+    // Find FDB
+    const fdb = await FDBModel.findById(fdbId);
+    if (!fdb) {
+      return res.status(404).json({
+        success: false,
+        message: "FDB not found"
+      });
+    }
+
+    // Generate ports if they don't exist
+    if (!fdb.ports || fdb.ports.length === 0) {
+      fdb.generatePorts();
+      await fdb.save();
+    }
+
+    // Connect device to port
+    await fdb.connectToPort(portNumber, {
+      type: deviceType,
+      id: deviceId,
+      description: description || ''
+    });
+
+    // Get updated port information
+    const updatedPort = fdb.getPort(portNumber);
+
+    return res.status(200).json({
+      success: true,
+      message: `Device ${deviceId} connected to port ${portNumber} successfully`,
+      data: {
+        fdbId: fdb.fdbId,
+        fdbName: fdb.fdbName,
+        port: updatedPort,
+        connection: {
+          deviceType,
+          deviceId,
+          description,
+          connectionDate: updatedPort?.connectionDate
+        }
+      }
+    });
+
+  } catch (error: any) {
+    console.error("Error in connectDeviceToPort:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : "Something went wrong"
+    });
+  }
+}
+
+// API to disconnect device from FDB port
+export const disconnectDeviceFromPort = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { fdbId, portNumber } = req.body;
+
+    // Validate required fields
+    if (!fdbId || !portNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "FDB ID and port number are required"
+      });
+    }
+
+    // Find FDB
+    const fdb = await FDBModel.findById(fdbId);
+    if (!fdb) {
+      return res.status(404).json({
+        success: false,
+        message: "FDB not found"
+      });
+    }
+
+    // Get port info before disconnection
+    const portBeforeDisconnect = fdb.getPort(portNumber);
+
+    // Disconnect device from port
+    await fdb.disconnectFromPort(portNumber);
+
+    // Get updated port information
+    const updatedPort = fdb.getPort(portNumber);
+
+    return res.status(200).json({
+      success: true,
+      message: `Device disconnected from port ${portNumber} successfully`,
+      data: {
+        fdbId: fdb.fdbId,
+        fdbName: fdb.fdbName,
+        port: updatedPort,
+        disconnectedDevice: portBeforeDisconnect?.connectedDevice
+      }
+    });
+
+  } catch (error: any) {
+    console.error("Error in disconnectDeviceFromPort:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : "Something went wrong"
+    });
+  }
+}
 
