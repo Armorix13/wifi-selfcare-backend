@@ -3275,12 +3275,75 @@ export const getUserDetailForUpdate = async (req: Request, res: Response, next: 
     const modemDetails = await Modem.findOne({ userId: userId }).lean();
 
     // Fetch related customer details
-    const customerDetails = await CustomerModel.findOne({ userId: userId }).populate("fdbId", "fdbId fdbName").populate("oltId", "oltId serialNumber oltIp macAddress ").lean();
+    const customerDetails = await CustomerModel.findOne({ userId: userId }).populate("fdbId", "fdbId fdbName fdbPower").populate("oltId", "oltId serialNumber oltIp macAddress").lean();
+
+    // Fetch FDB port connection details if customer has FDB connection
+    let fdbPortDetails = null;
+    if (customerDetails && customerDetails.fdbId) {
+      const fdb = await FDBModel.findById(customerDetails.fdbId).lean();
+      if (fdb && fdb.ports) {
+        // Find which port the user is connected to
+        const userPort = fdb.ports.find(port => 
+          port.connectedDevice && 
+          port.connectedDevice.type === "user" && 
+          port.connectedDevice.id === userId
+        );
+
+        if (userPort) {
+          fdbPortDetails = {
+            portNumber: userPort.portNumber,
+            status: userPort.status,
+            connectionDate: userPort.connectionDate,
+            lastMaintenance: userPort.lastMaintenance,
+            connectedDevice: userPort.connectedDevice
+          };
+        }
+
+        // Get all ports for this FDB
+        const allPorts = fdb.ports.map(port => ({
+          portNumber: port.portNumber,
+          status: port.status,
+          isAvailable: port.status === 'available',
+          isAllocated: port.status === 'occupied',
+          allocatedTo: port.connectedDevice ? {
+            type: port.connectedDevice.type,
+            id: port.connectedDevice.id,
+            description: port.connectedDevice.description
+          } : null,
+          connectionDate: port.connectionDate,
+          lastMaintenance: port.lastMaintenance
+        }));
+
+        // Add port summary
+        const portSummary = {
+          totalPorts: fdb.ports.length,
+          availablePorts: fdb.ports.filter(port => port.status === 'available').length,
+          occupiedPorts: fdb.ports.filter(port => port.status === 'occupied').length,
+          maintenancePorts: fdb.ports.filter(port => port.status === 'maintenance').length,
+          faultyPorts: fdb.ports.filter(port => port.status === 'faulty').length,
+          utilizationPercentage: fdb.ports.length > 0 ? Math.round((fdb.ports.filter(port => port.status === 'occupied').length / fdb.ports.length) * 100) : 0
+        };
+
+        fdbPortDetails = {
+          ...fdbPortDetails,
+          fdbInfo: {
+            fdbId: fdb.fdbId,
+            fdbName: fdb.fdbName,
+            fdbPower: fdb.fdbPower,
+            status: fdb.status
+          },
+          userPort: fdbPortDetails,
+          allPorts: allPorts,
+          portSummary: portSummary
+        };
+      }
+    }
 
     return sendSuccess(res, {
       user,
       modemDetails,
-      customerDetails
+      customerDetails,
+      fdbPortDetails
     }, "User details fetched successfully for update");
   } catch (error) {
     console.error("Error in getUserDetailForUpdate:", error);
@@ -3323,6 +3386,9 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
       oltId,
       portNumber,
     } = req.body;
+
+    console.log("req body", req.body);
+
 
     // Validate userId
     if (!userId) {
@@ -3431,16 +3497,16 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         let fdbConnectionResult = null;
         let fdb = null;
         let olt = null;
-        
+
         if (fdbId && oltId && portNumber) {
           // Find FDB by custom fdbId (not MongoDB _id)
-          fdb = await FDBModel.findOne({ fdbId: fdbId }, null, { session });
+          fdb = await FDBModel.findOne({ fdbId: fdbId });
           if (!fdb) {
             throw new Error(`FDB with ID ${fdbId} not found`);
           }
 
           // Find OLT by custom oltId (not MongoDB _id)
-          olt = await OLTModel.findOne({ oltId: oltId }, null, { session });
+          olt = await OLTModel.findOne({ oltId: oltId });
           if (!olt) {
             throw new Error(`OLT with ID ${oltId} not found`);
           }
@@ -3448,7 +3514,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           // Generate ports if they don't exist
           if (!fdb.ports || fdb.ports.length === 0) {
             fdb.generatePorts();
-            await fdb.save({ session });
+            await fdb.save();
           }
 
           // Validate port number format (P1, P2, etc.)
@@ -3504,7 +3570,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
             });
           }
 
-          await fdb.save({ session });
+          await fdb.save();
 
           fdbConnectionResult = {
             fdbId: fdb.fdbId,
@@ -3535,7 +3601,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
 
         // Check if customer exists, if not create one
         // Note: currentCustomer was already fetched above for FDB disconnection
-        
+
         if (!currentCustomer) {
           // Create new customer record
           updatedCustomer = await CustomerModel.create([{
@@ -4015,7 +4081,7 @@ export const fdbAvailablePort = async (req: Request, res: Response, next: NextFu
     }
 
     // Find FDB by ID
-    const fdb = await FDBModel.findOne({fdbId: fdbId}).populate('ownedBy', 'name email').populate('assignedEngineer', 'name email').populate('assignedCompany', 'name email');
+    const fdb = await FDBModel.findOne({ fdbId: fdbId }).populate('ownedBy', 'name email').populate('assignedEngineer', 'name email').populate('assignedCompany', 'name email');
 
     if (!fdb) {
       return res.status(404).json({
@@ -4218,4 +4284,5 @@ export const disconnectDeviceFromPort = async (req: Request, res: Response, next
     });
   }
 }
+
 
