@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload, excelUpload } from '../services/upload.service';
-import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign, mainDashboardData, fdbAvailablePort, connectDeviceToPort, disconnectDeviceFromPort } from '../controllers/dashboard.controller';
+import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign, mainDashboardData, fdbAvailablePort, connectDeviceToPort, disconnectDeviceFromPort, addBsnlUserFromExcel } from '../controllers/dashboard.controller';
 import { getAllOltTOAdminPanel } from '../controllers/olt.controller';
 
 const dashboardRoute = Router();
@@ -50,6 +50,10 @@ dashboardRoute.post('/leave-requests/approve-reject', authenticate, approveRejec
 
 // Excel Upload Routes
 dashboardRoute.post('/upload-users-excel', authenticate, excelUpload.array('files', 10), addUserFromExcel);
+
+//New work
+dashboardRoute.post('/upload-bsnl-users-excel', authenticate, excelUpload.array('files', 10), addBsnlUserFromExcel);
+
 
 // OLT Routes
 dashboardRoute.get('/olts', authenticate, getAllOltTOAdminPanel);
