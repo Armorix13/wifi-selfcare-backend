@@ -61,7 +61,7 @@ export interface IUser extends Document {
   mode?: Mode;
   provider?: string;
   providerId?: string;
-  
+
   // Additional engineer fields
   state?: string;
   pincode?: string;
@@ -128,6 +128,8 @@ export interface IUser extends Document {
 
   // Internet providers array
   internetProviders?: string[];
+  internetProvider?: mongoose.Types.ObjectId[];
+  internetProviderId?: mongoose.Types.ObjectId;
 
   // Customer-specific fields for fiber network
   customerId?: string; // Auto-generated customer ID (e.g., CUS1234)
@@ -139,7 +141,7 @@ export interface IUser extends Document {
   lastBillingDate?: Date; // Last billing date
   assignedEngineer?: mongoose.Types.ObjectId; // Reference to engineer
   assignedCompany?: mongoose.Types.ObjectId; // Reference to company
-  
+
   isExisting?: boolean; // Whether the user is an existing customer
 }
 
@@ -194,7 +196,7 @@ const UserSchema = new Schema<IUser>({
   mode: { type: String, enum: Object.values(Mode) },
   provider: { type: String },
   providerId: { type: String },
-  
+
   // Additional engineer fields
   state: { type: String },
   pincode: { type: String },
@@ -237,7 +239,9 @@ const UserSchema = new Schema<IUser>({
   companyCountry: { type: String },
 
   // Internet providers array
-  internetProviders: [{ type: String }],
+  internetProviders: [{ type: String }],//in futre we will remove this
+  //this is company which have internet provider
+  internetProvider: [{ type: Schema.Types.ObjectId, ref: "InternetProvider" }],
 
   // Customer-specific fields for fiber network
   customerId: { type: String, unique: true, sparse: true },
@@ -255,6 +259,12 @@ const UserSchema = new Schema<IUser>({
   assignedCompany: {
     type: Schema.Types.ObjectId,
     ref: "User"
+  },
+
+  //this is for the user which have internet company
+  internetProviderId: {
+    type: Schema.Types.ObjectId,
+    ref: "InternetProvider"
   },
 
 

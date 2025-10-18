@@ -1432,7 +1432,8 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             companyName,
             companyAddress,
             companyPhone,
-            internetProviders
+            internetProviders,
+            internetProvider
         } = req.body;
 
         // Handle company logo upload
@@ -1470,6 +1471,20 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
         // Generate contact person name from firstName and lastName
         const contactPerson = `${firstName} ${lastName}`;
 
+        // Parse internetProvider if it's a string
+        let parsedInternetProvider = [];
+        if (internetProvider) {
+            if (typeof internetProvider === 'string') {
+                try {
+                    parsedInternetProvider = JSON.parse(internetProvider);
+                } catch (error) {
+                    parsedInternetProvider = [];
+                }
+            } else if (Array.isArray(internetProvider)) {
+                parsedInternetProvider = internetProvider;
+            }
+        }
+
         // Create new company user
         const newCompany = await UserModel.create({
             firstName,
@@ -1480,7 +1495,8 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             companyAddress,
             companyLogo,
             contactPerson,
-            internetProviders: internetProviders || [],
+            // internetProviders: internetProviders || [],
+            internetProvider: parsedInternetProvider,
             password: hashedPassword,
             role: Role.ADMIN, // Set role as ADMIN for company users
             userName: `${firstName.toLowerCase()}${lastName.toLowerCase()}${Date.now()}`, // Generate unique username
@@ -1522,7 +1538,8 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             companyPhone: newCompany.companyPhone,
             companyLogo: newCompany.companyLogo,
             contactPerson: newCompany.contactPerson,
-            internetProviders: newCompany.internetProviders,
+            // internetProviders: newCompany.internetProviders,
+            internetProvider: newCompany.internetProvider,
             role: newCompany.role,
             userName: newCompany.userName,
             createdAt: newCompany.createdAt
@@ -1555,7 +1572,8 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
             companyName,
             companyAddress,
             companyPhone,
-            internetProviders
+            // internetProviders,
+            internetProvider
         } = req.body;
 
         // Handle company logo upload
@@ -1595,6 +1613,20 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
         // Generate contact person name from firstName and lastName
         const contactPerson = `${firstName} ${lastName}`;
 
+        // Parse internetProvider if it's a string
+        let parsedInternetProvider = [];
+        if (internetProvider) {
+            if (typeof internetProvider === 'string') {
+                try {
+                    parsedInternetProvider = JSON.parse(internetProvider);
+                } catch (error) {
+                    parsedInternetProvider = [];
+                }
+            } else if (Array.isArray(internetProvider)) {
+                parsedInternetProvider = internetProvider;
+            }
+        }
+
         // Prepare update data
         const updateData: any = {
             firstName,
@@ -1604,7 +1636,8 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
             companyName,
             companyAddress,
             contactPerson,
-            internetProviders: internetProviders || [],
+            // internetProviders: internetProviders || [],
+            internetProvider: parsedInternetProvider,
             userName: `${firstName.toLowerCase()}${lastName.toLowerCase()}${Date.now()}`, // Generate unique username
             phoneNumber: companyPhone || "", // Use company phone as phone number
         };
@@ -1636,7 +1669,8 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
             companyPhone: updatedCompany.companyPhone,
             companyLogo: updatedCompany.companyLogo,
             contactPerson: updatedCompany.contactPerson,
-            internetProviders: updatedCompany.internetProviders,
+            // internetProviders: updatedCompany.internetProviders,
+            internetProvider: updatedCompany.internetProvider,
             role: updatedCompany.role,
             userName: updatedCompany.userName,
             createdAt: updatedCompany.createdAt,
@@ -1663,7 +1697,7 @@ const getCompanyProfile = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
 
-        const user = await UserModel.findById(userId);
+        const user = await UserModel.findById(userId).populate('internetProvider', 'name');
         if (!user) {
             return sendError(res, "User not found", 404);
         }
@@ -1688,7 +1722,8 @@ const getCompanyProfile = async (req: Request, res: Response): Promise<any> => {
             companyState: user.companyState,
             companyCountry: user.companyCountry,
             companyDescription: user.companyDescription,
-            companyLogo: user.companyLogo
+            companyLogo: user.companyLogo,
+            internetProvider: user.internetProvider
         };
 
         return sendSuccess(
@@ -1832,7 +1867,8 @@ const getAdminDashboardData = async (req: Request, res: Response): Promise<any> 
         const admins = await UserModel.find({ 
             role: { $in: [Role.ADMIN] }
         })
-        .select('_id firstName lastName email companyName companyAddress companyPhone companyEmail companyWebsite companyLogo contactPerson internetProviders isActivated isDeactivated isSuspended createdAt lastLogin')
+        .select('_id firstName lastName email companyName companyAddress companyPhone companyEmail companyWebsite companyLogo contactPerson internetProvider isActivated isDeactivated isSuspended createdAt lastLogin')
+        .populate('internetProvider', 'name')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
