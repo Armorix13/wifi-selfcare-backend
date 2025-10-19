@@ -2093,6 +2093,20 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
                 } catch {
                   userData[fieldName] = null;
                 }
+              } else if (fieldName === 'expiry') {
+                // Convert expiry date string to Date object
+                try {
+                  userData[fieldName] = new Date(value);
+                } catch {
+                  userData[fieldName] = null;
+                }
+              } else if (fieldName === 'registrationDate') {
+                // Convert registration date string to Date object
+                try {
+                  userData[fieldName] = new Date(value);
+                } catch {
+                  userData[fieldName] = null;
+                }
               } else if (fieldName === 'phoneNumber') {
                 // Clean phone number - remove all non-numeric characters
                 userData[fieldName] = value.toString().replace(/[^0-9]/g, '');
@@ -3126,7 +3140,8 @@ export const addUser = async (
       llInstallDate,
       bbPlan,
       workingStatus,
-      isInstalled = true
+      isInstalled = true,
+      internetProviderId
     } = req.body;
 
     const companyId = (req as any).userId;
@@ -3179,7 +3194,8 @@ export const addUser = async (
       password: hashedPassword,
       isAccountVerified: true,
       isDeactivated: false,
-      isSuspended: false
+      isSuspended: false,
+      internetProviderId
     };
 
     // Validate OLT and FDB before starting transaction
@@ -3408,6 +3424,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
       fdbId,
       oltId,
       portNumber,
+      internetProviderId
     } = req.body;
 
     console.log("req body", req.body);
@@ -3466,7 +3483,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         if (llInstallDate) userUpdateData.llInstallDate = llInstallDate;
         if (bbPlan) userUpdateData.bbPlan = bbPlan;
         if (workingStatus) userUpdateData.workingStatus = workingStatus;
-
+        if (internetProviderId) userUpdateData.internetProviderId = internetProviderId; //this is for the user which have internet company
         // Update user
         const updatedUser = await UserModel.findByIdAndUpdate(
           userId,
@@ -4683,6 +4700,20 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string,i
                 } catch {
                   userData[fieldName] = null;
                 }
+              } else if (fieldName === 'expiry') {
+                // Convert expiry date string to Date object
+                try {
+                  userData[fieldName] = new Date(value);
+                } catch {
+                  userData[fieldName] = null;
+                }
+              } else if (fieldName === 'registrationDate') {
+                // Convert registration date string to Date object
+                try {
+                  userData[fieldName] = new Date(value);
+                } catch {
+                  userData[fieldName] = null;
+                }
               } else if (fieldName === 'phoneNumber') {
                 // Clean phone number - remove all non-numeric characters
                 userData[fieldName] = value.toString().replace(/[^0-9]/g, '');
@@ -4765,6 +4796,1574 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string,i
         fileResult.errors.push(`Row ${rowIndex + 2}: ${rowError.message}`);
       }
     }
+
+  } catch (error: any) {
+    console.error('Excel file processing error:', error);
+    fileResult.errors.push(`File processing error: ${error.message}`);
+  }
+
+  return fileResult;
+};
+
+export const addRailWireUserFromExcel = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { files } = req;
+    const addedBy = (req as any).userId; // Logged in user ID who is uploading
+
+    const {internetProviderId} = req.body;
+    console.log(req.body,internetProviderId);
+    
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return sendError(res, 'No files uploaded', 400);
+    }
+
+    // Validate each file object
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      console.log(`Validating file ${i}:`, {
+        originalname: file?.originalname,
+        mimetype: file?.mimetype,
+        size: file?.size,
+        hasBuffer: !!file?.buffer,
+        hasPath: !!file?.path,
+        bufferLength: file?.buffer?.length,
+        path: file?.path,
+        keys: file ? Object.keys(file) : 'undefined'
+      });
+
+      if (!file || typeof file !== 'object') {
+        return sendError(res, `File at index ${i} is invalid`, 400);
+      }
+      if (!file.originalname) {
+        return sendError(res, `File at index ${i} is missing original name`, 400);
+      }
+      // Check if file has either buffer (memory storage) or path (disk storage)
+      if (!file.buffer && !file.path) {
+        return sendError(res, `File ${file.originalname} is missing required properties (neither buffer nor path)`, 400);
+      }
+    }
+
+    if (!addedBy) {
+      return sendError(res, 'User authentication required', 401);
+    }
+
+    const results: {
+      totalFiles: number;
+      processedFiles: number;
+      totalUsers: number;
+      newUsers: number;
+      updatedUsers: number;
+      duplicateUsers: number;
+      errors: string[];
+      fileResults: Array<{
+        fileName: string;
+        totalUsers: number;
+        newUsers: number;
+        updatedUsers: number;
+        duplicateUsers: number;
+        errors: string[];
+        duplicateDetails: Array<{
+          phoneNumber: string;
+          email: string;
+          action: 'updated' | 'skipped';
+        }>;
+      }>;
+    } = {
+      totalFiles: files.length,
+      processedFiles: 0,
+      totalUsers: 0,
+      newUsers: 0,
+      updatedUsers: 0,
+      duplicateUsers: 0,
+      errors: [],
+      fileResults: []
+    };
+
+    // Process each uploaded file
+    for (const file of files) {
+      try {
+        console.log(`Processing file: ${file.originalname}`);
+        const fileResult = await processRailWireExcelFile(file, addedBy,internetProviderId);
+        results.fileResults.push(fileResult);
+        results.processedFiles++;
+        results.totalUsers += fileResult.totalUsers;
+        results.newUsers += fileResult.newUsers;
+        results.updatedUsers += fileResult.updatedUsers;
+        results.duplicateUsers += fileResult.duplicateUsers;
+        results.errors.push(...fileResult.errors);
+      } catch (fileError: any) {
+        console.error(`Error processing file ${file.originalname}:`, fileError);
+        const errorMessage = file.originalname
+          ? `File ${file.originalname}: ${fileError.message}`
+          : `Unknown file: ${fileError.message}`;
+        results.errors.push(errorMessage);
+      }
+    }
+
+    // Prepare response message
+    let message = `Processed ${results.processedFiles} files. `;
+    if (results.newUsers > 0) message += `Added ${results.newUsers} new users. `;
+    if (results.updatedUsers > 0) message += `Updated ${results.updatedUsers} existing users. `;
+    if (results.duplicateUsers > 0) message += `Found ${results.duplicateUsers} duplicate users (based on phone number). `;
+    if (results.errors.length > 0) message += `${results.errors.length} errors occurred.`;
+
+    return sendSuccess(res, results, message);
+  } catch (error: any) {
+    console.error('Excel upload error:', error);
+    return sendError(res, 'Failed to process Excel files', 500, error);
+  }
+};
+
+const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: string,internetProviderId: string) => {
+  console.log('internetProviderId',internetProviderId);
+  
+  // Validate file object
+  if (!file) {
+    throw new Error('File object is undefined');
+  }
+
+  if (!file.originalname) {
+    throw new Error('File has no original name');
+  }
+
+  // Check if file has buffer (memory storage) or path (disk storage)
+  if (!file.buffer && !file.path) {
+    throw new Error('File has neither buffer data nor file path');
+  }
+
+  const fileResult = {
+    fileName: file.originalname,
+    totalUsers: 0,
+    newUsers: 0,
+    updatedUsers: 0,
+    duplicateUsers: 0,
+    errors: [] as string[],
+    duplicateDetails: [] as Array<{
+      phoneNumber: string;
+      email: string;
+      action: 'updated' | 'skipped';
+    }>
+  };
+
+  try {
+    // Debug file information
+    console.log('File info:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      bufferLength: file.buffer ? file.buffer.length : 'undefined',
+      bufferType: file.buffer ? typeof file.buffer : 'undefined',
+      path: file.path || 'undefined'
+    });
+
+    let fileBuffer: Buffer;
+
+    // Handle both memory storage (buffer) and disk storage (path)
+    if (file.buffer) {
+      // Memory storage - use buffer directly
+      if (!file.buffer || file.buffer.length === 0) {
+        throw new Error('File buffer is empty or corrupted');
+      }
+
+      if (!Buffer.isBuffer(file.buffer)) {
+        throw new Error('File buffer is not a valid Buffer object');
+      }
+
+      if (file.buffer.length < 100) {
+        throw new Error('File is too small to be a valid Excel file');
+      }
+
+      fileBuffer = file.buffer;
+    } else if (file.path) {
+      // Disk storage - read file from disk
+      try {
+        fileBuffer = fs.readFileSync(file.path);
+
+        if (!fileBuffer || fileBuffer.length === 0) {
+          throw new Error('File read from disk is empty or corrupted');
+        }
+
+        if (fileBuffer.length < 100) {
+          throw new Error('File read from disk is too small to be a valid Excel file');
+        }
+      } catch (readError: any) {
+        throw new Error(`Failed to read file from disk: ${readError.message}`);
+      }
+    } else {
+      throw new Error('No file data available (neither buffer nor path)');
+    }
+
+    // Check file extension
+    const fileExtension = file.originalname.toLowerCase().split('.').pop();
+    if (!fileExtension || !['xls', 'xlsx', 'csv'].includes(fileExtension)) {
+      throw new Error(`Unsupported file format: ${fileExtension}. Only .xls, .xlsx, and .csv files are supported`);
+    }
+
+    // Parse Excel file with error handling
+    let workbook;
+    try {
+      // Try different parsing options
+      workbook = XLSX.read(fileBuffer, {
+        type: 'buffer',
+        cellDates: true,
+        cellNF: false,
+        cellText: false
+      });
+    } catch (xlsxError: any) {
+      console.error('XLSX parsing error:', xlsxError);
+
+      // Try alternative parsing method
+      try {
+        console.log('Trying alternative parsing method...');
+        workbook = XLSX.read(fileBuffer, {
+          type: 'buffer',
+          cellDates: false,
+          cellNF: false,
+          cellText: true
+        });
+      } catch (altError: any) {
+        console.error('Alternative parsing also failed:', altError);
+
+        // Provide more specific error messages based on the error type
+        if (xlsxError.message.includes('Cannot read properties of undefined')) {
+          throw new Error('Excel file appears to be corrupted or in an unsupported format. Please ensure the file is a valid Excel file (.xls, .xlsx) and try again.');
+        } else if (xlsxError.message.includes('password')) {
+          throw new Error('Excel file appears to be password-protected. Please remove the password protection and try again.');
+        } else {
+          throw new Error(`Failed to parse Excel file: ${xlsxError.message}. Alternative method also failed: ${altError.message}`);
+        }
+      }
+    }
+
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error('Excel file contains no sheets');
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+
+    if (!worksheet) {
+      throw new Error('Could not read worksheet from Excel file');
+    }
+
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+    if (!data || data.length < 2) {
+      throw new Error('Excel file must have at least header row and one data row');
+    }
+    
+    // Handle case where first row might be empty and actual headers are in second row
+    let headers: string[];
+    let rows: any[][];
+    
+    // Check if first row contains actual headers or is empty
+    const firstRow = data[0] as any[];
+    const secondRow = data[1] as any[];
+    
+    // If first row has meaningful data (not all empty), use it as headers
+    const firstRowHasMeaningfulData = firstRow && firstRow.some(cell => 
+      cell && cell.toString().trim() !== '' && cell.toString().toLowerCase().includes('name')
+    );
+    
+    if (firstRowHasMeaningfulData) {
+      // Normal case: headers are in first row
+      headers = (data[0] as string[]).map(h => h ? h.toString().toLowerCase().trim() : '');
+      rows = data.slice(1) as any[][];
+    } else {
+      // Special case: headers are in second row (first row is empty/unnamed)
+      headers = (data[1] as string[]).map(h => h ? h.toString().toLowerCase().trim() : '');
+      rows = data.slice(2) as any[][];
+    }
+    
+    console.log('Extracted headers:', headers);
+    console.log('Number of data rows:', rows.length);
+    
+    if (!headers || !Array.isArray(headers)) {
+      throw new Error('Invalid header row in Excel file');
+    }
+    
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      throw new Error('No data rows found in Excel file');
+    }
+    
+
+    // Map Excel headers to User model fields (PHONE_NO is primary unique identifier)
+    const headerMapping: { [key: string]: string } = {
+      'firstname':'firstName',
+      'mobileno': 'phoneNumber', 
+      'email': 'email',
+      'username': 'userName',
+      'address': 'permanentAddress',
+      
+      'packagename': 'packageName',
+      'billingtypeid': 'billingTypeId',
+      'subscriberid': 'subscriberId',
+      'gstin': 'gstin',
+      'status': 'status',
+      'expiry': 'expiry',
+      'registrationdate': 'registrationDate',
+      'balance': 'balance',
+      'sub_status': 'subStatus',
+      'remarks': 'remarks',
+    };
+
+    // Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
+// Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
+const requiredHeaders = [
+  { key: 'mobileno', patterns: ['mobileno', 'mobile', 'phone'] },
+  { key: 'email', patterns: ['email', 'e-mail', 'mail'] }
+];
+
+const missingHeaders: string[] = [];
+
+requiredHeaders.forEach(required => {
+  const found = headers.some(header => {
+    if (!header) return false;
+    
+    const headerUpper = header.toString().toUpperCase().replace(/[_\s-]/g, '');
+    
+    return required.patterns.some(pattern => {
+      const patternUpper = pattern.toUpperCase().replace(/[_\s-]/g, '');
+      return headerUpper.includes(patternUpper);
+    });
+  });
+  
+  if (!found) {
+    missingHeaders.push(required.key);
+  }
+});
+
+console.log('Found headers:', headers);
+console.log('Missing headers:', missingHeaders);
+
+// Debug header mapping
+console.log('Header mapping results:');
+headers.forEach((header, index) => {
+  if (header) {
+    const mappedField = headerMapping[header];
+    console.log(`Column ${index}: "${header}" -> ${mappedField || 'UNMAPPED'}`);
+  }
+});
+
+if (missingHeaders.length > 0) {
+  throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+}
+
+
+    // Debug header mapping
+    console.log('Header mapping results:');
+    headers.forEach((header, index) => {
+      if (header) {
+        const mappedField = headerMapping[header];
+        console.log(`Column ${index}: "${header}" -> ${mappedField || 'UNMAPPED'}`);
+      }
+    });
+
+    if (missingHeaders.length > 0) {
+      throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+    }
+
+    // Process each row
+    console.log(`Processing ${rows.length} rows`);
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex];
+      try {
+        if (!row || !Array.isArray(row) || row.every(cell => !cell)) {
+          console.log(`Skipping empty row ${rowIndex + 2}`);
+          continue; // Skip empty rows
+        }
+
+        // Map row data to user object
+        const userData: any = {
+          addedBy: addedBy,
+          assignedCompany: addedBy,
+          internetProviderId: internetProviderId,
+          isActivated: true,
+          isAccountVerified: true,
+          isDeactivated: false,
+          isSuspended: false,
+          countryCode: '+91',
+        };
+
+        headers.forEach((header, colIndex) => {
+          if (header && row && Array.isArray(row) && colIndex < row.length && row[colIndex] !== undefined && row[colIndex] !== null) {
+            const fieldName = headerMapping[header];
+            if (fieldName) {
+              let value = row[colIndex];
+
+              // Handle special field mappings
+              if (fieldName === 'firstName') {
+                // Split customer name into firstName and lastName
+                const nameParts = value.toString().trim().split(' ');
+                userData.firstName = nameParts && nameParts.length > 0 ? nameParts[0] : '';
+                userData.lastName = nameParts && nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+              } else if (fieldName === 'llInstallDate') {
+                // Convert date string to Date object
+                try {
+                  userData[fieldName] = new Date(value);
+                } catch {
+                  userData[fieldName] = null;
+                }
+              } else if (fieldName === 'expiry') {
+                // Convert expiry date string to Date object
+                try {
+                  userData[fieldName] = new Date(value);
+                } catch {
+                  userData[fieldName] = null;
+                }
+              } else if (fieldName === 'registrationDate') {
+                // Convert registration date string to Date object
+                try {
+                  userData[fieldName] = new Date(value);
+                } catch {
+                  userData[fieldName] = null;
+                }
+              } else if (fieldName === 'phoneNumber') {
+                // Clean phone number - remove all non-numeric characters
+                userData[fieldName] = value.toString().replace(/[^0-9]/g, '');
+                userData.countryCode = '+91'; // Default to India
+              } else {
+                userData[fieldName] = value.toString().trim();
+              }
+            }
+          }
+        });
+
+        // Validate required fields
+        if (!userData.phoneNumber || !userData.email || !userData.firstName) {
+          fileResult.errors.push(`Row ${rowIndex + 2}: Missing required fields (phone, email, or name)`);
+          continue;
+        }
+
+        // Clean phone number for comparison
+        const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+
+        // Check if user already exists by phone number (primary unique identifier)
+        const existingUser = await UserModel.findOne({
+          phoneNumber: cleanPhoneNumber
+        });
+
+        if (existingUser) {
+          // Check if this is a duplicate entry (same phone number)
+          fileResult.duplicateUsers++;
+          fileResult.totalUsers++;
+
+          // Add to duplicate details
+          fileResult.duplicateDetails.push({
+            phoneNumber: cleanPhoneNumber,
+            email: userData.email,
+            action: 'updated'
+          });
+
+          // Update existing user with new data from Excel
+          const updateData = { ...userData };
+
+          delete updateData.phoneNumber; // Don't update phone number as it's the unique identifier
+
+          // Update user with new information
+          const updatedUser = await UserModel.findByIdAndUpdate(
+            existingUser._id,
+            {
+              ...updateData,
+              internetProviderId: internetProviderId,
+              updatedAt: new Date()
+            },
+            { new: true, runValidators: true }
+          );
+
+          if (updatedUser) {
+            fileResult.updatedUsers++;
+            console.log(`Updated existing user with phone: ${cleanPhoneNumber}`);
+          }
+        } else {
+          // Create new user
+          const newUser = new UserModel({
+            ...userData,
+            phoneNumber: cleanPhoneNumber, // Use cleaned phone number
+            email: userData.email.toLowerCase(),
+            role: 'user', // Default role
+            // userName: userData.email.split('@')[0], // Generate username from email
+            country: 'India', // Default country
+            status: 'active'
+          });
+
+          const savedUser = await newUser.save();
+          if (savedUser) {
+            fileResult.newUsers++;
+            fileResult.totalUsers++;
+            console.log(`Created new user with phone: ${cleanPhoneNumber}`);
+          }
+        }
+
+      } catch (rowError: any) {
+        console.error(`Error processing row ${rowIndex + 2}:`, rowError);
+        fileResult.errors.push(`Row ${rowIndex + 2}: ${rowError.message}`);
+      }
+    }
+
+  } catch (error: any) {
+    console.error('Excel file processing error:', error);
+    fileResult.errors.push(`File processing error: ${error.message}`);
+  }
+
+  return fileResult;
+};
+
+
+export const addMyInternetUserFromExcel = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { files } = req;
+    const addedBy = (req as any).userId;
+    const { internetProviderId } = req.body;
+
+    console.log('Request body:', req.body, 'internetProviderId:', internetProviderId);
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return sendError(res, 'No files uploaded', 400);
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file || typeof file !== 'object') {
+        return sendError(res, `File at index ${i} is invalid`, 400);
+      }
+      if (!file.originalname) {
+        return sendError(res, `File at index ${i} is missing original name`, 400);
+      }
+      if (!file.buffer && !file.path) {
+        return sendError(res, `File ${file.originalname} is missing required properties`, 400);
+      }
+    }
+
+    if (!addedBy) {
+      return sendError(res, 'User authentication required', 401);
+    }
+
+    const results: {
+      totalFiles: number;
+      processedFiles: number;
+      totalUsers: number;
+      newUsers: number;
+      updatedUsers: number;
+      duplicateUsers: number;
+      errors: string[];
+      fileResults: Array<{
+        fileName: string;
+        totalUsers: number;
+        newUsers: number;
+        updatedUsers: number;
+        duplicateUsers: number;
+        errors: string[];
+        duplicateDetails: Array<{
+          phoneNumber: string;
+          username: string;
+          action: 'updated' | 'skipped';
+        }>;
+      }>;
+    } = {
+      totalFiles: files.length,
+      processedFiles: 0,
+      totalUsers: 0,
+      newUsers: 0,
+      updatedUsers: 0,
+      duplicateUsers: 0,
+      errors: [],
+      fileResults: []
+    };
+
+    for (const file of files) {
+      try {
+        console.log(`Processing file: ${file.originalname}`);
+        const fileResult = await processMyInternetExcelFile(file, addedBy, internetProviderId);
+        results.fileResults.push(fileResult);
+        results.processedFiles++;
+        results.totalUsers += fileResult.totalUsers;
+        results.newUsers += fileResult.newUsers;
+        results.updatedUsers += fileResult.updatedUsers;
+        results.duplicateUsers += fileResult.duplicateUsers;
+        results.errors.push(...fileResult.errors);
+      } catch (fileError: any) {
+        console.error(`Error processing file ${file.originalname}:`, fileError);
+        const errorMessage = file.originalname
+          ? `File ${file.originalname}: ${fileError.message}`
+          : `Unknown file: ${fileError.message}`;
+        results.errors.push(errorMessage);
+      }
+    }
+
+    let message = `Processed ${results.processedFiles} files. `;
+    if (results.newUsers > 0) message += `Added ${results.newUsers} new users. `;
+    if (results.updatedUsers > 0) message += `Updated ${results.updatedUsers} existing users. `;
+    if (results.duplicateUsers > 0) message += `Found ${results.duplicateUsers} duplicate users. `;
+    if (results.errors.length > 0) message += `${results.errors.length} errors occurred.`;
+
+    return sendSuccess(res, results, message);
+  } catch (error: any) {
+    console.error('Excel upload error:', error);
+    return sendError(res, 'Failed to process Excel files', 500, error);
+  }
+};
+
+const processMyInternetExcelFile = async (
+  file: Express.Multer.File,
+  addedBy: string,
+  internetProviderId: string
+) => {
+  if (!file) throw new Error('File object is undefined');
+  if (!file.originalname) throw new Error('File has no original name');
+  if (!file.buffer && !file.path) throw new Error('File has neither buffer data nor file path');
+
+  const fileResult = {
+    fileName: file.originalname,
+    totalUsers: 0,
+    newUsers: 0,
+    updatedUsers: 0,
+    duplicateUsers: 0,
+    errors: [] as string[],
+    duplicateDetails: [] as Array<{
+      phoneNumber: string;
+      username: string;
+      action: 'updated' | 'skipped';
+    }>
+  };
+
+  try {
+    let fileBuffer: Buffer;
+
+    if (file.buffer) {
+      if (!Buffer.isBuffer(file.buffer) || file.buffer.length < 100) {
+        throw new Error('File buffer is invalid or too small');
+      }
+      fileBuffer = file.buffer;
+    } else if (file.path) {
+      try {
+        fileBuffer = fs.readFileSync(file.path);
+        if (!fileBuffer || fileBuffer.length < 100) {
+          throw new Error('File read from disk is invalid or too small');
+        }
+      } catch (readError: any) {
+        throw new Error(`Failed to read file from disk: ${readError.message}`);
+      }
+    } else {
+      throw new Error('No file data available');
+    }
+
+    const fileExtension = file.originalname.toLowerCase().split('.').pop();
+    if (!fileExtension || !['xls', 'xlsx', 'csv'].includes(fileExtension)) {
+      throw new Error(`Unsupported file format: ${fileExtension}`);
+    }
+
+    let workbook;
+    try {
+      workbook = XLSX.read(fileBuffer, {
+        type: 'buffer',
+        cellDates: true,
+        cellNF: false,
+        cellText: false
+      });
+    } catch (xlsxError: any) {
+      throw new Error(`Failed to parse Excel file: ${xlsxError.message}`);
+    }
+
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error('Excel file contains no sheets');
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+
+    if (!worksheet) {
+      throw new Error('Could not read worksheet from Excel file');
+    }
+
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+    if (!data || data.length < 5) {
+      throw new Error('Excel file must have at least header row and one data row');
+    }
+
+    console.log(`Total rows in Excel: ${data.length}`);
+
+    // Find the last header row
+    let headerRowIndex = -1;
+    for (let i = 0; i < Math.min(10, data.length); i++) {
+      const row = data[i] as any[];
+      if (row && row.some(cell => 
+        cell && (cell.toString().toLowerCase().includes('phone number') || 
+                 cell.toString().toLowerCase().includes('username') ||
+                 cell.toString().toLowerCase().includes('first name'))
+      )) {
+        headerRowIndex = i;
+      }
+    }
+
+    if (headerRowIndex === -1) {
+      throw new Error('Could not find header row in Excel file');
+    }
+
+    console.log('Header row found at index:', headerRowIndex);
+
+    const rawHeaders = data[headerRowIndex] as any[];
+    const headers = rawHeaders.map(h => 
+      h ? h.toString().trim().replace(/\s+/g, ' ').replace(/\u00a0/g, '').toLowerCase() : ''
+    );
+
+    const rows = data.slice(headerRowIndex + 1) as any[][];
+
+    console.log('Extracted headers:', headers);
+    console.log('Number of data rows:', rows.length);
+
+    // Detect actual column positions from first data row
+    const columnIndexMap: { [key: string]: number } = {};
+    
+    if (rows.length > 0) {
+      const firstRow = rows[0];
+      
+      console.log('First row analysis:');
+      firstRow.forEach((cell, idx) => {
+        if (cell !== null && cell !== undefined && cell.toString().trim() !== '') {
+          console.log(`  Col ${idx}: ${cell} (type: ${typeof cell})`);
+        }
+      });
+      
+      // Find Username (large number, likely in scientific notation)
+      for (let i = 0; i < firstRow.length; i++) {
+        const cell = firstRow[i];
+        if (cell && typeof cell === 'number' && cell > 1e14) {
+          columnIndexMap['username'] = i;
+          console.log(`✓ Username at column ${i}`);
+          break;
+        }
+      }
+      
+      // Find Status (active/expired) - but skip whitespace columns
+      for (let i = 0; i < firstRow.length; i++) {
+        const cell = firstRow[i];
+        if (cell && typeof cell === 'string') {
+          const trimmed = cell.toString().trim().replace(/\u00a0/g, '');
+          if (trimmed === 'active' || trimmed === 'expired' || trimmed === 'inactive') {
+            columnIndexMap['status'] = i;
+            console.log(`✓ Status at column ${i}`);
+            break;
+          }
+        }
+      }
+      
+      // Find First Name (text after status)
+      const statusCol = columnIndexMap['status'];
+      if (statusCol !== undefined) {
+        for (let i = statusCol + 1; i < firstRow.length; i++) {
+          const cell = firstRow[i];
+          if (cell && typeof cell === 'string') {
+            const trimmed = cell.toString().trim();
+            if (trimmed.length > 1 && !trimmed.includes('e+') && 
+                !/^\d+$/.test(trimmed) && !/^[\u00a0\s]+$/.test(trimmed)) {
+              columnIndexMap['firstname'] = i;
+              console.log(`✓ First Name at column ${i}`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Find Phone Number (large number after firstname, around 8-10 billion)
+      const firstnameCol = columnIndexMap['firstname'];
+      if (firstnameCol !== undefined) {
+        for (let i = firstnameCol + 1; i < firstRow.length; i++) {
+          const cell = firstRow[i];
+          if (cell && typeof cell === 'number' && cell > 1e9 && cell < 1e11) {
+            columnIndexMap['phonenumber'] = i;
+            console.log(`✓ Phone Number at column ${i}`);
+            break;
+          }
+        }
+      }
+
+      // Map remaining columns based on header names
+      const headerToFieldMap: { [key: string]: string } = {
+        'user id': 'userid',
+        'activation date': 'activationdate',
+        'created date': 'createddate',
+        'expiration date': 'expirationdate',
+        'installation date': 'installationdate',
+        'static ip and mac': 'staticipandmac',
+        'balance': 'balance',
+        'due': 'due',
+        'gst number': 'gstnumber',
+        'group': 'group',
+        'package': 'package',
+        'sub plan': 'subplan',
+        'zone': 'zone',
+        'billing address 1': 'billingaddress1',
+        'billing address 2': 'billingaddress2',
+        'state': 'state',
+        'father or company name': 'fatherorcompanyname',
+        // 'area': 'area',
+        'mode': 'mode'
+      };
+
+      headers.forEach((header, idx) => {
+        if (header && headerToFieldMap[header]) {
+          columnIndexMap[headerToFieldMap[header]] = idx;
+          console.log(`✓ ${header} at column ${idx}`);
+        }
+      });
+    }
+
+    console.log('Final Column Index Map:', columnIndexMap);
+
+    if (!columnIndexMap['firstname'] || !columnIndexMap['phonenumber']) {
+      throw new Error('Could not detect required columns: First Name and Phone Number');
+    }
+
+    // Process each row
+    console.log(`Processing ${rows.length} rows`);
+    let processedCount = 0;
+
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex];
+      try {
+        if (!row || !Array.isArray(row)) continue;
+        
+        // Check if this is another header row
+        const isHeaderRow = row.some(cell => 
+          cell && (cell.toString().toLowerCase().includes('phone number') || 
+                   cell.toString().toLowerCase() === 'username')
+        );
+        if (isHeaderRow) {
+          console.log(`Skipping duplicate header row at ${rowIndex + headerRowIndex + 2}`);
+          continue;
+        }
+        
+        const hasData = row.some(cell => 
+          cell !== null && cell !== undefined && 
+          cell.toString().trim() !== '' && 
+          !/^[\u00a0\s]+$/.test(cell.toString())
+        );
+        if (!hasData) continue;
+
+        // Extract data using detected column indices
+        const userData: any = {
+          addedBy: addedBy,
+          assignedCompany: addedBy,
+          internetProviderId: internetProviderId,
+          isActivated: true,
+          isAccountVerified: true,
+          isDeactivated: false,
+          isSuspended: false,
+          countryCode: '+91',
+          role: 'user',
+          country: 'India'
+        };
+
+        // Helper function to safely extract and convert values
+        const safeExtract = (fieldKey: string, transformer?: (val: any) => any) => {
+          const colIdx = columnIndexMap[fieldKey];
+          if (colIdx !== undefined && row[colIdx] !== null && row[colIdx] !== undefined) {
+            const val = row[colIdx];
+            const strVal = val.toString().trim().replace(/\u00a0/g, '');
+            if (strVal !== '') {
+              return transformer ? transformer(val) : val;
+            }
+          }
+          return null;
+        };
+
+        // User ID
+        const userIdVal = safeExtract('userid');
+        if (userIdVal) userData.userId = userIdVal.toString();
+
+        // Username - handle scientific notation
+        const usernameVal = safeExtract('username', (val) => {
+          if (val.toString().includes('e+') || val.toString().includes('E+')) {
+            return Math.round(parseFloat(val.toString())).toString();
+          }
+          return val.toString();
+        });
+        if (usernameVal) userData.userName = usernameVal;
+
+        // Status
+        const statusVal = safeExtract('status');
+        if (statusVal) {
+          const statusStr = statusVal.toString().toLowerCase().trim();
+          userData.status = statusStr;
+          userData.isActivated = statusStr === 'active';
+          userData.isDeactivated = statusStr === 'expired' || statusStr === 'inactive';
+        }
+
+        // First Name (REQUIRED)
+        const firstNameVal = safeExtract('firstname');
+        if (firstNameVal) {
+          userData.firstName = firstNameVal.toString().trim();
+        }
+
+        // Phone Number (REQUIRED) - handle scientific notation
+        const phoneVal = safeExtract('phonenumber', (val) => {
+          if (val.toString().includes('e+') || val.toString().includes('E+')) {
+            return Math.round(parseFloat(val.toString())).toString();
+          }
+          return val.toString().replace(/[^0-9]/g, '');
+        });
+        if (phoneVal) {
+          userData.phoneNumber = phoneVal.toString().replace(/[^0-9]/g, '');
+        }
+
+        // Activation Date
+        const activationDateVal = safeExtract('activationdate', (val) => {
+          try {
+            const date = new Date(val);
+            return !isNaN(date.getTime()) ? date : null;
+          } catch {
+            return null;
+          }
+        });
+        if (activationDateVal) userData.activationDate = activationDateVal;
+
+        // Created Date
+        const createdDateVal = safeExtract('createddate', (val) => {
+          try {
+            const date = new Date(val);
+            return !isNaN(date.getTime()) ? date : null;
+          } catch {
+            return null;
+          }
+        });
+        if (createdDateVal) userData.createdDate = createdDateVal;
+
+        // Expiration Date
+        const expiryVal = safeExtract('expirationdate', (val) => {
+          try {
+            const date = new Date(val);
+            return !isNaN(date.getTime()) ? date : null;
+          } catch {
+            return null;
+          }
+        });
+        if (expiryVal) userData.expiry = expiryVal;
+
+        // Installation Date
+        const installDateVal = safeExtract('installationdate', (val) => {
+          try {
+            const date = new Date(val);
+            return !isNaN(date.getTime()) ? date : null;
+          } catch {
+            return null;
+          }
+        });
+        if (installDateVal) userData.installationDate = installDateVal;
+
+        // Static IP and MAC
+        const staticIpMacVal = safeExtract('staticipandmac');
+        if (staticIpMacVal) userData.staticIpMac = staticIpMacVal.toString();
+
+        // Balance
+        const balanceVal = safeExtract('balance', (val) => {
+          const num = parseFloat(val);
+          return isNaN(num) ? 0 : num;
+        });
+        if (balanceVal !== null) userData.balance = balanceVal;
+
+        // Due
+        const dueVal = safeExtract('due', (val) => {
+          const num = parseFloat(val);
+          return isNaN(num) ? 0 : num;
+        });
+        if (dueVal !== null) userData.due = dueVal;
+
+        // GST Number
+        const gstVal = safeExtract('gstnumber');
+        if (gstVal) userData.gstin = gstVal.toString();
+
+        // Group
+        const groupVal = safeExtract('group');
+        if (groupVal) userData.group = groupVal.toString();
+
+        // Package
+        const packageVal = safeExtract('package');
+        if (packageVal) userData.packageName = packageVal.toString();
+
+        // Sub Plan
+        const subPlanVal = safeExtract('subplan');
+        if (subPlanVal) userData.subPlan = subPlanVal.toString();
+
+        // Zone
+        const zoneVal = safeExtract('zone');
+        if (zoneVal) userData.zone = zoneVal.toString();
+
+        // Billing Address 1
+        const billAddr1Val = safeExtract('billingaddress1');
+        if (billAddr1Val) userData.billingAddress1 = billAddr1Val.toString();
+
+        // Billing Address 2
+        const billAddr2Val = safeExtract('billingaddress2');
+        if (billAddr2Val) userData.billingAddress2 = billAddr2Val.toString();
+
+        // State
+        const stateVal = safeExtract('state');
+        if (stateVal) userData.state = stateVal.toString();
+
+        // Father Or Company Name
+        const fatherNameVal = safeExtract('fatherorcompanyname');
+        if (fatherNameVal) userData.fatherOrCompanyName = fatherNameVal.toString();
+
+        // Area
+        const areaVal = safeExtract('area');
+        if (areaVal) {
+          const areaStr = areaVal.toString().toLowerCase();
+          if (areaStr === 'rural' || areaStr === 'urban') {
+            userData.area = areaStr;
+          }
+        }
+
+        // Mode - skip if not valid enum value
+        const modeVal = safeExtract('mode');
+        if (modeVal) {
+          const modeStr = modeVal.toString().toLowerCase();
+          if (modeStr === 'online' || modeStr === 'offline') {
+            userData.mode = modeStr;
+          }
+          // Skip rural/urban/fiber as they are not valid Mode enum values
+        }
+
+        // Debug first row
+        if (processedCount === 0) {
+          console.log('Sample extracted userData:', {
+            firstName: userData.firstName,
+            phoneNumber: userData.phoneNumber,
+            userName: userData.userName,
+            status: userData.status,
+            balance: userData.balance,
+            zone: userData.zone
+          });
+        }
+
+        // Validate required fields
+        if (!userData.phoneNumber || !userData.firstName) {
+          console.log(`Row ${rowIndex + headerRowIndex + 2} validation failed - Missing required fields`);
+          fileResult.errors.push(
+            `Row ${rowIndex + headerRowIndex + 2}: Missing required fields (phone: ${userData.phoneNumber || 'MISSING'}, firstName: ${userData.firstName || 'MISSING'})`
+          );
+          continue;
+        }
+
+        const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+
+        if (cleanPhoneNumber.length < 10) {
+          fileResult.errors.push(`Row ${rowIndex + headerRowIndex + 2}: Invalid phone number: ${cleanPhoneNumber}`);
+          continue;
+        }
+
+        // Check if user already exists
+        const existingUser = await UserModel.findOne({
+          phoneNumber: cleanPhoneNumber
+        });
+
+        if (existingUser) {
+          fileResult.duplicateUsers++;
+          fileResult.totalUsers++;
+
+          fileResult.duplicateDetails.push({
+            phoneNumber: cleanPhoneNumber,
+            username: userData.userName || 'N/A',
+            action: 'updated'
+          });
+
+          const updateData = { ...userData };
+          delete updateData.phoneNumber;
+          
+          // Ensure email is set to phoneNumber@yopmail.com for updates too
+          updateData.email = updateData.email || `${cleanPhoneNumber}@yopmail.com`;
+
+          const updatedUser = await UserModel.findByIdAndUpdate(
+            existingUser._id,
+            {
+              ...updateData,
+              updatedAt: new Date()
+            },
+            { new: true, runValidators: true }
+          );
+
+          if (updatedUser) {
+            fileResult.updatedUsers++;
+            processedCount++;
+            console.log(`✓ Updated user ${processedCount}: ${cleanPhoneNumber}`);
+          }
+        } else {
+          const newUser = new UserModel({
+            ...userData,
+            phoneNumber: cleanPhoneNumber,
+            email: userData.email || `${cleanPhoneNumber}@yopmail.com`,
+          });
+
+          const savedUser = await newUser.save();
+          if (savedUser) {
+            fileResult.newUsers++;
+            fileResult.totalUsers++;
+            processedCount++;
+            console.log(`✓ Created user ${processedCount}: ${cleanPhoneNumber}`);
+          }
+        }
+
+      } catch (rowError: any) {
+        console.error(`Error processing row ${rowIndex + headerRowIndex + 2}:`, rowError);
+        fileResult.errors.push(`Row ${rowIndex + headerRowIndex + 2}: ${rowError.message}`);
+      }
+    }
+
+    console.log(`Completed processing. Total users processed: ${processedCount}`);
+
+  } catch (error: any) {
+    console.error('Excel file processing error:', error);
+    fileResult.errors.push(`File processing error: ${error.message}`);
+  }
+
+  return fileResult;
+};
+
+
+export const addConnectUserFromExcel = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { files } = req;
+    const addedBy = (req as any).userId;
+    const { internetProviderId } = req.body;
+
+    console.log('Request body:', req.body, 'internetProviderId:', internetProviderId);
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return sendError(res, 'No files uploaded', 400);
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file || typeof file !== 'object') {
+        return sendError(res, `File at index ${i} is invalid`, 400);
+      }
+      if (!file.originalname) {
+        return sendError(res, `File at index ${i} is missing original name`, 400);
+      }
+      if (!file.buffer && !file.path) {
+        return sendError(res, `File ${file.originalname} is missing required properties`, 400);
+      }
+    }
+
+    if (!addedBy) {
+      return sendError(res, 'User authentication required', 401);
+    }
+
+    const results: {
+      totalFiles: number;
+      processedFiles: number;
+      totalUsers: number;
+      newUsers: number;
+      updatedUsers: number;
+      duplicateUsers: number;
+      errors: string[];
+      fileResults: Array<{
+        fileName: string;
+        totalUsers: number;
+        newUsers: number;
+        updatedUsers: number;
+        duplicateUsers: number;
+        errors: string[];
+        duplicateDetails: Array<{
+          phoneNumber: string;
+          accountNumber: string;
+          action: 'updated' | 'skipped';
+        }>;
+      }>;
+    } = {
+      totalFiles: files.length,
+      processedFiles: 0,
+      totalUsers: 0,
+      newUsers: 0,
+      updatedUsers: 0,
+      duplicateUsers: 0,
+      errors: [],
+      fileResults: []
+    };
+
+    for (const file of files) {
+      try {
+        console.log(`Processing file: ${file.originalname}`);
+        const fileResult = await processConnectExcelFile(file, addedBy, internetProviderId);
+        results.fileResults.push(fileResult);
+        results.processedFiles++;
+        results.totalUsers += fileResult.totalUsers;
+        results.newUsers += fileResult.newUsers;
+        results.updatedUsers += fileResult.updatedUsers;
+        results.duplicateUsers += fileResult.duplicateUsers;
+        results.errors.push(...fileResult.errors);
+      } catch (fileError: any) {
+        console.error(`Error processing file ${file.originalname}:`, fileError);
+        const errorMessage = file.originalname
+          ? `File ${file.originalname}: ${fileError.message}`
+          : `Unknown file: ${fileError.message}`;
+        results.errors.push(errorMessage);
+      }
+    }
+
+    let message = `Processed ${results.processedFiles} files. `;
+    if (results.newUsers > 0) message += `Added ${results.newUsers} new users. `;
+    if (results.updatedUsers > 0) message += `Updated ${results.updatedUsers} existing users. `;
+    if (results.duplicateUsers > 0) message += `Found ${results.duplicateUsers} duplicate users. `;
+    if (results.errors.length > 0) message += `${results.errors.length} errors occurred.`;
+
+    return sendSuccess(res, results, message);
+  } catch (error: any) {
+    console.error('Excel upload error:', error);
+    return sendError(res, 'Failed to process Excel files', 500, error);
+  }
+};
+
+const processConnectExcelFile = async (
+  file: Express.Multer.File,
+  addedBy: string,
+  internetProviderId: string
+) => {
+  if (!file) throw new Error('File object is undefined');
+  if (!file.originalname) throw new Error('File has no original name');
+  if (!file.buffer && !file.path) throw new Error('File has neither buffer data nor file path');
+
+  const fileResult = {
+    fileName: file.originalname,
+    totalUsers: 0,
+    newUsers: 0,
+    updatedUsers: 0,
+    duplicateUsers: 0,
+    errors: [] as string[],
+    duplicateDetails: [] as Array<{
+      phoneNumber: string;
+      accountNumber: string;
+      action: 'updated' | 'skipped';
+    }>
+  };
+
+  try {
+    console.log('File info:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path || 'undefined'
+    });
+
+    let fileBuffer: Buffer;
+
+    if (file.buffer) {
+      if (!Buffer.isBuffer(file.buffer) || file.buffer.length < 100) {
+        throw new Error('File buffer is invalid or too small');
+      }
+      fileBuffer = file.buffer;
+    } else if (file.path) {
+      try {
+        fileBuffer = fs.readFileSync(file.path);
+        if (!fileBuffer || fileBuffer.length < 100) {
+          throw new Error('File read from disk is invalid or too small');
+        }
+      } catch (readError: any) {
+        throw new Error(`Failed to read file from disk: ${readError.message}`);
+      }
+    } else {
+      throw new Error('No file data available');
+    }
+
+    const fileExtension = file.originalname.toLowerCase().split('.').pop();
+    if (!fileExtension || !['xls', 'xlsx', 'csv'].includes(fileExtension)) {
+      throw new Error(`Unsupported file format: ${fileExtension}`);
+    }
+
+    let workbook;
+    try {
+      workbook = XLSX.read(fileBuffer, {
+        type: 'buffer',
+        cellDates: true,
+        cellNF: false,
+        cellText: false
+      });
+    } catch (xlsxError: any) {
+      throw new Error(`Failed to parse Excel file: ${xlsxError.message}`);
+    }
+
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error('Excel file contains no sheets');
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+
+    if (!worksheet) {
+      throw new Error('Could not read worksheet from Excel file');
+    }
+
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+    if (!data || data.length < 2) {
+      throw new Error('Excel file must have at least header row and one data row');
+    }
+
+    console.log(`Total rows in Excel: ${data.length}`);
+
+    // CONNECT file has headers in first row
+    const headerRow = data[0] as any[];
+    const headers = headerRow.map(h => 
+      h ? h.toString().trim().replace(/\s+/g, ' ') : ''
+    );
+
+    const rows = data.slice(1) as any[][];
+
+    console.log('Extracted headers:', headers);
+    console.log('Number of data rows:', rows.length);
+
+    // Column mapping for CONNECT Excel
+    const columnMapping: { [key: string]: string } = {
+      'Acct_No': 'accountNumber',
+      'Mob': 'phoneNumber',
+      'Subs_Name': 'subsName',
+      'Reg': 'registrationArea',
+      'Due_date': 'dueDate',
+      'Gross_Total': 'grossTotal',
+      'Open_Date': 'openDate',
+      'Add': 'permanentAddress',
+      'Phone_No': 'landlineNumber',
+      'Net Coll': 'netCollection',
+      'Balance': 'balance',
+      '% Age': 'paymentPercentage',
+      'Slab': 'paymentSlab',
+      'New_Con': 'newConnection',
+      'Pymt_Tag': 'paymentTag',
+      'NODE_CODE': 'nodeCode',
+      'LCO Name': 'lcoName',
+      'User Name': 'assignedUserName',
+      'Plan2': 'planAmount',
+      'LCO FOS': 'lcoFos',
+      'EXP DATE': 'expiry',
+      'EXPIRE RENTAL': 'expireRental'
+    };
+
+    // Validate required headers
+    const requiredHeaders = ['Acct_No', 'Mob', 'Subs_Name'];
+    const missingHeaders: string[] = [];
+
+    requiredHeaders.forEach(required => {
+      if (!headers.includes(required)) {
+        missingHeaders.push(required);
+      }
+    });
+
+    console.log('Required headers check:', requiredHeaders);
+    console.log('Missing headers:', missingHeaders);
+
+    if (missingHeaders.length > 0) {
+      throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+    }
+
+    // Debug header mapping
+    console.log('Header mapping results:');
+    headers.forEach((header, index) => {
+      if (header) {
+        const mappedField = columnMapping[header];
+        console.log(`Column ${index}: "${header}" -> ${mappedField || 'UNMAPPED'}`);
+      }
+    });
+
+    // Process each row
+    console.log(`Processing ${rows.length} rows`);
+    let processedCount = 0;
+
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex];
+      try {
+        if (!row || !Array.isArray(row)) continue;
+        
+        const hasData = row.some(cell => 
+          cell !== null && cell !== undefined && cell.toString().trim() !== ''
+        );
+        if (!hasData) continue;
+
+        // Extract data using column mapping
+        const userData: any = {
+          addedBy: addedBy,
+          assignedCompany: addedBy,
+          internetProviderId: internetProviderId,
+          isActivated: true,
+          isAccountVerified: true,
+          isDeactivated: false,
+          isSuspended: false,
+          countryCode: '+91',
+          role: 'user',
+          country: 'India'
+        };
+
+        headers.forEach((header, colIndex) => {
+          if (header && columnMapping[header] && row[colIndex] !== null && row[colIndex] !== undefined) {
+            const fieldName = columnMapping[header];
+            let value = row[colIndex];
+
+            // Skip empty values
+            if (value === '' || (typeof value === 'string' && value.trim() === '')) {
+              return;
+            }
+
+            // Handle special field mappings
+            if (fieldName === 'accountNumber') {
+              userData[fieldName] = value.toString().trim();
+            } else if (fieldName === 'phoneNumber') {
+              // Handle scientific notation for phone numbers
+              if (typeof value === 'number' || value.toString().includes('e+')) {
+                const phoneNum = Math.round(parseFloat(value.toString())).toString();
+                userData[fieldName] = phoneNum;
+              } else {
+                userData[fieldName] = value.toString().replace(/[^0-9]/g, '');
+              }
+              if (fieldName === 'phoneNumber') {
+                userData.countryCode = '+91';
+              }
+            } else if (fieldName === 'subsName') {
+              // Extract first and last name from subscriber name
+              const fullName = value.toString().trim();
+              const nameParts = fullName.split(/\s+/);
+              userData.firstName = nameParts[0] || '';
+              userData.lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+              userData.subsName = fullName;
+            } else if (fieldName === 'dueDate' || fieldName === 'openDate' || fieldName === 'expiry') {
+              try {
+                // Handle date strings and Excel serial dates
+                if (typeof value === 'number') {
+                  // Excel serial date
+                  const excelEpoch = new Date(1899, 11, 30);
+                  const date = new Date(excelEpoch.getTime() + value * 86400000);
+                  userData[fieldName] = date;
+                } else if (typeof value === 'string') {
+                  // Try to parse date string
+                  const parsed = new Date(value);
+                  if (!isNaN(parsed.getTime())) {
+                    userData[fieldName] = parsed;
+                  }
+                } else if (value instanceof Date) {
+                  userData[fieldName] = value;
+                }
+              } catch {
+                userData[fieldName] = null;
+              }
+            } else if (fieldName === 'grossTotal' || fieldName === 'netCollection' || 
+                       fieldName === 'balance' || fieldName === 'paymentPercentage' || 
+                       fieldName === 'planAmount' || fieldName === 'expireRental') {
+              const numValue = parseFloat(value);
+              userData[fieldName] = isNaN(numValue) ? 0 : numValue;
+            } else if (fieldName === 'newConnection') {
+              // Convert to boolean
+              if (typeof value === 'number') {
+                userData[fieldName] = value > 0;
+              } else if (typeof value === 'string') {
+                const val = value.toLowerCase();
+                userData[fieldName] = val === 'yes' || val === 'true' || val === '1';
+              } else {
+                userData[fieldName] = Boolean(value);
+              }
+            } else if (fieldName === 'paymentSlab') {
+              const slab = value.toString().trim().toUpperCase();
+              userData[fieldName] = slab;
+              // Update activation status based on payment slab
+              if (slab === 'NOT PAID') {
+                userData.isDeactivated = true;
+                userData.isActivated = false;
+              } else if (slab === 'PAID') {
+                userData.isActivated = true;
+                userData.isDeactivated = false;
+              }
+            } else {
+              userData[fieldName] = value.toString().trim();
+            }
+          }
+        });
+
+        // Debug first row
+        if (processedCount === 0) {
+          console.log('Sample extracted userData:', {
+            accountNumber: userData.accountNumber,
+            firstName: userData.firstName,
+            phoneNumber: userData.phoneNumber,
+            alternatePhone: userData.alternatePhone,
+            balance: userData.balance,
+            paymentSlab: userData.paymentSlab
+          });
+        }
+
+        // Validate required fields
+        if (!userData.phoneNumber || !userData.firstName) {
+          console.log(`Row ${rowIndex + 2} validation failed - Missing required fields`);
+          fileResult.errors.push(
+            `Row ${rowIndex + 2}: Missing required fields (phone: ${userData.phoneNumber || 'MISSING'}, firstName: ${userData.firstName || 'MISSING'})`
+          );
+          continue;
+        }
+
+        const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+
+        if (cleanPhoneNumber.length < 10) {
+          fileResult.errors.push(`Row ${rowIndex + 2}: Invalid phone number: ${cleanPhoneNumber}`);
+          continue;
+        }
+
+        // Check if user already exists by phone number OR account number
+        const existingUser = await UserModel.findOne({
+          $or: [
+            { phoneNumber: cleanPhoneNumber },
+            { accountNumber: userData.accountNumber }
+          ]
+        });
+
+        if (existingUser) {
+          fileResult.duplicateUsers++;
+          fileResult.totalUsers++;
+
+          fileResult.duplicateDetails.push({
+            phoneNumber: cleanPhoneNumber,
+            accountNumber: userData.accountNumber || 'N/A',
+            action: 'updated'
+          });
+
+          const updateData = { ...userData };
+          // delete updateData.phoneNumber; // Don't update phone number
+
+          const updatedUser = await UserModel.findByIdAndUpdate(
+            existingUser._id,
+            {
+              ...updateData,
+              updatedAt: new Date(),
+              email: userData.email || `${cleanPhoneNumber}@yopmail.com`,
+            },
+            { new: true, runValidators: true }
+          );
+
+          if (updatedUser) {
+            fileResult.updatedUsers++;
+            processedCount++;
+            console.log(`✓ Updated user ${processedCount}: ${cleanPhoneNumber} (Account: ${userData.accountNumber})`);
+          }
+        } else {
+          const newUser = new UserModel({
+            ...userData,
+            phoneNumber: cleanPhoneNumber,
+            email: userData.email || `${cleanPhoneNumber}@yopmail.com`,
+          });
+
+          const savedUser = await newUser.save();
+          if (savedUser) {
+            fileResult.newUsers++;
+            fileResult.totalUsers++;
+            processedCount++;
+            console.log(`✓ Created user ${processedCount}: ${cleanPhoneNumber} (Account: ${userData.accountNumber})`);
+          }
+        }
+
+      } catch (rowError: any) {
+        console.error(`Error processing row ${rowIndex + 2}:`, rowError);
+        fileResult.errors.push(`Row ${rowIndex + 2}: ${rowError.message}`);
+      }
+    }
+
+    console.log(`Completed processing. Total users processed: ${processedCount}`);
 
   } catch (error: any) {
     console.error('Excel file processing error:', error);

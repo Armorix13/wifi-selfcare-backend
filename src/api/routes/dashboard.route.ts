@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload, excelUpload } from '../services/upload.service';
-import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign, mainDashboardData, fdbAvailablePort, connectDeviceToPort, disconnectDeviceFromPort, addBsnlUserFromExcel } from '../controllers/dashboard.controller';
+import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign, mainDashboardData, fdbAvailablePort, connectDeviceToPort, disconnectDeviceFromPort, addBsnlUserFromExcel, addRailWireUserFromExcel, addMyInternetUserFromExcel, addConnectUserFromExcel } from '../controllers/dashboard.controller';
 import { getAllOltTOAdminPanel } from '../controllers/olt.controller';
 
 const dashboardRoute = Router();
@@ -51,8 +51,11 @@ dashboardRoute.post('/leave-requests/approve-reject', authenticate, approveRejec
 // Excel Upload Routes
 dashboardRoute.post('/upload-users-excel', authenticate, excelUpload.array('files', 10), addUserFromExcel);
 
-//New work
+//New workflow for company
 dashboardRoute.post('/upload-bsnl-users-excel', authenticate, excelUpload.array('files', 10), addBsnlUserFromExcel);
+dashboardRoute.post('/upload-railwire-users-excel', authenticate, excelUpload.array('files', 10), addRailWireUserFromExcel);
+dashboardRoute.post('/upload-myinternet-users-excel', authenticate, excelUpload.array('files', 10), addMyInternetUserFromExcel);
+dashboardRoute.post('/upload-connect-users-excel', authenticate, excelUpload.array('files', 10), addConnectUserFromExcel);
 
 
 // OLT Routes

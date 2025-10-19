@@ -109,6 +109,49 @@ export interface IUser extends Document {
   parentCompany?: mongoose.Types.ObjectId; // ADDED_BY
   isActivated?: boolean; // IS_ACTIVATED
 
+  // Additional billing and subscription fields
+  packageName?: string; // PACKAGENAME
+  billingTypeId?: string; // BILLINGTYPEID
+  subscriberId?: string; // SUBSCRIBERID
+  gstin?: string; // GSTIN
+  expiry?: Date; // EXPIRY
+  registrationDate?: Date; // REGISTRATIONDATE
+  balance?: number; // BALANCE
+  subStatus?: string; // SUB_STATUS
+  remarks?: string; // REMARKS
+
+  //My internet data
+  userId?: string; // User ID from Excel
+  createdDate?: Date; // Created Date
+  staticIpMac?: string; // Static IP and MAC combined
+  due?: number; // Due amount
+  subPlan?: string; // Sub Plan
+  billingAddress1?: string; // Billing Address 1
+  billingAddress2?: string; // Billing Address 2
+  fatherOrCompanyName?: string; // Father Or Company Name
+
+   // CONNECT COMPANY specific fields - ADD THESE
+   accountNumber?: string; // Acct_No - Account Number
+   subsName?: string; // Subs_Name - Subscriber Full Name
+   registrationArea?: string; // Reg - Registration Area/Region
+   dueDate?: Date; // Due_date - Payment Due Date
+   grossTotal?: number; // Gross_Total - Gross Total Amount
+   openDate?: Date; // Open_Date - Account Opening/Registration Date
+   alternatePhone?: string; // Mob - Alternate Mobile Number
+   netCollection?: number; // Net Coll - Net Collection Amount
+   paymentPercentage?: number; // % Age - Payment Percentage
+   paymentSlab?: string; // Slab - Payment Slab (PAID/NOT PAID)
+   newConnection?: boolean; // New_Con - New Connection Flag
+   paymentTag?: string; // Pymt_Tag - Payment Tag/Mode (Online/Offline/Cash)
+   nodeCode?: string; // NODE_CODE - Network Node Code
+   lcoName?: string; // LCO Name - Local Cable Operator Name
+   assignedUserName?: string; // User Name - Assigned Field Officer Username
+   planAmount?: number; // Plan2 - Plan Amount
+   lcoFos?: string; // LCO FOS - Local Cable Operator Field Officer
+   expireRental?: number; // EXPIRE RENTAL - Expiry Rental Amount
+
+  
+
   //for admin(company) details
   companyName?: string;
   companyAddress?: string;
@@ -197,6 +240,34 @@ const UserSchema = new Schema<IUser>({
   provider: { type: String },
   providerId: { type: String },
 
+  //My internet data
+  userId: { type: String },
+  createdDate: { type: Date },
+  staticIpMac: { type: String },
+  due: { type: Number },
+  subPlan: { type: String },
+  billingAddress1: { type: String },
+  billingAddress2: { type: String },
+  fatherOrCompanyName: { type: String },
+
+  accountNumber: { type: String, unique: true, sparse: true },
+  subsName: { type: String },
+  registrationArea: { type: String },
+  dueDate: { type: Date },
+  grossTotal: { type: Number, default: 0 },
+  openDate: { type: Date },
+  alternatePhone: { type: String },
+  netCollection: { type: Number, default: 0 },
+  paymentPercentage: { type: Number, default: 0 },
+  paymentSlab: { type: String },
+  newConnection: { type: Boolean, default: false },
+  paymentTag: { type: String },
+  nodeCode: { type: String },
+  lcoName: { type: String },
+  assignedUserName: { type: String },
+  planAmount: { type: Number },
+  lcoFos: { type: String },
+  expireRental: { type: Number },
   // Additional engineer fields
   state: { type: String },
   pincode: { type: String },
@@ -302,7 +373,18 @@ const UserSchema = new Schema<IUser>({
   isExisting: {
     type: Boolean,
     default: false
-  }
+  },
+
+  // Additional billing and subscription fields
+  packageName: { type: String }, // PACKAGENAME
+  billingTypeId: { type: String }, // BILLINGTYPEID
+  subscriberId: { type: String }, // SUBSCRIBERID
+  gstin: { type: String }, // GSTIN
+  expiry: { type: Date }, // EXPIRY
+  registrationDate: { type: Date }, // REGISTRATIONDATE
+  balance: { type: Number, default: 0 }, // BALANCE
+  subStatus: { type: String }, // SUB_STATUS
+  remarks: { type: String } // REMARKS
 }, {
   timestamps: true
 });
