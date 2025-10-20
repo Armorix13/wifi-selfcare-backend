@@ -3303,7 +3303,7 @@ export const getUserDetailForUpdate = async (req: Request, res: Response, next: 
 
     // Fetch user details with comprehensive fields for update
     const user = await UserModel.findById(userId)
-      .select('_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus createdAt updatedAt')
+      .select('_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus createdAt updatedAt internetProviderId billConnect disconnectReason disconnectDate remarks')
       .lean();
 
     if (!user) {
