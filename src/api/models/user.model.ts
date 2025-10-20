@@ -62,6 +62,15 @@ export interface IUser extends Document {
   provider?: string;
   providerId?: string;
 
+  // Additional Client fields
+  billConnect?: boolean;
+  disconnectReason?: string;
+  disconnectDate?: Date;
+  remarks?: string;
+
+
+
+
   // Additional engineer fields
   state?: string;
   pincode?: string;
@@ -118,7 +127,6 @@ export interface IUser extends Document {
   registrationDate?: Date; // REGISTRATIONDATE
   balance?: number; // BALANCE
   subStatus?: string; // SUB_STATUS
-  remarks?: string; // REMARKS
 
   //My internet data
   userId?: string; // User ID from Excel
@@ -130,27 +138,27 @@ export interface IUser extends Document {
   billingAddress2?: string; // Billing Address 2
   fatherOrCompanyName?: string; // Father Or Company Name
 
-   // CONNECT COMPANY specific fields - ADD THESE
-   accountNumber?: string; // Acct_No - Account Number
-   subsName?: string; // Subs_Name - Subscriber Full Name
-   registrationArea?: string; // Reg - Registration Area/Region
-   dueDate?: Date; // Due_date - Payment Due Date
-   grossTotal?: number; // Gross_Total - Gross Total Amount
-   openDate?: Date; // Open_Date - Account Opening/Registration Date
-   alternatePhone?: string; // Mob - Alternate Mobile Number
-   netCollection?: number; // Net Coll - Net Collection Amount
-   paymentPercentage?: number; // % Age - Payment Percentage
-   paymentSlab?: string; // Slab - Payment Slab (PAID/NOT PAID)
-   newConnection?: boolean; // New_Con - New Connection Flag
-   paymentTag?: string; // Pymt_Tag - Payment Tag/Mode (Online/Offline/Cash)
-   nodeCode?: string; // NODE_CODE - Network Node Code
-   lcoName?: string; // LCO Name - Local Cable Operator Name
-   assignedUserName?: string; // User Name - Assigned Field Officer Username
-   planAmount?: number; // Plan2 - Plan Amount
-   lcoFos?: string; // LCO FOS - Local Cable Operator Field Officer
-   expireRental?: number; // EXPIRE RENTAL - Expiry Rental Amount
+  // CONNECT COMPANY specific fields - ADD THESE
+  accountNumber?: string; // Acct_No - Account Number
+  subsName?: string; // Subs_Name - Subscriber Full Name
+  registrationArea?: string; // Reg - Registration Area/Region
+  dueDate?: Date; // Due_date - Payment Due Date
+  grossTotal?: number; // Gross_Total - Gross Total Amount
+  openDate?: Date; // Open_Date - Account Opening/Registration Date
+  alternatePhone?: string; // Mob - Alternate Mobile Number
+  netCollection?: number; // Net Coll - Net Collection Amount
+  paymentPercentage?: number; // % Age - Payment Percentage
+  paymentSlab?: string; // Slab - Payment Slab (PAID/NOT PAID)
+  newConnection?: boolean; // New_Con - New Connection Flag
+  paymentTag?: string; // Pymt_Tag - Payment Tag/Mode (Online/Offline/Cash)
+  nodeCode?: string; // NODE_CODE - Network Node Code
+  lcoName?: string; // LCO Name - Local Cable Operator Name
+  assignedUserName?: string; // User Name - Assigned Field Officer Username
+  planAmount?: number; // Plan2 - Plan Amount
+  lcoFos?: string; // LCO FOS - Local Cable Operator Field Officer
+  expireRental?: number; // EXPIRE RENTAL - Expiry Rental Amount
 
-  
+
 
   //for admin(company) details
   companyName?: string;
@@ -292,6 +300,11 @@ const UserSchema = new Schema<IUser>({
   deviceToken: { type: String },
   password: { type: String },
 
+  billConnect: { type: Boolean, default: false },
+  disconnectReason: { type: String },
+  disconnectDate: { type: Date },
+  remarks: { type: String },
+
   //for admin(company) details
   companyName: { type: String },
   companyAddress: { type: String },
@@ -384,7 +397,6 @@ const UserSchema = new Schema<IUser>({
   registrationDate: { type: Date }, // REGISTRATIONDATE
   balance: { type: Number, default: 0 }, // BALANCE
   subStatus: { type: String }, // SUB_STATUS
-  remarks: { type: String } // REMARKS
 }, {
   timestamps: true
 });

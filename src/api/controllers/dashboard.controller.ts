@@ -2925,7 +2925,7 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
           { password: { $regex: searchTerm, $options: 'i' } }
         ]
       };
-      
+
 
       // Get user IDs from both searches
       const [userResults, modemResults] = await Promise.all([
@@ -3081,7 +3081,7 @@ export const getUserManagementData = async (req: Request, res: Response, next: N
         usersWithoutCustomerData,
         usersWithoutModemData,
         usersWithIncompleteData,
-        installedUsers:totalUsers-pendingInstallation,
+        installedUsers: totalUsers - pendingInstallation,
         pendingInstallation
       },
       users: combinedData,
@@ -3322,9 +3322,9 @@ export const getUserDetailForUpdate = async (req: Request, res: Response, next: 
       const fdb = await FDBModel.findById(customerDetails.fdbId).lean();
       if (fdb && fdb.ports) {
         // Find which port the user is connected to
-        const userPort = fdb.ports.find(port => 
-          port.connectedDevice && 
-          port.connectedDevice.type === "user" && 
+        const userPort = fdb.ports.find(port =>
+          port.connectedDevice &&
+          port.connectedDevice.type === "user" &&
           port.connectedDevice.id === userId
         );
 
@@ -3424,7 +3424,11 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
       fdbId,
       oltId,
       portNumber,
-      internetProviderId
+      internetProviderId,
+      billConnect,
+      disconnectReason,
+      disconnectDate,
+      remarks,
     } = req.body;
 
     console.log("req body", req.body);
@@ -3484,6 +3488,10 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         if (bbPlan) userUpdateData.bbPlan = bbPlan;
         if (workingStatus) userUpdateData.workingStatus = workingStatus;
         if (internetProviderId) userUpdateData.internetProviderId = internetProviderId; //this is for the user which have internet company
+        if (billConnect !== undefined) userUpdateData.billConnect = billConnect;
+        if (disconnectReason) userUpdateData.disconnectReason = disconnectReason;
+        if (disconnectDate) userUpdateData.disconnectDate = disconnectDate;
+        if (remarks) userUpdateData.remarks = remarks;
         // Update user
         const updatedUser = await UserModel.findByIdAndUpdate(
           userId,
@@ -4331,9 +4339,9 @@ export const addBsnlUserFromExcel = async (req: Request, res: Response, next: Ne
     const { files } = req;
     const addedBy = (req as any).userId; // Logged in user ID who is uploading
 
-    const {internetProviderId} = req.body;
-    console.log(req.body,internetProviderId);
-    
+    const { internetProviderId } = req.body;
+    console.log(req.body, internetProviderId);
+
 
     if (!files || !Array.isArray(files) || files.length === 0) {
       return sendError(res, 'No files uploaded', 400);
@@ -4405,7 +4413,7 @@ export const addBsnlUserFromExcel = async (req: Request, res: Response, next: Ne
     for (const file of files) {
       try {
         console.log(`Processing file: ${file.originalname}`);
-        const fileResult = await processBsnlExcelFile(file, addedBy,internetProviderId);
+        const fileResult = await processBsnlExcelFile(file, addedBy, internetProviderId);
         results.fileResults.push(fileResult);
         results.processedFiles++;
         results.totalUsers += fileResult.totalUsers;
@@ -4437,9 +4445,9 @@ export const addBsnlUserFromExcel = async (req: Request, res: Response, next: Ne
 };
 
 // Helper function to process individual Excel file
-const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string,internetProviderId: string) => {
-  console.log('internetProviderId',internetProviderId);
-  
+const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, internetProviderId: string) => {
+  console.log('internetProviderId', internetProviderId);
+
   // Validate file object
   if (!file) {
     throw new Error('File object is undefined');
@@ -4810,9 +4818,9 @@ export const addRailWireUserFromExcel = async (req: Request, res: Response, next
     const { files } = req;
     const addedBy = (req as any).userId; // Logged in user ID who is uploading
 
-    const {internetProviderId} = req.body;
-    console.log(req.body,internetProviderId);
-    
+    const { internetProviderId } = req.body;
+    console.log(req.body, internetProviderId);
+
 
     if (!files || !Array.isArray(files) || files.length === 0) {
       return sendError(res, 'No files uploaded', 400);
@@ -4884,7 +4892,7 @@ export const addRailWireUserFromExcel = async (req: Request, res: Response, next
     for (const file of files) {
       try {
         console.log(`Processing file: ${file.originalname}`);
-        const fileResult = await processRailWireExcelFile(file, addedBy,internetProviderId);
+        const fileResult = await processRailWireExcelFile(file, addedBy, internetProviderId);
         results.fileResults.push(fileResult);
         results.processedFiles++;
         results.totalUsers += fileResult.totalUsers;
@@ -4915,9 +4923,9 @@ export const addRailWireUserFromExcel = async (req: Request, res: Response, next
   }
 };
 
-const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: string,internetProviderId: string) => {
-  console.log('internetProviderId',internetProviderId);
-  
+const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: string, internetProviderId: string) => {
+  console.log('internetProviderId', internetProviderId);
+
   // Validate file object
   if (!file) {
     throw new Error('File object is undefined');
@@ -5052,20 +5060,20 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
     if (!data || data.length < 2) {
       throw new Error('Excel file must have at least header row and one data row');
     }
-    
+
     // Handle case where first row might be empty and actual headers are in second row
     let headers: string[];
     let rows: any[][];
-    
+
     // Check if first row contains actual headers or is empty
     const firstRow = data[0] as any[];
     const secondRow = data[1] as any[];
-    
+
     // If first row has meaningful data (not all empty), use it as headers
-    const firstRowHasMeaningfulData = firstRow && firstRow.some(cell => 
+    const firstRowHasMeaningfulData = firstRow && firstRow.some(cell =>
       cell && cell.toString().trim() !== '' && cell.toString().toLowerCase().includes('name')
     );
-    
+
     if (firstRowHasMeaningfulData) {
       // Normal case: headers are in first row
       headers = (data[0] as string[]).map(h => h ? h.toString().toLowerCase().trim() : '');
@@ -5075,27 +5083,27 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
       headers = (data[1] as string[]).map(h => h ? h.toString().toLowerCase().trim() : '');
       rows = data.slice(2) as any[][];
     }
-    
+
     console.log('Extracted headers:', headers);
     console.log('Number of data rows:', rows.length);
-    
+
     if (!headers || !Array.isArray(headers)) {
       throw new Error('Invalid header row in Excel file');
     }
-    
+
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       throw new Error('No data rows found in Excel file');
     }
-    
+
 
     // Map Excel headers to User model fields (PHONE_NO is primary unique identifier)
     const headerMapping: { [key: string]: string } = {
-      'firstname':'firstName',
-      'mobileno': 'phoneNumber', 
+      'firstname': 'firstName',
+      'mobileno': 'phoneNumber',
       'email': 'email',
       'username': 'userName',
       'address': 'permanentAddress',
-      
+
       'packagename': 'packageName',
       'billingtypeid': 'billingTypeId',
       'subscriberid': 'subscriberId',
@@ -5109,46 +5117,46 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
     };
 
     // Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
-// Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
-const requiredHeaders = [
-  { key: 'mobileno', patterns: ['mobileno', 'mobile', 'phone'] },
-  { key: 'email', patterns: ['email', 'e-mail', 'mail'] }
-];
+    // Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
+    const requiredHeaders = [
+      { key: 'mobileno', patterns: ['mobileno', 'mobile', 'phone'] },
+      { key: 'email', patterns: ['email', 'e-mail', 'mail'] }
+    ];
 
-const missingHeaders: string[] = [];
+    const missingHeaders: string[] = [];
 
-requiredHeaders.forEach(required => {
-  const found = headers.some(header => {
-    if (!header) return false;
-    
-    const headerUpper = header.toString().toUpperCase().replace(/[_\s-]/g, '');
-    
-    return required.patterns.some(pattern => {
-      const patternUpper = pattern.toUpperCase().replace(/[_\s-]/g, '');
-      return headerUpper.includes(patternUpper);
+    requiredHeaders.forEach(required => {
+      const found = headers.some(header => {
+        if (!header) return false;
+
+        const headerUpper = header.toString().toUpperCase().replace(/[_\s-]/g, '');
+
+        return required.patterns.some(pattern => {
+          const patternUpper = pattern.toUpperCase().replace(/[_\s-]/g, '');
+          return headerUpper.includes(patternUpper);
+        });
+      });
+
+      if (!found) {
+        missingHeaders.push(required.key);
+      }
     });
-  });
-  
-  if (!found) {
-    missingHeaders.push(required.key);
-  }
-});
 
-console.log('Found headers:', headers);
-console.log('Missing headers:', missingHeaders);
+    console.log('Found headers:', headers);
+    console.log('Missing headers:', missingHeaders);
 
-// Debug header mapping
-console.log('Header mapping results:');
-headers.forEach((header, index) => {
-  if (header) {
-    const mappedField = headerMapping[header];
-    console.log(`Column ${index}: "${header}" -> ${mappedField || 'UNMAPPED'}`);
-  }
-});
+    // Debug header mapping
+    console.log('Header mapping results:');
+    headers.forEach((header, index) => {
+      if (header) {
+        const mappedField = headerMapping[header];
+        console.log(`Column ${index}: "${header}" -> ${mappedField || 'UNMAPPED'}`);
+      }
+    });
 
-if (missingHeaders.length > 0) {
-  throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
-}
+    if (missingHeaders.length > 0) {
+      throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+    }
 
 
     // Debug header mapping
@@ -5489,10 +5497,10 @@ const processMyInternetExcelFile = async (
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(10, data.length); i++) {
       const row = data[i] as any[];
-      if (row && row.some(cell => 
-        cell && (cell.toString().toLowerCase().includes('phone number') || 
-                 cell.toString().toLowerCase().includes('username') ||
-                 cell.toString().toLowerCase().includes('first name'))
+      if (row && row.some(cell =>
+        cell && (cell.toString().toLowerCase().includes('phone number') ||
+          cell.toString().toLowerCase().includes('username') ||
+          cell.toString().toLowerCase().includes('first name'))
       )) {
         headerRowIndex = i;
       }
@@ -5505,7 +5513,7 @@ const processMyInternetExcelFile = async (
     console.log('Header row found at index:', headerRowIndex);
 
     const rawHeaders = data[headerRowIndex] as any[];
-    const headers = rawHeaders.map(h => 
+    const headers = rawHeaders.map(h =>
       h ? h.toString().trim().replace(/\s+/g, ' ').replace(/\u00a0/g, '').toLowerCase() : ''
     );
 
@@ -5516,17 +5524,17 @@ const processMyInternetExcelFile = async (
 
     // Detect actual column positions from first data row
     const columnIndexMap: { [key: string]: number } = {};
-    
+
     if (rows.length > 0) {
       const firstRow = rows[0];
-      
+
       console.log('First row analysis:');
       firstRow.forEach((cell, idx) => {
         if (cell !== null && cell !== undefined && cell.toString().trim() !== '') {
           console.log(`  Col ${idx}: ${cell} (type: ${typeof cell})`);
         }
       });
-      
+
       // Find Username (large number, likely in scientific notation)
       for (let i = 0; i < firstRow.length; i++) {
         const cell = firstRow[i];
@@ -5536,7 +5544,7 @@ const processMyInternetExcelFile = async (
           break;
         }
       }
-      
+
       // Find Status (active/expired) - but skip whitespace columns
       for (let i = 0; i < firstRow.length; i++) {
         const cell = firstRow[i];
@@ -5549,7 +5557,7 @@ const processMyInternetExcelFile = async (
           }
         }
       }
-      
+
       // Find First Name (text after status)
       const statusCol = columnIndexMap['status'];
       if (statusCol !== undefined) {
@@ -5557,8 +5565,8 @@ const processMyInternetExcelFile = async (
           const cell = firstRow[i];
           if (cell && typeof cell === 'string') {
             const trimmed = cell.toString().trim();
-            if (trimmed.length > 1 && !trimmed.includes('e+') && 
-                !/^\d+$/.test(trimmed) && !/^[\u00a0\s]+$/.test(trimmed)) {
+            if (trimmed.length > 1 && !trimmed.includes('e+') &&
+              !/^\d+$/.test(trimmed) && !/^[\u00a0\s]+$/.test(trimmed)) {
               columnIndexMap['firstname'] = i;
               console.log(`✓ First Name at column ${i}`);
               break;
@@ -5566,7 +5574,7 @@ const processMyInternetExcelFile = async (
           }
         }
       }
-      
+
       // Find Phone Number (large number after firstname, around 8-10 billion)
       const firstnameCol = columnIndexMap['firstname'];
       if (firstnameCol !== undefined) {
@@ -5625,20 +5633,20 @@ const processMyInternetExcelFile = async (
       const row = rows[rowIndex];
       try {
         if (!row || !Array.isArray(row)) continue;
-        
+
         // Check if this is another header row
-        const isHeaderRow = row.some(cell => 
-          cell && (cell.toString().toLowerCase().includes('phone number') || 
-                   cell.toString().toLowerCase() === 'username')
+        const isHeaderRow = row.some(cell =>
+          cell && (cell.toString().toLowerCase().includes('phone number') ||
+            cell.toString().toLowerCase() === 'username')
         );
         if (isHeaderRow) {
           console.log(`Skipping duplicate header row at ${rowIndex + headerRowIndex + 2}`);
           continue;
         }
-        
-        const hasData = row.some(cell => 
-          cell !== null && cell !== undefined && 
-          cell.toString().trim() !== '' && 
+
+        const hasData = row.some(cell =>
+          cell !== null && cell !== undefined &&
+          cell.toString().trim() !== '' &&
           !/^[\u00a0\s]+$/.test(cell.toString())
         );
         if (!hasData) continue;
@@ -5871,7 +5879,7 @@ const processMyInternetExcelFile = async (
 
           const updateData = { ...userData };
           delete updateData.phoneNumber;
-          
+
           // Ensure email is set to phoneNumber@yopmail.com for updates too
           updateData.email = updateData.email || `${cleanPhoneNumber}@yopmail.com`;
 
@@ -6105,7 +6113,7 @@ const processConnectExcelFile = async (
 
     // CONNECT file has headers in first row
     const headerRow = data[0] as any[];
-    const headers = headerRow.map(h => 
+    const headers = headerRow.map(h =>
       h ? h.toString().trim().replace(/\s+/g, ' ') : ''
     );
 
@@ -6174,8 +6182,8 @@ const processConnectExcelFile = async (
       const row = rows[rowIndex];
       try {
         if (!row || !Array.isArray(row)) continue;
-        
-        const hasData = row.some(cell => 
+
+        const hasData = row.some(cell =>
           cell !== null && cell !== undefined && cell.toString().trim() !== ''
         );
         if (!hasData) continue;
@@ -6245,9 +6253,9 @@ const processConnectExcelFile = async (
               } catch {
                 userData[fieldName] = null;
               }
-            } else if (fieldName === 'grossTotal' || fieldName === 'netCollection' || 
-                       fieldName === 'balance' || fieldName === 'paymentPercentage' || 
-                       fieldName === 'planAmount' || fieldName === 'expireRental') {
+            } else if (fieldName === 'grossTotal' || fieldName === 'netCollection' ||
+              fieldName === 'balance' || fieldName === 'paymentPercentage' ||
+              fieldName === 'planAmount' || fieldName === 'expireRental') {
               const numValue = parseFloat(value);
               userData[fieldName] = isNaN(numValue) ? 0 : numValue;
             } else if (fieldName === 'newConnection') {
