@@ -68,6 +68,23 @@ export interface IUser extends Document {
   disconnectDate?: Date;
   remarks?: string;
 
+  // New additional fields
+  companyService?: string; // Company Service
+  lastOfflineTime?: Date; // Last offline Time
+  onlineTime?: Date; // Online Time
+  msPonNumber?: string; // Ms / Pon (No)
+  customerVlan?: string; // Customer Vlan
+  portStatus?: string; // Port Status
+  ontDistance?: number; // Ont Distance
+  ontTxPower?: number; // Ont Tx Power
+  ontRxPower?: number; // Ont Rx Power
+  billingOutstandingAmount?: number; // Billing Outstanding Amount
+  paymentCollectDate?: Date; // Payment Collect Date
+  paymentCollectMonth?: string; // Payment Collect Month
+  modemRecover?: boolean; // Modem Recover Y/N
+  billCollect?: boolean; // Bill collect Y/N
+  unnamedField22?: string; // Unnamed: 22 (miscellaneous field)
+
 
 
 
@@ -304,6 +321,23 @@ const UserSchema = new Schema<IUser>({
   disconnectReason: { type: String },
   disconnectDate: { type: Date },
   remarks: { type: String },
+
+  // New additional fields
+  companyService: { type: String }, // Company Service
+  lastOfflineTime: { type: Date }, // Last offline Time
+  onlineTime: { type: Date }, // Online Time
+  msPonNumber: { type: String }, // Ms / Pon (No)
+  customerVlan: { type: String }, // Customer Vlan
+  portStatus: { type: String }, // Port Status
+  ontDistance: { type: Number }, // Ont Distance
+  ontTxPower: { type: Number }, // Ont Tx Power
+  ontRxPower: { type: Number }, // Ont Rx Power
+  billingOutstandingAmount: { type: Number }, // Billing Outstanding Amount
+  paymentCollectDate: { type: Date }, // Payment Collect Date
+  paymentCollectMonth: { type: String }, // Payment Collect Month
+  modemRecover: { type: Boolean }, // Modem Recover Y/N
+  billCollect: { type: Boolean }, // Bill collect Y/N
+  unnamedField22: { type: String }, // Unnamed: 22 (miscellaneous field)
 
   //for admin(company) details
   companyName: { type: String },

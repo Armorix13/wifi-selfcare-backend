@@ -3141,7 +3141,24 @@ export const addUser = async (
       bbPlan,
       workingStatus,
       isInstalled = true,
-      internetProviderId
+      internetProviderId,
+      // New additional fields
+      fatherName,
+      companyService,
+      lastOfflineTime,
+      onlineTime,
+      msPonNumber,
+      customerVlan,
+      portStatus,
+      ontDistance,
+      ontTxPower,
+      ontRxPower,
+      billingOutstandingAmount,
+      paymentCollectDate,
+      paymentCollectMonth,
+      modemRecover,
+      billCollect,
+      unnamedField22
     } = req.body;
 
     const companyId = (req as any).userId;
@@ -3195,7 +3212,24 @@ export const addUser = async (
       isAccountVerified: true,
       isDeactivated: false,
       isSuspended: false,
-      internetProviderId
+      internetProviderId,
+      // New additional fields
+      fatherName,
+      companyService,
+      lastOfflineTime,
+      onlineTime,
+      msPonNumber,
+      customerVlan,
+      portStatus,
+      ontDistance,
+      ontTxPower,
+      ontRxPower,
+      billingOutstandingAmount,
+      paymentCollectDate,
+      paymentCollectMonth,
+      modemRecover,
+      billCollect,
+      unnamedField22
     };
 
     // Validate OLT and FDB before starting transaction
@@ -3429,6 +3463,23 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
       disconnectReason,
       disconnectDate,
       remarks,
+      // New additional fields
+      fatherName,
+      companyService,
+      lastOfflineTime,
+      onlineTime,
+      msPonNumber,
+      customerVlan,
+      portStatus,
+      ontDistance,
+      ontTxPower,
+      ontRxPower,
+      billingOutstandingAmount,
+      paymentCollectDate,
+      paymentCollectMonth,
+      modemRecover,
+      billCollect,
+      unnamedField22
     } = req.body;
 
     console.log("req body", req.body);
@@ -3492,6 +3543,23 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         if (disconnectReason) userUpdateData.disconnectReason = disconnectReason;
         if (disconnectDate) userUpdateData.disconnectDate = disconnectDate;
         if (remarks) userUpdateData.remarks = remarks;
+        // New additional fields
+        if (fatherName) userUpdateData.fatherName = fatherName;
+        if (companyService) userUpdateData.companyService = companyService;
+        if (lastOfflineTime) userUpdateData.lastOfflineTime = lastOfflineTime;
+        if (onlineTime) userUpdateData.onlineTime = onlineTime;
+        if (msPonNumber) userUpdateData.msPonNumber = msPonNumber;
+        if (customerVlan) userUpdateData.customerVlan = customerVlan;
+        if (portStatus) userUpdateData.portStatus = portStatus;
+        if (ontDistance !== undefined) userUpdateData.ontDistance = ontDistance;
+        if (ontTxPower !== undefined) userUpdateData.ontTxPower = ontTxPower;
+        if (ontRxPower !== undefined) userUpdateData.ontRxPower = ontRxPower;
+        if (billingOutstandingAmount !== undefined) userUpdateData.billingOutstandingAmount = billingOutstandingAmount;
+        if (paymentCollectDate) userUpdateData.paymentCollectDate = paymentCollectDate;
+        if (paymentCollectMonth) userUpdateData.paymentCollectMonth = paymentCollectMonth;
+        if (modemRecover !== undefined) userUpdateData.modemRecover = modemRecover;
+        if (billCollect !== undefined) userUpdateData.billCollect = billCollect;
+        if (unnamedField22) userUpdateData.unnamedField22 = unnamedField22;
         // Update user
         const updatedUser = await UserModel.findByIdAndUpdate(
           userId,
