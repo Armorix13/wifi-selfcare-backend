@@ -3130,6 +3130,7 @@ export const addUser = async (
       password,
       fdbId,
       oltId,
+      portNumber,
       mtceFranchise,
       bbUserId,
       bbPassword,
@@ -3185,6 +3186,18 @@ export const addUser = async (
     const generatedPassword = generateRandomPassword(8);
     const hashedPassword = await hashPassword(generatedPassword);
 
+    // Convert string boolean values to actual booleans (handle multiple formats)
+    let modemRecoverBool: boolean | undefined = undefined;
+    let billCollectBool: boolean | undefined = undefined;
+
+    if (modemRecover !== undefined) {
+      modemRecoverBool = modemRecover === "yes" || modemRecover === true || modemRecover === "true" || modemRecover === "YES";
+    }
+
+    if (billCollect !== undefined) {
+      billCollectBool = billCollect === "yes" || billCollect === true || billCollect === "true" || billCollect === "YES";
+    }
+
     // Prepare user data
     const userData = {
       email,
@@ -3227,8 +3240,8 @@ export const addUser = async (
       billingOutstandingAmount,
       paymentCollectDate,
       paymentCollectMonth,
-      modemRecover,
-      billCollect,
+      modemRecover: modemRecoverBool,
+      billCollect: billCollectBool,
       unnamedField22
     };
 
@@ -3258,6 +3271,69 @@ export const addUser = async (
         const newUser = new UserModel(userData);
         await newUser.save({ session });
 
+        // Handle FDB port connection if fdbId, oltId, and portNumber are provided
+        let fdbConnectionResult = null;
+        
+        if (fdbId && oltId && portNumber) {
+          // Validate port number format (P1, P2, etc.)
+          if (!portNumber.match(/^P\d+$/)) {
+            throw new Error("Invalid port number format. Must be P1, P2, P3, etc.");
+          }
+
+          // Generate ports if they don't exist
+          if (!fdb.ports || fdb.ports.length === 0) {
+            fdb.generatePorts();
+            await fdb.save({ session });
+          }
+
+          // Check if port exists for this FDB power
+          const portExists = fdb.ports?.some(port => port.portNumber === portNumber);
+          if (!portExists) {
+            throw new Error(`Port ${portNumber} does not exist for FDB with power ${fdb.fdbPower}`);
+          }
+
+          // Check if port is available
+          const port = fdb.getPort(portNumber);
+          if (!port || port.status !== 'available') {
+            throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
+          }
+
+          // Connect user to port
+          await fdb.connectToPort(portNumber, {
+            type: "user",
+            id: (newUser._id as mongoose.Types.ObjectId).toString(),
+            description: `User ${firstName} ${lastName}`
+          });
+
+          // Add to FDB outputs with validation
+          const maxOutputs = fdb.fdbPower || 2; // Default to 2 if power not set
+          if (!fdb.outputs) {
+            fdb.outputs = [];
+          }
+
+          // Check output limit
+          if (fdb.outputs.length >= maxOutputs) {
+            throw new Error(`FDB with power ${fdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
+          }
+
+          // Add new output
+          fdb.outputs.push({
+            type: "user",
+            id: (newUser._id as mongoose.Types.ObjectId).toString(),
+            portNumber: portNumber,
+            description: `User ${firstName} ${lastName}`
+          });
+
+          await fdb.save({ session });
+
+          fdbConnectionResult = {
+            fdbId: fdb.fdbId,
+            fdbName: fdb.fdbName,
+            portNumber: portNumber,
+            connected: true
+          };
+        }
+
         // Execute modem and customer creation atomically using Promise.all
         const [modemResult, customerResult] = await Promise.all([
           Modem.create([{
@@ -3282,7 +3358,8 @@ export const addUser = async (
         return {
           newUser,
           modemResult: modemResult[0],
-          customerResult: customerResult[0]
+          customerResult: customerResult[0],
+          fdbConnection: fdbConnectionResult
         };
       });
 
@@ -3308,7 +3385,8 @@ export const addUser = async (
           firstName: result.newUser.firstName,
           lastName: result.newUser.lastName,
           modemId: result.modemResult._id,
-          customerId: result.customerResult._id
+          customerId: result.customerResult._id,
+          fdbConnection: result.fdbConnection
         }
       });
 
@@ -3337,7 +3415,7 @@ export const getUserDetailForUpdate = async (req: Request, res: Response, next: 
 
     // Fetch user details with comprehensive fields for update
     const user = await UserModel.findById(userId)
-      .select('_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus createdAt updatedAt internetProviderId billConnect disconnectReason disconnectDate remarks')
+      .select('_id firstName lastName email phoneNumber companyPreference permanentAddress residentialAddress landlineNumber mtceFranchise bbUserId bbPassword ruralUrban acquisitionType category ftthExchangePlan llInstallDate bbPlan workingStatus createdAt updatedAt internetProviderId billConnect disconnectReason disconnectDate remarks fatherName companyService lastOfflineTime onlineTime msPonNumber customerVlan portStatus ontDistance ontTxPower ontRxPower billingOutstandingAmount paymentCollectDate paymentCollectMonth modemRecover billCollect unnamedField22')
       .lean();
 
     if (!user) {
@@ -3484,6 +3562,17 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
 
     console.log("req body", req.body);
 
+    // Convert string boolean values to actual booleans (only if provided)
+    let modemRecoverBool: boolean | undefined = undefined;
+    let billCollectBool: boolean | undefined = undefined;
+
+    if (modemRecover !== undefined) {
+      modemRecoverBool = modemRecover === "yes" || modemRecover === true || modemRecover === "true" || modemRecover === "YES";
+    }
+
+    if (billCollect !== undefined) {
+      billCollectBool = billCollect === "yes" || billCollect === true || billCollect === "true" || billCollect === "YES";
+    }
 
     // Validate userId
     if (!userId) {
@@ -3557,8 +3646,8 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         if (billingOutstandingAmount !== undefined) userUpdateData.billingOutstandingAmount = billingOutstandingAmount;
         if (paymentCollectDate) userUpdateData.paymentCollectDate = paymentCollectDate;
         if (paymentCollectMonth) userUpdateData.paymentCollectMonth = paymentCollectMonth;
-        if (modemRecover !== undefined) userUpdateData.modemRecover = modemRecover;
-        if (billCollect !== undefined) userUpdateData.billCollect = billCollect;
+        if (modemRecoverBool !== undefined) userUpdateData.modemRecover = modemRecoverBool;
+        if (billCollectBool !== undefined) userUpdateData.billCollect = billCollectBool;
         if (unnamedField22) userUpdateData.unnamedField22 = unnamedField22;
         // Update user
         const updatedUser = await UserModel.findByIdAndUpdate(
