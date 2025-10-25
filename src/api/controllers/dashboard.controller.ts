@@ -4325,9 +4325,9 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
           );
           await device.save({ session });
         } else if (deviceType === 'x2' && device.outputs) {
-          // For X2, just remove user from outputs
+          // For X2, just remove user from outputs (X2 uses "customer" type, not "user")
           device.outputs = device.outputs.filter((output: any) =>
-            !(output.type === "user" && output.id === userId)
+            !(output.type === "customer" && output.id === userId)
           );
           await device.save({ session });
         }
@@ -4363,8 +4363,9 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
 
           if (previousDevice && previousDevice.outputs) {
             // Find and remove user from previous device outputs
+            // FDB uses "user" type, X2 uses "customer" type
             const userOutputIndex = previousDevice.outputs.findIndex((output: any) =>
-              output.type === "user" && output.id === userId
+              (output.type === "user" || output.type === "customer") && output.id === userId
             );
 
             if (userOutputIndex !== -1) {
@@ -4420,9 +4421,9 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
             throw new Error(`X2 can only have 2 outputs maximum`);
           }
 
-          // Add new output to X2
+          // Add new output to X2 (X2 uses "customer" type, not "user")
           device.outputs.push({
-            type: "user",
+            type: "customer",
             id: userId,
             port: parseInt(portNumber.slice(1)),
             description: `User ${user.firstName} ${user.lastName}`
