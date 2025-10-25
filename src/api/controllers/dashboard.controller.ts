@@ -24,6 +24,7 @@ import { CustomerModel } from '../models/customer.model';
 import Modem from '../models/modem.model';
 import { OLTModel } from '../models/olt.model';
 import { FDBModel } from '../models/fdb.model';
+import { X2Model } from '../models/x2.model';
 import orderModel from '../models/order.model';
 import { RequestBill } from '../models/requestBill.model';
 
@@ -3273,7 +3274,7 @@ export const addUser = async (
 
         // Handle FDB port connection if fdbId, oltId, and portNumber are provided
         let fdbConnectionResult = null;
-        
+
         if (fdbId && oltId && portNumber) {
           // Validate port number format (P1, P2, etc.)
           if (!portNumber.match(/^P\d+$/)) {
@@ -4174,9 +4175,9 @@ export const getAllUserForConnect = async (req: Request, res: Response, next: Ne
           .populate('fdbId', 'fdbId fdbName fdbPower fdbType')
           .populate('oltId', 'oltId serialNumber oltIp macAddress')
           .lean();
-        
+
         const isAttached = !!customerData;
-        
+
         // Get FDB port details if connected
         let fdbPortDetails = null;
         if (customerData && customerData.fdbId) {
@@ -4198,7 +4199,7 @@ export const getAllUserForConnect = async (req: Request, res: Response, next: Ne
             }
           }
         }
-        
+
         return {
           ...user.toObject(),
           isAttached,
@@ -4233,14 +4234,19 @@ export const getAllUserForConnect = async (req: Request, res: Response, next: Ne
   }
 };
 
-// Connect user to FDB/OLT
-export const connectUserToFDB = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+// Connect user to Device (FDB or X2)
+export const connectUserToDevice = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { userId, fdbId, oltId, portNumber } = req.body;
+    const { userId, fdbId, x2Id, oltId, portNumber } = req.body;
 
     // Validate required fields
-    if (!userId || !fdbId || !oltId || !portNumber) {
-      return sendError(res, "userId, fdbId, oltId, and portNumber are required", 400);
+    if (!userId || !portNumber) {
+      return sendError(res, "userId and portNumber are required", 400);
+    }
+
+    // Check if either fdbId or x2Id is provided (not both, not neither)
+    if ((!fdbId && !x2Id) || (fdbId && x2Id)) {
+      return sendError(res, "Either fdbId or x2Id must be provided (not both)", 400);
     }
 
     // Validate port number format (P1, P2, etc.)
@@ -4256,107 +4262,171 @@ export const connectUserToFDB = async (req: Request, res: Response, next: NextFu
 
     // Start transaction
     const session = await UserModel.startSession();
+    let deviceType: 'fdb' | 'x2' = 'fdb';
 
     try {
       const result = await session.withTransaction(async () => {
-        // Find FDB by custom fdbId
-        const fdb = await FDBModel.findOne({ fdbId: fdbId });
-        if (!fdb) {
-          throw new Error(`FDB with ID ${fdbId} not found`);
-        }
+        let device: any = null;
+        let deviceId: string = '';
 
-        // Find OLT by custom oltId
-        const olt = await OLTModel.findOne({ oltId: oltId });
-        if (!olt) {
-          throw new Error(`OLT with ID ${oltId} not found`);
-        }
+        // Handle FDB or X2
+        if (fdbId) {
+          device = await FDBModel.findOne({ fdbId: fdbId });
+          if (!device) {
+            throw new Error(`FDB with ID ${fdbId} not found`);
+          }
+          deviceType = 'fdb';
+          deviceId = fdbId;
 
-        // Generate ports if they don't exist
-        if (!fdb.ports || fdb.ports.length === 0) {
-          fdb.generatePorts();
-          await fdb.save({ session });
-        }
+          // Generate ports if they don't exist
+          if (!device.ports || device.ports.length === 0) {
+            device.generatePorts();
+            await device.save({ session });
+          }
 
-        // Check if port exists for this FDB power
-        const portExists = fdb.ports?.some(port => port.portNumber === portNumber);
-        if (!portExists) {
-          throw new Error(`Port ${portNumber} does not exist for FDB with power ${fdb.fdbPower}`);
-        }
+          // Check if port exists for this FDB power
+          const portExists = device.ports?.some((port: any) => port.portNumber === portNumber);
+          if (!portExists) {
+            throw new Error(`Port ${portNumber} does not exist for FDB with power ${device.fdbPower}`);
+          }
 
-        // Check if port is available
-        const port = fdb.getPort(portNumber);
-        if (!port || port.status !== 'available') {
-          throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
-        }
+          // Check if port is available
+          const port = device.getPort(portNumber);
+          if (!port || port.status !== 'available') {
+            throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
+          }
+        } else if (x2Id) {
+          device = await X2Model.findOne({ x2Id: x2Id });
+          if (!device) {
+            throw new Error(`X2 with ID ${x2Id} not found`);
+          }
+          deviceType = 'x2';
+          deviceId = x2Id;
 
-        // Handle FDB port disconnection if user was previously connected
-        const currentCustomer = await CustomerModel.findOne({ userId: userId }, null, { session });
-        if (currentCustomer && currentCustomer.fdbId) {
-          const previousFdb = await FDBModel.findById(currentCustomer.fdbId, null, { session });
-          if (previousFdb && previousFdb.outputs) {
-            // Find and remove user from previous FDB outputs
-            const userOutputIndex = previousFdb.outputs.findIndex(output =>
-              output.type === "user" && output.id === userId
-            );
+          // Validate port for X2 (only P1 or P2 allowed)
+          if (portNumber !== 'P1' && portNumber !== 'P2') {
+            throw new Error(`X2 only supports ports P1 and P2`);
+          }
 
-            if (userOutputIndex !== -1) {
-              const previousPortNumber = previousFdb.outputs[userOutputIndex].portNumber;
-              if (previousPortNumber) {
-                // Disconnect from previous port
-                await previousFdb.disconnectFromPort(previousPortNumber);
-                // Remove from outputs
-                previousFdb.outputs.splice(userOutputIndex, 1);
-                await previousFdb.save({ session });
-              }
+          // Check if port is already occupied
+          if (device.outputs) {
+            const occupiedPort = device.outputs.find((output: any) => output.port === parseInt(portNumber.slice(1)));
+            if (occupiedPort) {
+              throw new Error(`Port ${portNumber} is already occupied`);
             }
           }
         }
 
-        // Connect user to new port
-        await fdb.connectToPort(portNumber, {
-          type: "user",
-          id: userId,
-          description: `User ${user.firstName} ${user.lastName}`
-        });
+        // Handle device port disconnection if user was previously connected
+        const currentCustomer = await CustomerModel.findOne({ userId: userId }, null, { session });
+        if (currentCustomer && ((currentCustomer as any).fdbId || (currentCustomer as any).x2Id)) {
+          let previousDevice: any = null;
 
-        // Add to FDB outputs with validation
-        const maxOutputs = fdb.fdbPower || 2;
-        if (!fdb.outputs) {
-          fdb.outputs = [];
-        }
-
-        // Check if user is already in outputs
-        const existingOutput = fdb.outputs.find(output =>
-          output.type === "user" && output.id === userId
-        );
-
-        if (existingOutput) {
-          // Update existing output with new port
-          existingOutput.portNumber = portNumber;
-        } else {
-          // Check output limit
-          if (fdb.outputs.length >= maxOutputs) {
-            throw new Error(`FDB with power ${fdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
+          if ((currentCustomer as any).fdbId) {
+            previousDevice = await FDBModel.findById((currentCustomer as any).fdbId, null, { session });
+          } else if ((currentCustomer as any).x2Id) {
+            previousDevice = await X2Model.findById((currentCustomer as any).x2Id, null, { session });
           }
 
-          // Add new output
-          fdb.outputs.push({
+          if (previousDevice && previousDevice.outputs) {
+            // Find and remove user from previous device outputs
+            const userOutputIndex = previousDevice.outputs.findIndex((output: any) =>
+              output.type === "user" && output.id === userId
+            );
+
+            if (userOutputIndex !== -1) {
+              if (deviceType === 'fdb') {
+                const previousPortNumber = previousDevice.outputs[userOutputIndex].portNumber;
+                if (previousPortNumber) {
+                  // Disconnect from previous port
+                  await previousDevice.disconnectFromPort(previousPortNumber);
+                }
+              }
+              // Remove from outputs
+              previousDevice.outputs.splice(userOutputIndex, 1);
+              await previousDevice.save({ session });
+            }
+          }
+        }
+
+        // Connect user to new port based on device type
+        if (deviceType === 'fdb') {
+          await device.connectToPort(portNumber, {
             type: "user",
             id: userId,
-            portNumber: portNumber,
+            description: `User ${user.firstName} ${user.lastName}`
+          });
+
+          // Add to FDB outputs with validation
+          const maxOutputs = device.fdbPower || 2;
+          if (!device.outputs) {
+            device.outputs = [];
+          }
+
+          // Check if user is already in outputs
+          const existingOutput = device.outputs.find((output: any) =>
+            output.type === "user" && output.id === userId
+          );
+
+          if (existingOutput) {
+            // Update existing output with new port
+            existingOutput.portNumber = portNumber;
+          } else {
+            // Check output limit
+            if (device.outputs.length >= maxOutputs) {
+              throw new Error(`FDB with power ${device.fdbPower} can only have ${maxOutputs} outputs maximum`);
+            }
+
+            // Add new output
+            device.outputs.push({
+              type: "user",
+              id: userId,
+              portNumber: portNumber,
+              description: `User ${user.firstName} ${user.lastName}`
+            });
+          }
+        } else if (deviceType === 'x2') {
+          // For X2, add to outputs
+          if (!device.outputs) {
+            device.outputs = [];
+          }
+
+          // Check output limit (X2 always has power of 2)
+          if (device.outputs.length >= 2) {
+            throw new Error(`X2 can only have 2 outputs maximum`);
+          }
+
+          // Add new output to X2
+          device.outputs.push({
+            type: "user",
+            id: userId,
+            port: parseInt(portNumber.slice(1)),
             description: `User ${user.firstName} ${user.lastName}`
           });
         }
 
-        await fdb.save({ session });
+        await device.save({ session });
 
         // Update or create customer record
         const customerUpdateData: any = {
-          fdbId: fdb._id,
-          oltId: olt._id,
           isInstalled: true,
           installationDate: new Date()
         };
+
+        // Add device ID based on type
+        if (deviceType === 'fdb') {
+          customerUpdateData.fdbId = device._id;
+        } else if (deviceType === 'x2') {
+          customerUpdateData.x2Id = device._id;
+        }
+
+        // Add OLT ID if provided
+        if (oltId) {
+          const olt = await OLTModel.findOne({ oltId: oltId });
+          if (olt) {
+            customerUpdateData.oltId = olt._id;
+          }
+        }
 
         let updatedCustomer;
         if (currentCustomer) {
@@ -4375,23 +4445,13 @@ export const connectUserToFDB = async (req: Request, res: Response, next: NextFu
           updatedCustomer = createdCustomer[0];
         }
 
-        return {
+        // Prepare response based on device type
+        const response: any = {
           user: {
             _id: user._id,
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email
-          },
-          fdb: {
-            fdbId: fdb.fdbId,
-            fdbName: fdb.fdbName,
-            fdbPower: fdb.fdbPower,
-            fdbType: fdb.fdbType
-          },
-          olt: {
-            oltId: olt.oltId,
-            serialNumber: olt.serialNumber,
-            oltIp: olt.oltIp
           },
           port: {
             portNumber: portNumber,
@@ -4400,9 +4460,38 @@ export const connectUserToFDB = async (req: Request, res: Response, next: NextFu
           },
           customer: updatedCustomer
         };
+
+        if (deviceType === 'fdb') {
+          response.fdb = {
+            fdbId: device.fdbId,
+            fdbName: device.fdbName,
+            fdbPower: device.fdbPower,
+            fdbType: device.fdbType
+          };
+        } else if (deviceType === 'x2') {
+          response.x2 = {
+            x2Id: device.x2Id,
+            x2Name: device.x2Name,
+            x2Power: device.x2Power,
+            x2Type: device.x2Type
+          };
+        }
+
+        if (oltId) {
+          const olt = await OLTModel.findOne({ oltId: oltId });
+          if (olt) {
+            response.olt = {
+              oltId: olt.oltId,
+              serialNumber: olt.serialNumber,
+              oltIp: olt.oltIp
+            };
+          }
+        }
+
+        return response;
       });
 
-      return sendSuccess(res, result, "User connected to FDB successfully");
+      return sendSuccess(res, result, `User connected to ${deviceType.toUpperCase()} successfully`);
 
     } catch (transactionError: any) {
       console.error("Transaction failed:", transactionError);
@@ -4412,7 +4501,7 @@ export const connectUserToFDB = async (req: Request, res: Response, next: NextFu
     }
 
   } catch (error: any) {
-    console.error("Error in connectUserToFDB:", error);
+    console.error("Error in connectUserToDevice:", error);
     return sendError(res, error.message || "Internal server error", 500);
   }
 };

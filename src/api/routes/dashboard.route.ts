@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload, excelUpload } from '../services/upload.service';
-import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign, getAllUserForConnect, connectUserToFDB, mainDashboardData, fdbAvailablePort, connectDeviceToPort, disconnectDeviceFromPort, addBsnlUserFromExcel, addRailWireUserFromExcel, addMyInternetUserFromExcel, addConnectUserFromExcel } from '../controllers/dashboard.controller';
+import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign, getAllUserForConnect, connectUserToDevice, mainDashboardData, fdbAvailablePort, connectDeviceToPort, disconnectDeviceFromPort, addBsnlUserFromExcel, addRailWireUserFromExcel, addMyInternetUserFromExcel, addConnectUserFromExcel } from '../controllers/dashboard.controller';
 import { getAllOltTOAdminPanel } from '../controllers/olt.controller';
 
 const dashboardRoute = Router();
@@ -39,7 +39,7 @@ dashboardRoute.put('/update-user', authenticate, updateUser);
 dashboardRoute.get('/client/:id/full-details', authenticate, getFullClientDetailsById);
 dashboardRoute.get('/users-for-complaint-assign', authenticate, getAllUserForComplaintAssign);
 dashboardRoute.get('/users-for-connect', authenticate, getAllUserForConnect);
-dashboardRoute.post('/connect-user-to-fdb', authenticate, connectUserToFDB);
+dashboardRoute.post('/connect-user-to-device', authenticate, connectUserToDevice);
 
 // Engineer Complaint Routes
 dashboardRoute.get('/engineer-complaints', authenticate, getAllComplaintForEnginer);

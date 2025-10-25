@@ -4,8 +4,9 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface ICustomer extends Document {
     userId: mongoose.Types.ObjectId;
 
-    fdbId: mongoose.Types.ObjectId;
-    oltId: mongoose.Types.ObjectId;
+    fdbId?: mongoose.Types.ObjectId;
+    x2Id?: mongoose.Types.ObjectId;
+    oltId?: mongoose.Types.ObjectId;
 
 
     installationDate?: Date;
@@ -42,6 +43,10 @@ const CustomerSchema = new Schema<ICustomer>({
     fdbId: {
         type: Schema.Types.ObjectId,
         ref: 'FDB'
+    },
+    x2Id: {
+        type: Schema.Types.ObjectId,
+        ref: 'X2'
     },
     oltId: {
         type: Schema.Types.ObjectId,
@@ -93,6 +98,7 @@ const CustomerSchema = new Schema<ICustomer>({
 // Indexes for better performance and data integrity
 CustomerSchema.index({ userId: 1 }, { unique: true }); // Unique index on userId
 CustomerSchema.index({ fdbId: 1 }); // Index for FDB lookups
+CustomerSchema.index({ x2Id: 1 }); // Index for X2 lookups
 CustomerSchema.index({ oltId: 1 }); // Index for OLT lookups
 CustomerSchema.index({ isInstalled: 1 }); // Index for installation status
 
