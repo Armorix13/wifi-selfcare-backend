@@ -4289,12 +4289,6 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
           if (!portExists) {
             throw new Error(`Port ${portNumber} does not exist for FDB with power ${device.fdbPower}`);
           }
-
-          // Check if port is available
-          const port = device.getPort(portNumber);
-          if (!port || port.status !== 'available') {
-            throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
-          }
         } else if (x2Id) {
           device = await X2Model.findOne({ x2Id: x2Id });
           if (!device) {
@@ -4307,7 +4301,44 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
           if (portNumber !== 'P1' && portNumber !== 'P2') {
             throw new Error(`X2 only supports ports P1 and P2`);
           }
+        }
 
+        // Get current customer first to check if switching devices
+        const currentCustomer = await CustomerModel.findOne({ userId: userId }, null, { session });
+        
+        // First, disconnect user from any existing ports on THIS device before checking availability
+        if (deviceType === 'fdb' && device.outputs) {
+          const existingUserOutputs = device.outputs.filter((output: any) =>
+            output.type === "user" && output.id === userId
+          );
+          
+          // Disconnect from all previous ports this user was connected to on this device
+          for (const output of existingUserOutputs) {
+            if (output.portNumber) {
+              await device.disconnectFromPort(output.portNumber);
+            }
+          }
+          
+          // Remove all user outputs from this device
+          device.outputs = device.outputs.filter((output: any) =>
+            !(output.type === "user" && output.id === userId)
+          );
+          await device.save({ session });
+        } else if (deviceType === 'x2' && device.outputs) {
+          // For X2, just remove user from outputs
+          device.outputs = device.outputs.filter((output: any) =>
+            !(output.type === "user" && output.id === userId)
+          );
+          await device.save({ session });
+        }
+
+        // Now check if port is available (after disconnecting from old ports)
+        if (deviceType === 'fdb') {
+          const port = device.getPort(portNumber);
+          if (!port || port.status !== 'available') {
+            throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
+          }
+        } else if (deviceType === 'x2') {
           // Check if port is already occupied
           if (device.outputs) {
             const occupiedPort = device.outputs.find((output: any) => output.port === parseInt(portNumber.slice(1)));
@@ -4317,15 +4348,17 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
           }
         }
 
-        // Handle device port disconnection if user was previously connected
-        const currentCustomer = await CustomerModel.findOne({ userId: userId }, null, { session });
+        // Handle device port disconnection if user was previously connected to a DIFFERENT device
         if (currentCustomer && ((currentCustomer as any).fdbId || (currentCustomer as any).x2Id)) {
           let previousDevice: any = null;
-
+          let previousDeviceType: 'fdb' | 'x2' | null = null;
+          
           if ((currentCustomer as any).fdbId) {
             previousDevice = await FDBModel.findById((currentCustomer as any).fdbId, null, { session });
+            previousDeviceType = 'fdb';
           } else if ((currentCustomer as any).x2Id) {
             previousDevice = await X2Model.findById((currentCustomer as any).x2Id, null, { session });
+            previousDeviceType = 'x2';
           }
 
           if (previousDevice && previousDevice.outputs) {
@@ -4335,7 +4368,8 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
             );
 
             if (userOutputIndex !== -1) {
-              if (deviceType === 'fdb') {
+              // Check if previous device is FDB (to disconnect from port)
+              if (previousDeviceType === 'fdb') {
                 const previousPortNumber = previousDevice.outputs[userOutputIndex].portNumber;
                 if (previousPortNumber) {
                   // Disconnect from previous port
@@ -4363,28 +4397,18 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
             device.outputs = [];
           }
 
-          // Check if user is already in outputs
-          const existingOutput = device.outputs.find((output: any) =>
-            output.type === "user" && output.id === userId
-          );
-
-          if (existingOutput) {
-            // Update existing output with new port
-            existingOutput.portNumber = portNumber;
-          } else {
-            // Check output limit
-            if (device.outputs.length >= maxOutputs) {
-              throw new Error(`FDB with power ${device.fdbPower} can only have ${maxOutputs} outputs maximum`);
-            }
-
-            // Add new output
-            device.outputs.push({
-              type: "user",
-              id: userId,
-              portNumber: portNumber,
-              description: `User ${user.firstName} ${user.lastName}`
-            });
+          // Check output limit before adding
+          if (device.outputs.length >= maxOutputs) {
+            throw new Error(`FDB with power ${device.fdbPower} can only have ${maxOutputs} outputs maximum`);
           }
+
+          // Add new output (we already removed old ones above)
+          device.outputs.push({
+            type: "user",
+            id: userId,
+            portNumber: portNumber,
+            description: `User ${user.firstName} ${user.lastName}`
+          });
         } else if (deviceType === 'x2') {
           // For X2, add to outputs
           if (!device.outputs) {
