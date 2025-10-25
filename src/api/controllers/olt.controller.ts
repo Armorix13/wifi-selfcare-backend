@@ -6210,13 +6210,14 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
       let customerData = await CustomerModel.find({
         oltId: olt._id
       }).populate("userId","firstName lastName email profileImage location countryCode phoneNumber")
-      .populate("fdbId");
+      .populate("fdbId")
+      .populate("x2Id");
 
       // Transform customer data and group by device type
       const customersByFdb = new Map();
+      const customersByX2 = new Map();
       
       for (const customer of customerData) {
-        const fdbData = customer.fdbId as any;
         const modemDetails = await Modem.findOne({
           userId: customer.userId
         }).select("modemName ontType modelNumber serialNumber ontMac username password");
@@ -6228,10 +6229,26 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
         };
 
         // Group customers by their FDB device
-        if (!customersByFdb.has(fdbData.fdbId)) {
-          customersByFdb.set(fdbData.fdbId, []);
+        if (customer.fdbId) {
+          const fdbData = customer.fdbId as any;
+          if (fdbData && fdbData.fdbId) {
+            if (!customersByFdb.has(fdbData.fdbId)) {
+              customersByFdb.set(fdbData.fdbId, []);
+            }
+            customersByFdb.get(fdbData.fdbId).push(customerInfo);
+          }
         }
-        customersByFdb.get(fdbData.fdbId).push(customerInfo);
+
+        // Group customers by their X2 device
+        if (customer.x2Id) {
+          const x2Data = customer.x2Id as any;
+          if (x2Data && x2Data.x2Id) {
+            if (!customersByX2.has(x2Data.x2Id)) {
+              customersByX2.set(x2Data.x2Id, []);
+            }
+            customersByX2.get(x2Data.x2Id).push(customerInfo);
+          }
+        }
       }
 
       // Update FDB devices to include their connected customers
@@ -6240,10 +6257,13 @@ export const getAllOltTOAdminPanel = async (req: Request, res: Response): Promis
         customers: customersByFdb.get(fdb.fdb_id) || []
       }));
 
-      // Update X2 devices to include customers from their connected FDB devices
+      // Update X2 devices to include their directly connected customers and customers from FDB devices
       detailedOlt.x2_devices = detailedOlt.x2_devices.map(x2 => {
+        // Get customers directly connected to this X2
+        const directCustomers = customersByX2.get(x2.x2_id) || [];
+        
         // Find all customers connected through FDB devices that connect to this X2
-        let x2Customers: any[] = [];
+        let x2Customers: any[] = [...directCustomers];
         detailedOlt.fdb_devices.forEach(fdb => {
           if (fdb.input.id === x2.x2_id) {
             const fdbCustomers = customersByFdb.get(fdb.fdb_id) || [];
