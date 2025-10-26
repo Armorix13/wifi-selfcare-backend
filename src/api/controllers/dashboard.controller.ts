@@ -23,7 +23,7 @@ import { LeaveRequestModel } from '../models/leaveRequest.model';
 import { CustomerModel } from '../models/customer.model';
 import Modem from '../models/modem.model';
 import { OLTModel } from '../models/olt.model';
-import { FDBModel } from '../models/fdb.model';
+import { FDBModel, PortStatus } from '../models/fdb.model';
 import { X2Model } from '../models/x2.model';
 import orderModel from '../models/order.model';
 import { RequestBill } from '../models/requestBill.model';
@@ -3678,41 +3678,21 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
 
         // Handle FDB port disconnection if user was previously connected
         const currentCustomer = await CustomerModel.findOne({ userId: userId }, null, { session });
-        if (currentCustomer && currentCustomer.fdbId) {
-          const previousFdb = await FDBModel.findById(currentCustomer.fdbId, null, { session });
-          if (previousFdb && previousFdb.outputs) {
-            // Find and remove user from previous FDB outputs
-            const userOutputIndex = previousFdb.outputs.findIndex(output =>
-              output.type === "user" && output.id === userId
-            );
-
-            if (userOutputIndex !== -1) {
-              const previousPortNumber = previousFdb.outputs[userOutputIndex].portNumber;
-              if (previousPortNumber) {
-                // Disconnect from previous port
-                await previousFdb.disconnectFromPort(previousPortNumber);
-                // Remove from outputs
-                previousFdb.outputs.splice(userOutputIndex, 1);
-                await previousFdb.save({ session });
-              }
-            }
-          }
-        }
 
         // Handle FDB port connection if fdbId, oltId, and portNumber are provided
         let fdbConnectionResult = null;
-        let fdb = null;
-        let olt = null;
+        let fdb: any = null;
+        let olt: any = null;
 
         if (fdbId && oltId && portNumber) {
-          // Find FDB by custom fdbId (not MongoDB _id)
-          fdb = await FDBModel.findOne({ fdbId: fdbId });
+          // Find FDB by custom fdbId (not MongoDB _id) - within transaction
+          fdb = await FDBModel.findOne({ fdbId: fdbId }).session(session);
           if (!fdb) {
             throw new Error(`FDB with ID ${fdbId} not found`);
           }
 
-          // Find OLT by custom oltId (not MongoDB _id)
-          olt = await OLTModel.findOne({ oltId: oltId });
+          // Find OLT by custom oltId (not MongoDB _id) - within transaction
+          olt = await OLTModel.findOne({ oltId: oltId }).session(session);
           if (!olt) {
             throw new Error(`OLT with ID ${oltId} not found`);
           }
@@ -3720,7 +3700,72 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           // Generate ports if they don't exist
           if (!fdb.ports || fdb.ports.length === 0) {
             fdb.generatePorts();
-            await fdb.save();
+            fdb.markModified('ports');
+            await fdb.save({ session });
+          }
+
+          // IMPORTANT: First disconnect user from any existing ports on THIS FDB before checking availability
+          if (fdb.outputs) {
+            const existingUserOutputs = fdb.outputs.filter((output: any) =>
+              output.type === "user" && output.id === userId
+            );
+
+            // Manually disconnect from all previous ports (modify ports array directly)
+            for (const output of existingUserOutputs) {
+              if (output.portNumber && fdb.ports) {
+                const port = fdb.ports.find((p: any) => p.portNumber === output.portNumber);
+                if (port) {
+                  port.status = PortStatus.AVAILABLE;
+                  port.connectedDevice = undefined;
+                  port.connectionDate = undefined;
+                }
+              }
+            }
+            
+            // Remove all user outputs from this FDB
+            fdb.outputs = fdb.outputs.filter((output: any) =>
+              !(output.type === "user" && output.id === userId)
+            );
+            
+            // Mark ports and outputs as modified so Mongoose saves them
+            fdb.markModified('ports');
+            fdb.markModified('outputs');
+          }
+
+          // Also disconnect from previous FDB if different from current FDB
+          if (currentCustomer && currentCustomer.fdbId) {
+            const previousFdbId = currentCustomer.fdbId.toString();
+            const currentFdbId = fdb._id.toString();
+
+            // Only disconnect from previous FDB if it's different from the new one
+            if (previousFdbId !== currentFdbId) {
+              const previousFdb = await FDBModel.findById(currentCustomer.fdbId, null, { session });
+              if (previousFdb && previousFdb.outputs) {
+                // Find and remove user from previous FDB outputs
+                const userOutputIndex = previousFdb.outputs.findIndex((output: any) =>
+                  output.type === "user" && output.id === userId
+                );
+
+                if (userOutputIndex !== -1) {
+                  const previousPortNumber = previousFdb.outputs[userOutputIndex].portNumber;
+                  if (previousPortNumber && previousFdb.ports) {
+                    // Manually disconnect from previous port
+                    const port = previousFdb.ports.find((p: any) => p.portNumber === previousPortNumber);
+                    if (port) {
+                      port.status = PortStatus.AVAILABLE;
+                      port.connectedDevice = undefined;
+                      port.connectionDate = undefined;
+                    }
+                    // Mark ports as modified
+                    previousFdb.markModified('ports');
+                  }
+                  // Remove from outputs
+                  previousFdb.outputs.splice(userOutputIndex, 1);
+                  previousFdb.markModified('outputs');
+                  await previousFdb.save({ session });
+                }
+              }
+            }
           }
 
           // Validate port number format (P1, P2, etc.)
@@ -3729,23 +3774,27 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           }
 
           // Check if port exists for this FDB power
-          const portExists = fdb.ports?.some(port => port.portNumber === portNumber);
+          const portExists = fdb.ports?.some((port: any) => port.portNumber === portNumber);
           if (!portExists) {
             throw new Error(`Port ${portNumber} does not exist for FDB with power ${fdb.fdbPower}`);
           }
 
-          // Check if port is available
+          // Check if port is available (after disconnecting from old ports)
           const port = fdb.getPort(portNumber);
-          if (!port || port.status !== 'available') {
+          if (!port || port.status !== PortStatus.AVAILABLE) {
             throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
           }
 
-          // Connect user to port
-          await fdb.connectToPort(portNumber, {
-            type: "user",
-            id: userId,
-            description: `User ${existingUser.firstName} ${existingUser.lastName}`
-          });
+          // Manually connect user to port (modify port directly to avoid extra saves)
+          if (port) {
+            port.status = PortStatus.OCCUPIED;
+            port.connectedDevice = {
+              type: "user",
+              id: userId,
+              description: `User ${existingUser.firstName} ${existingUser.lastName}`
+            };
+            port.connectionDate = new Date();
+          }
 
           // Add to FDB outputs with validation
           const maxOutputs = fdb.fdbPower || 2; // Default to 2 if power not set
@@ -3753,30 +3802,25 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
             fdb.outputs = [];
           }
 
-          // Check if user is already in outputs
-          const existingOutput = fdb.outputs.find(output =>
-            output.type === "user" && output.id === userId
-          );
-
-          if (existingOutput) {
-            // Update existing output with new port
-            existingOutput.portNumber = portNumber;
-          } else {
-            // Check output limit
-            if (fdb.outputs.length >= maxOutputs) {
-              throw new Error(`FDB with power ${fdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
-            }
-
-            // Add new output
-            fdb.outputs.push({
-              type: "user",
-              id: userId,
-              portNumber: portNumber,
-              description: `User ${existingUser.firstName} ${existingUser.lastName}`
-            });
+          // Check output limit before adding (we already removed old outputs above)
+          if (fdb.outputs.length >= maxOutputs) {
+            throw new Error(`FDB with power ${fdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
           }
 
-          await fdb.save();
+          // Add new output (we already removed old ones above)
+          fdb.outputs.push({
+            type: "user",
+            id: userId,
+            portNumber: portNumber,
+            description: `User ${existingUser.firstName} ${existingUser.lastName}`
+          });
+
+          // Mark ports and outputs as modified
+          fdb.markModified('ports');
+          fdb.markModified('outputs');
+
+          // Save all changes to FDB at once (only one save call)
+          await fdb.save({ session });
 
           fdbConnectionResult = {
             fdbId: fdb.fdbId,
@@ -3860,7 +3904,7 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
     const { id } = req.params;
 
     // First, check if client exists (this needs to be done first)
-    const client = await UserModel.findById(id).select("_id name firstName lastName email countryCode phoneNumber fullName profileImage permanentAddress residentialAddress landlineNumber fatherName oltIp mtceFranchise category mobile bbUserId bbPassword ftthExchangePlan bbPlan llInstallDate workingStatus assigned ruralUrban acquisitionType createdAt updatedAt");
+    const client = await UserModel.findById(id).select("-password");
 
     if (!client) {
       return sendError(res, "Client not found", 404);
@@ -3960,7 +4004,6 @@ export const getFullClientDetailsById = async (req: Request, res: Response, next
     };
 
     return sendSuccess(res, responseData, "Client details retrieved successfully");
-
   } catch (error) {
     console.error("Error in getFullClientDetailsById:", error);
     next(error);
@@ -4168,62 +4211,87 @@ export const getAllUserForConnect = async (req: Request, res: Response, next: Ne
       role: Role.USER
     }).select('_id firstName lastName email phoneNumber countryCode profileImage customerId fatherName landlineNumber');
 
-    // Check Customer model for each user and add isAttached field with OLT and FDB details
-    const usersWithAttachmentStatus = await Promise.all(
-      users.map(async (user) => {
-        const customerData = await CustomerModel.findOne({ userId: user._id })
-          .populate('fdbId', 'fdbId fdbName fdbPower fdbType')
-          .populate('oltId', 'oltId serialNumber oltIp macAddress')
-          .lean();
+    const userIds = users.map(user => user._id);
 
-        const isAttached = !!customerData;
+    // Fetch all customers at once - optimized batch query
+    const customers = await CustomerModel.find({ userId: { $in: userIds } })
+      .populate('fdbId', 'fdbId fdbName fdbPower fdbType')
+      .populate('oltId', 'oltId serialNumber oltIp macAddress')
+      .lean();
 
-        // Get FDB port details if connected
-        let fdbPortDetails = null;
-        if (customerData && customerData.fdbId) {
-          const fdb = await FDBModel.findById(customerData.fdbId).lean();
-          if (fdb && fdb.ports) {
-            // Find which port the user is connected to
-            const userPort = fdb.ports.find(port =>
-              port.connectedDevice &&
-              port.connectedDevice.type === "user" &&
-              port.connectedDevice.id === (user._id as any).toString()
-            );
+    // Create a map for quick lookup: userId -> customer
+    const customerMap = new Map();
+    customers.forEach(customer => {
+      customerMap.set(customer.userId.toString(), customer);
+    });
 
-            if (userPort) {
-              fdbPortDetails = {
-                portNumber: userPort.portNumber,
-                status: userPort.status,
-                connectionDate: userPort.connectionDate
-              };
-            }
+    // Fetch all FDBs at once that have ports - only fetch needed FDBs
+    const fdbIds = customers
+      .filter(c => c.fdbId && typeof c.fdbId === 'object')
+      .map(c => (c.fdbId as any)._id)
+      .filter((id, index, self) => self.indexOf(id) === index); // unique IDs
+
+    const fdbs = await FDBModel.find({ _id: { $in: fdbIds } })
+      .select('_id ports')
+      .lean();
+
+    // Create a map for quick lookup: fdbId -> fdb
+    const fdbMap = new Map();
+    fdbs.forEach(fdb => {
+      fdbMap.set(fdb._id.toString(), fdb);
+    });
+
+    // Process users with pre-fetched data - O(1) lookups instead of O(n) queries
+    const usersWithAttachmentStatus = users.map((user) => {
+      const userId = (user._id as any).toString();
+      const customerData = customerMap.get(userId);
+      const isAttached = !!customerData;
+
+      // Get FDB port details if connected - no additional query
+      let fdbPortDetails = null;
+      if (customerData && customerData.fdbId && typeof customerData.fdbId === 'object') {
+        const fdb = fdbMap.get((customerData.fdbId as any)._id.toString());
+        if (fdb && fdb.ports) {
+          // Find which port the user is connected to
+          const userPort = fdb.ports.find((port: any) =>
+            port.connectedDevice &&
+            port.connectedDevice.type === "user" &&
+            port.connectedDevice.id === userId
+          );
+
+          if (userPort) {
+            fdbPortDetails = {
+              portNumber: userPort.portNumber,
+              status: userPort.status,
+              connectionDate: userPort.connectionDate
+            };
           }
         }
+      }
 
-        return {
-          ...user.toObject(),
-          isAttached,
-          customerDetails: customerData ? {
-            customerId: customerData._id,
-            fdb: customerData.fdbId && typeof customerData.fdbId === 'object' ? {
-              fdbId: (customerData.fdbId as any).fdbId,
-              fdbName: (customerData.fdbId as any).fdbName,
-              fdbPower: (customerData.fdbId as any).fdbPower,
-              fdbType: (customerData.fdbId as any).fdbType,
-              portDetails: fdbPortDetails
-            } : null,
-            olt: customerData.oltId && typeof customerData.oltId === 'object' ? {
-              oltId: (customerData.oltId as any).oltId,
-              serialNumber: (customerData.oltId as any).serialNumber,
-              oltIp: (customerData.oltId as any).oltIp,
-              macAddress: (customerData.oltId as any).macAddress
-            } : null,
-            isInstalled: customerData.isInstalled,
-            installationDate: customerData.installationDate
-          } : null
-        };
-      })
-    );
+      return {
+        ...user.toObject(),
+        isAttached,
+        customerDetails: customerData ? {
+          customerId: customerData._id,
+          fdb: customerData.fdbId && typeof customerData.fdbId === 'object' ? {
+            fdbId: (customerData.fdbId as any).fdbId,
+            fdbName: (customerData.fdbId as any).fdbName,
+            fdbPower: (customerData.fdbId as any).fdbPower,
+            fdbType: (customerData.fdbId as any).fdbType,
+            portDetails: fdbPortDetails
+          } : null,
+          olt: customerData.oltId && typeof customerData.oltId === 'object' ? {
+            oltId: (customerData.oltId as any).oltId,
+            serialNumber: (customerData.oltId as any).serialNumber,
+            oltIp: (customerData.oltId as any).oltIp,
+            macAddress: (customerData.oltId as any).macAddress
+          } : null,
+          isInstalled: customerData.isInstalled,
+          installationDate: customerData.installationDate
+        } : null
+      };
+    });
 
     // Return success response with users data
     return sendSuccess(res, usersWithAttachmentStatus, 'Users retrieved successfully with customer details');
@@ -4305,20 +4373,20 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
 
         // Get current customer first to check if switching devices
         const currentCustomer = await CustomerModel.findOne({ userId: userId }, null, { session });
-        
+
         // First, disconnect user from any existing ports on THIS device before checking availability
         if (deviceType === 'fdb' && device.outputs) {
           const existingUserOutputs = device.outputs.filter((output: any) =>
             output.type === "user" && output.id === userId
           );
-          
+
           // Disconnect from all previous ports this user was connected to on this device
           for (const output of existingUserOutputs) {
             if (output.portNumber) {
               await device.disconnectFromPort(output.portNumber);
             }
           }
-          
+
           // Remove all user outputs from this device
           device.outputs = device.outputs.filter((output: any) =>
             !(output.type === "user" && output.id === userId)
@@ -4352,7 +4420,7 @@ export const connectUserToDevice = async (req: Request, res: Response, next: Nex
         if (currentCustomer && ((currentCustomer as any).fdbId || (currentCustomer as any).x2Id)) {
           let previousDevice: any = null;
           let previousDeviceType: 'fdb' | 'x2' | null = null;
-          
+
           if ((currentCustomer as any).fdbId) {
             previousDevice = await FDBModel.findById((currentCustomer as any).fdbId, null, { session });
             previousDeviceType = 'fdb';

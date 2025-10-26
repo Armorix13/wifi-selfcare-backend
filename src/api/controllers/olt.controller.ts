@@ -2834,8 +2834,22 @@ export const getAllFDB = async (req: Request, res: Response): Promise<any> => {
 export const getFDBById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    const fdb = await FDBModel.findById(id);
-
+    
+    let fdb;
+    
+    // Check if id is a valid MongoDB ObjectId
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    
+    if (isValidObjectId) {
+      // Try to find by MongoDB ObjectId first
+      fdb = await FDBModel.findById(id);
+    }
+    
+    // If not found (or not a valid ObjectId), try to find by custom fdbId field
+    if (!fdb) {
+      fdb = await FDBModel.findOne({ fdbId: id });
+    }
+ 
     if (!fdb) {
       return res.status(404).json({
         success: false,
@@ -2869,11 +2883,28 @@ export const updateFDB = async (req: Request, res: Response): Promise<any> => {
       delete updateData.location;
     }
 
-    const fdb = await FDBModel.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    let fdb;
+    
+    // Check if id is a valid MongoDB ObjectId
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    
+    if (isValidObjectId) {
+      // Try to find by MongoDB ObjectId first
+      fdb = await FDBModel.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true, runValidators: true }
+      );
+    }
+
+    // If not found (or not a valid ObjectId), try to find by custom fdbId field
+    if (!fdb) {
+      fdb = await FDBModel.findOneAndUpdate(
+        { fdbId: id },
+        updateData,
+        { new: true, runValidators: true }
+      );
+    }
 
     if (!fdb) {
       return res.status(404).json({
@@ -2900,7 +2931,21 @@ export const updateFDB = async (req: Request, res: Response): Promise<any> => {
 export const deleteFDB = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    const fdb = await FDBModel.findByIdAndDelete(id);
+    
+    let fdb;
+    
+    // Check if id is a valid MongoDB ObjectId
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    
+    if (isValidObjectId) {
+      // Try to find by MongoDB ObjectId first
+      fdb = await FDBModel.findByIdAndDelete(id);
+    }
+    
+    // If not found (or not a valid ObjectId), try to find by custom fdbId field
+    if (!fdb) {
+      fdb = await FDBModel.findOneAndDelete({ fdbId: id });
+    }
 
     if (!fdb) {
       return res.status(404).json({
@@ -2926,7 +2971,21 @@ export const deleteFDB = async (req: Request, res: Response): Promise<any> => {
 export const getFDBNetworkTopology = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    const fdb = await FDBModel.findById(id);
+    
+    let fdb;
+    
+    // Check if id is a valid MongoDB ObjectId
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    
+    if (isValidObjectId) {
+      // Try to find by MongoDB ObjectId first
+      fdb = await FDBModel.findById(id);
+    }
+    
+    // If not found (or not a valid ObjectId), try to find by custom fdbId field
+    if (!fdb) {
+      fdb = await FDBModel.findOne({ fdbId: id });
+    }
 
     if (!fdb) {
       return res.status(404).json({
@@ -3396,7 +3455,14 @@ export const attachCustomerToNetwork = async (req: Request, res: Response): Prom
         networkComponent = await X2Model.findById(networkComponentId);
         break;
       case "fdb":
-        networkComponent = await FDBModel.findById(networkComponentId);
+        // Check if id is a valid MongoDB ObjectId
+        const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(networkComponentId);
+        if (isValidObjectId) {
+          networkComponent = await FDBModel.findById(networkComponentId);
+        }
+        if (!networkComponent) {
+          networkComponent = await FDBModel.findOne({ fdbId: networkComponentId });
+        }
         break;
       case "subms":
         networkComponent = await SUBMSModel.findById(networkComponentId);
