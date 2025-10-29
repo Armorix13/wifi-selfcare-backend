@@ -8,8 +8,15 @@ import nodemailer from "nodemailer";
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioFromPhoneNumber = process.env.TWILIO_FROM_PHONE_NUMBER;
-const smtpUser = process.env.SMTP_USER;
+
+// SMTP Configuration - Hostinger
+const smtpHost = process.env.SMTP_HOST || 'smtp.hostinger.com';
+const smtpPort = parseInt(process.env.SMTP_PORT || '465');
+const smtpSecure = process.env.SMTP_SECURE !== 'false'; // Default to true for SSL
+const smtpUser = process.env.SMTP_USER || 'support@clovantitsolutions.com';
 const smtpPass = process.env.SMTP_PASS;
+const smtpEmail = process.env.SMTP_EMAIL || 'support@clovantitsolutions.com';
+const smtpFooterMessage = process.env.SMTP_FOOTER_MESSAGE || 'Clovant IT Solutions';
 
 export interface JwtUserPayload {
 
@@ -154,9 +161,9 @@ const sendSms = async ({ to, body }: SmsParams): Promise<void> => {
 };
 
 let transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure, // true for 465, false for other ports
     auth: {
         user: smtpUser,
         pass: smtpPass,
@@ -164,12 +171,29 @@ let transporter = nodemailer.createTransport({
 });
 
 const sendEmail = async ({ userEmail, subject, text, html }: EmailParams): Promise<unknown> => {
+    // Add footer message to HTML emails
+    let finalHtml = html;
+    if (html && smtpFooterMessage) {
+        const footerHtml = `
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0; color: #666; font-size: 12px; text-align: center;">
+                ${smtpFooterMessage}
+            </div>
+        `;
+        finalHtml = html + footerHtml;
+    }
+
+    // Add footer message to text emails
+    let finalText = text;
+    if (text && smtpFooterMessage) {
+        finalText = text + `\n\n---\n${smtpFooterMessage}`;
+    }
+
     const mailOptions = {
-        from: process.env.SMTP_EMAIL,
+        from: `"${smtpFooterMessage}" <${smtpEmail}>`,
         to: userEmail,
         subject: subject,
-        text: text,
-        html: html,
+        text: finalText,
+        html: finalHtml,
     };
 
     return new Promise((resolve, reject) => {

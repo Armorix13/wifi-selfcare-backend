@@ -27,6 +27,7 @@ import leadsRouter from "./leads.route";
 import oltRouter from "./olt.route";
 import locationRouter from "./location.route";
 import internetProviderRoute from "./internetProvider.route";
+import ivrRoute from "./ivr.route";
 const parentRouter = Router();
 
 parentRouter.post("/file-upload", multerUpload,handleMulterUpload);
@@ -57,6 +58,7 @@ parentRouter.use('/leads', leadsRouter);
 parentRouter.use('/network', oltRouter);
 parentRouter.use('/locations', locationRouter);
 parentRouter.use('/internet-providers', internetProviderRoute);
+parentRouter.use('/ivr', ivrRoute);
 
 export default parentRouter;
 

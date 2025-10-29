@@ -211,6 +211,9 @@ export interface IUser extends Document {
   assignedCompany?: mongoose.Types.ObjectId; // Reference to company
 
   isExisting?: boolean; // Whether the user is an existing customer
+
+  // IVR Number - Optional field for users with company role ADMIN
+  ivrNumber?: mongoose.Types.ObjectId; // Reference to IVR model
 }
 
 // Interface for static methods
@@ -431,6 +434,12 @@ const UserSchema = new Schema<IUser>({
   registrationDate: { type: Date }, // REGISTRATIONDATE
   balance: { type: Number, default: 0 }, // BALANCE
   subStatus: { type: String }, // SUB_STATUS
+
+  // IVR Number - Optional field for users with company role ADMIN
+  ivrNumber: {
+    type: Schema.Types.ObjectId,
+    ref: "IVR"
+  }
 }, {
   timestamps: true
 });
