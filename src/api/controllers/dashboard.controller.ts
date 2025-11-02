@@ -6979,3 +6979,27 @@ const processConnectExcelFile = async (
 
   return fileResult;
 };
+
+
+export const checkEmail = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { email } = req.body;
+
+    // Validate email
+    if (!email) {
+      return sendError(res, 'Email is required', 400);
+    }
+
+    // Check if email exists in UserModel
+    const existingUser = await UserModel.findOne({ email,role:Role.ADMIN });
+
+    if (existingUser) {
+      return sendSuccess(res, { exists: true, message: 'Email already exists' }, 'Email check completed');
+    } else {
+      return sendSuccess(res, { exists: false, message: 'Email is available' }, 'Email check completed');
+    }
+  } catch (error: any) {
+    console.error('Check email error:', error);
+    return sendError(res, error.message || 'Error checking email', 500);
+  }
+}

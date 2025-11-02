@@ -228,11 +228,10 @@ const adminLogin = async (req: Request, res: Response): Promise<any> => {
         if (user.isDeleted) {
             return sendError(res, "Account is deleted", 403);
         }
-        if (user.isDeactivated) {
-            return sendError(res, "Account is deactivated", 403);
-        }
-        if (user.isSuspended) {
-            return sendError(res, "Account is suspended", 403);
+        
+        // Check adminStatus
+        if (user.adminStatus === "inactive" || user.adminStatus === "suspended") {
+            return sendError(res, `Account is ${user.adminStatus}`, 403);
         }
 
         if (!user.isAccountVerified) {
@@ -1433,7 +1432,8 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             companyAddress,
             companyPhone,
             internetProviders,
-            internetProvider
+            internetProvider,
+            ivrNumber
         } = req.body;
 
         // Handle company logo upload
@@ -1457,7 +1457,7 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
         }
 
         // Check if user with this email already exists
-        const existingUser = await UserModel.findOne({ email });
+        const existingUser = await UserModel.findOne({ email,role:Role.ADMIN });
         if (existingUser) {
             return sendError(res, "User with this email already exists", 400);
         }
@@ -1485,6 +1485,20 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             }
         }
 
+        // Parse ivrNumber if it's a string
+        let parsedIvrNumber = [];
+        if (ivrNumber) {
+            if (typeof ivrNumber === 'string') {
+                try {
+                    parsedIvrNumber = JSON.parse(ivrNumber);
+                } catch (error) {
+                    parsedIvrNumber = [];
+                }
+            } else if (Array.isArray(ivrNumber)) {
+                parsedIvrNumber = ivrNumber;
+            }
+        }
+
         // Create new company user
         const newCompany = await UserModel.create({
             firstName,
@@ -1497,6 +1511,7 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             contactPerson,
             // internetProviders: internetProviders || [],
             internetProvider: parsedInternetProvider,
+            ivrNumber: parsedIvrNumber,
             password: hashedPassword,
             role: Role.ADMIN, // Set role as ADMIN for company users
             userName: `${firstName.toLowerCase()}${lastName.toLowerCase()}${Date.now()}`, // Generate unique username
@@ -1504,7 +1519,8 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             phoneNumber: companyPhone || "", // Use company phone as phone number
             country: "India", // Default country
             isAccountVerified: true, // Auto-verify company accounts
-            isActivated: true // Auto-activate company accounts
+            isActivated: true, // Auto-activate company accounts
+            adminStatus:"active"
         });
 
         // Send welcome email with credentials
@@ -1540,6 +1556,7 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             contactPerson: newCompany.contactPerson,
             // internetProviders: newCompany.internetProviders,
             internetProvider: newCompany.internetProvider,
+            ivrNumber: newCompany.ivrNumber,
             role: newCompany.role,
             userName: newCompany.userName,
             createdAt: newCompany.createdAt
@@ -1573,7 +1590,9 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
             companyAddress,
             companyPhone,
             // internetProviders,
-            internetProvider
+            internetProvider,
+            ivrNumber,
+            adminStatus
         } = req.body;
 
         // Handle company logo upload
@@ -1591,31 +1610,33 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
             companyLogo = fileUrl;
         }
 
-        // Validate required fields
-        if (!firstName || !lastName || !email || !companyName || !companyAddress) {
-            return sendError(res, "firstName, lastName, email, companyName, and companyAddress are required", 400);
-        }
-
         // Check if company exists
         const existingCompany = await UserModel.findById(id);
         if (!existingCompany) {
             return sendError(res, "Company not found", 404);
         }
 
-        // Check if email is being changed and if new email already exists
-        if (email !== existingCompany.email) {
+        // Check if email is being changed and if new email already exists (only if email is provided)
+        if (email && email !== existingCompany.email) {
             const emailExists = await UserModel.findOne({ email, _id: { $ne: id } });
             if (emailExists) {
                 return sendError(res, "User with this email already exists", 400);
             }
         }
 
-        // Generate contact person name from firstName and lastName
-        const contactPerson = `${firstName} ${lastName}`;
+        // Generate contact person name from firstName and lastName (only if both are provided)
+        let contactPerson = existingCompany.contactPerson;
+        if (firstName && lastName) {
+            contactPerson = `${firstName} ${lastName}`;
+        } else if (firstName && existingCompany.lastName) {
+            contactPerson = `${firstName} ${existingCompany.lastName}`;
+        } else if (lastName && existingCompany.firstName) {
+            contactPerson = `${existingCompany.firstName} ${lastName}`;
+        }
 
         // Parse internetProvider if it's a string
-        let parsedInternetProvider = [];
-        if (internetProvider) {
+        let parsedInternetProvider = existingCompany.internetProvider || [];
+        if (internetProvider !== undefined) {
             if (typeof internetProvider === 'string') {
                 try {
                     parsedInternetProvider = JSON.parse(internetProvider);
@@ -1627,24 +1648,72 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
             }
         }
 
-        // Prepare update data
-        const updateData: any = {
-            firstName,
-            lastName,
-            email,
-            companyPhone: companyPhone || "",
-            companyName,
-            companyAddress,
-            contactPerson,
-            // internetProviders: internetProviders || [],
-            internetProvider: parsedInternetProvider,
-            userName: `${firstName.toLowerCase()}${lastName.toLowerCase()}${Date.now()}`, // Generate unique username
-            phoneNumber: companyPhone || "", // Use company phone as phone number
-        };
+        // Parse ivrNumber if it's a string
+        let parsedIvrNumber = existingCompany.ivrNumber || [];
+        if (ivrNumber !== undefined) {
+            if (typeof ivrNumber === 'string') {
+                try {
+                    parsedIvrNumber = JSON.parse(ivrNumber);
+                } catch (error) {
+                    parsedIvrNumber = [];
+                }
+            } else if (Array.isArray(ivrNumber)) {
+                parsedIvrNumber = ivrNumber;
+            }
+        }
+
+        // Prepare update data - only include fields that are provided
+        const updateData: any = {};
+
+        if (firstName !== undefined) {
+            updateData.firstName = firstName;
+        }
+        if (lastName !== undefined) {
+            updateData.lastName = lastName;
+        }
+        if (email !== undefined) {
+            updateData.email = email;
+        }
+        if (companyName !== undefined) {
+            updateData.companyName = companyName;
+        }
+        if (companyAddress !== undefined) {
+            updateData.companyAddress = companyAddress;
+        }
+        if (companyPhone !== undefined) {
+            updateData.companyPhone = companyPhone || "";
+            updateData.phoneNumber = companyPhone || "";
+        }
+        if (contactPerson) {
+            updateData.contactPerson = contactPerson;
+        }
+        if (internetProvider !== undefined) {
+            updateData.internetProvider = parsedInternetProvider;
+        }
+        if (ivrNumber !== undefined) {
+            updateData.ivrNumber = parsedIvrNumber;
+        }
+        if (adminStatus !== undefined) {
+            updateData.adminStatus = adminStatus;
+        }
+
+        // Generate username if firstName or lastName is being updated
+        if (firstName !== undefined || lastName !== undefined) {
+            const finalFirstName = firstName !== undefined ? firstName : existingCompany.firstName;
+            const finalLastName = lastName !== undefined ? lastName : existingCompany.lastName;
+            if (finalFirstName && finalLastName) {
+                updateData.userName = `${finalFirstName.toLowerCase()}${finalLastName.toLowerCase()}${Date.now()}`;
+            }
+        }
 
         // Only update companyLogo if a new file was uploaded
         if (companyLogo) {
             updateData.companyLogo = companyLogo;
+        }
+
+        // Check if there's any field to update
+        if (Object.keys(updateData).length === 0) {
+            return sendError(res, "No fields provided to update", 400);
         }
 
         // Update company
@@ -1671,6 +1740,7 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
             contactPerson: updatedCompany.contactPerson,
             // internetProviders: updatedCompany.internetProviders,
             internetProvider: updatedCompany.internetProvider,
+            ivrNumber: updatedCompany.ivrNumber,
             role: updatedCompany.role,
             userName: updatedCompany.userName,
             createdAt: updatedCompany.createdAt,
@@ -1847,15 +1917,14 @@ const getAdminDashboardData = async (req: Request, res: Response): Promise<any> 
         const totalAdmins = await UserModel.countDocuments({ role: { $in: [Role.ADMIN] } });
         const activeAdmins = await UserModel.countDocuments({ 
             role: { $in: [Role.ADMIN] }, 
-            isDeactivated: false,
-            isSuspended: false
+            adminStatus: "active"
         });
         const inactiveAdmins = await UserModel.countDocuments({ 
             role: { $in: [Role.ADMIN] }, 
             $or: [
-                { isActivated: false },
-                { isDeactivated: true },
-                { isSuspended: true }
+                { adminStatus: "inactive" },
+                // { isDeactivated: true },
+                // { isSuspended: true }
             ]
         });
         const totalCompanies = await UserModel.countDocuments({ 
@@ -1867,7 +1936,7 @@ const getAdminDashboardData = async (req: Request, res: Response): Promise<any> 
         const admins = await UserModel.find({ 
             role: { $in: [Role.ADMIN] }
         })
-        .select('_id firstName lastName email companyName companyAddress companyPhone companyEmail companyWebsite companyLogo contactPerson internetProvider isActivated isDeactivated isSuspended createdAt lastLogin')
+        .select('_id firstName lastName email companyName companyAddress companyPhone companyEmail companyWebsite companyLogo contactPerson internetProvider isActivated isDeactivated isSuspended createdAt lastLogin adminStatus ivrNumber')
         .populate('internetProvider', 'name')
         .sort({ createdAt: -1 })
         .skip(skip)

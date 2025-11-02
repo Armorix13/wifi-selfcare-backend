@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../utils/helper";
-import { UserModel } from "../api/models/user.model";
+import { Role, UserModel } from "../api/models/user.model";
 
 const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
@@ -62,6 +62,32 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
         success: false,
         message: "Invalid token, please authenticate"
       });
+    }
+
+
+    if (user.role === Role.USER) {
+      // Check if user has an assigned company
+      if (!user.assignedCompany) {
+        return res.status(403).json({
+          success: false,
+          message: "No company assigned to your account",
+        });
+      }
+
+      const myCompany = await UserModel.findById(user.assignedCompany);
+      if (!myCompany) {
+        return res.status(403).json({
+          success: false,
+          message: "Associated company not found",
+        });
+      }
+
+      if (myCompany.adminStatus === "inactive" || myCompany.adminStatus === "suspended") {
+        return res.status(403).json({
+          success: false,
+          message: `Your ISP has been ${myCompany.adminStatus}`,
+        });
+      }
     }
 
     (req as any).userId = decoded.userId;

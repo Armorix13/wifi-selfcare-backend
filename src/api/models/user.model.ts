@@ -213,7 +213,10 @@ export interface IUser extends Document {
   isExisting?: boolean; // Whether the user is an existing customer
 
   // IVR Number - Optional field for users with company role ADMIN
-  ivrNumber?: mongoose.Types.ObjectId; // Reference to IVR model
+  ivrNumber?: string[]; // Array of IVR phone numbers (e.g., ["+1 206 555 0100","+1 206 555 0101"])
+
+  //for admin
+  adminStatus?: string; // Status of the admin
 }
 
 // Interface for static methods
@@ -388,7 +391,8 @@ const UserSchema = new Schema<IUser>({
     ref: "InternetProvider"
   },
 
-
+  //for admin
+  adminStatus: { type: String, enum: ["active", "inactive", "suspended"]},
 
   // New fields from Excel sheet
   oltIp: { type: String }, // OLT_IP - Optical Line Terminal IP address
@@ -436,10 +440,7 @@ const UserSchema = new Schema<IUser>({
   subStatus: { type: String }, // SUB_STATUS
 
   // IVR Number - Optional field for users with company role ADMIN
-  ivrNumber: {
-    type: Schema.Types.ObjectId,
-    ref: "IVR"
-  }
+  ivrNumber: [{ type: String }] // Array of IVR phone numbers (e.g., ["+1 206 555 0100","+1 206 555 0101"])
 }, {
   timestamps: true
 });
