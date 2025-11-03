@@ -4992,8 +4992,9 @@ export const addBsnlUserFromExcel = async (req: Request, res: Response, next: Ne
         duplicateUsers: number;
         errors: string[];
         duplicateDetails: Array<{
-          phoneNumber: string;
-          email: string;
+          bbUserId: string;
+          phoneNumber?: string;
+          email?: string;
           action: 'updated' | 'skipped';
         }>;
       }>;
@@ -5033,7 +5034,7 @@ export const addBsnlUserFromExcel = async (req: Request, res: Response, next: Ne
     let message = `Processed ${results.processedFiles} files. `;
     if (results.newUsers > 0) message += `Added ${results.newUsers} new users. `;
     if (results.updatedUsers > 0) message += `Updated ${results.updatedUsers} existing users. `;
-    if (results.duplicateUsers > 0) message += `Found ${results.duplicateUsers} duplicate users (based on phone number). `;
+    if (results.duplicateUsers > 0) message += `Found ${results.duplicateUsers} duplicate users (based on bbUserId). `;
     if (results.errors.length > 0) message += `${results.errors.length} errors occurred.`;
 
     return sendSuccess(res, results, message);
@@ -5069,8 +5070,9 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
     duplicateUsers: 0,
     errors: [] as string[],
     duplicateDetails: [] as Array<{
-      phoneNumber: string;
-      email: string;
+      bbUserId: string;
+      phoneNumber?: string;
+      email?: string;
       action: 'updated' | 'skipped';
     }>
   };
@@ -5193,13 +5195,13 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
       throw new Error('No data rows found in Excel file');
     }
 
-    // Map Excel headers to User model fields (PHONE_NO is primary unique identifier)
+    // Map Excel headers to User model fields (BB_USER_ID is primary unique identifier)
     const headerMapping: { [key: string]: string } = {
-      'PHONE_NO': 'landlineNumber',      // Primary unique identifier
-      // 'PHONE_N': 'phoneNumber',       // Primary unique identifier
-      // 'PHONE N': 'phoneNumber',       // Primary unique identifier
-      'MOBILE_NO': 'phoneNumber',     // Primary unique identifier
-      // 'MOBILE': 'phoneNumber',        // Primary unique identifier
+      'PHONE_NO': 'landlineNumber',
+      // 'PHONE_N': 'phoneNumber',
+      // 'PHONE N': 'phoneNumber',
+      'MOBILE_NO': 'phoneNumber',
+      // 'MOBILE': 'phoneNumber',
       'OLT_IP': 'oltIp',
       'MTCE_FRANCHISE_CODE': 'mtceFranchise',
       'MTCE_FRANCHISE': 'mtceFranchise',
@@ -5230,11 +5232,9 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
       'ACQUISITION_TYPE': 'acquisitionType'
     };
 
-    // Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
+    // Validate required headers with flexible matching (BB_USER_ID is primary unique identifier)
     const requiredHeaders = [
-      { key: 'PHONE_NO', patterns: ['PHONE_NO', 'PHONE_N', 'PHONE N', 'PHONE', 'MOBILE_NO', 'MOBILE'] },
-      { key: 'CUSTOMER NAME', patterns: ['CUSTOMER_NAME', 'CUSTOMER NAME', 'CUSTOMER'] },
-      { key: 'EMAIL_ID', patterns: ['EMAIL_ID', 'EMAIL ID', 'EMAIL'] }
+      { key: 'BB_USER_ID', patterns: ['BB_USER_ID', 'BB USER ID', 'BB_USER', 'BB USER', 'BBUSERID', 'BB USERID'] }
     ];
 
     const missingHeaders: string[] = [];
@@ -5332,36 +5332,37 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
           }
         });
 
-        // Validate required fields
-        if (!userData.phoneNumber || !userData.email || !userData.firstName) {
-          fileResult.errors.push(`Row ${rowIndex + 2}: Missing required fields (phone, email, or name)`);
+        // Validate required fields - bbUserId is the primary unique identifier
+        if (!userData.bbUserId) {
+          fileResult.errors.push(`Row ${rowIndex + 2}: Missing required fields (bbUserId)`);
           continue;
         }
 
-        // Clean phone number for comparison
-        const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+        // Clean bbUserId for comparison
+        const cleanBbUserId = userData.bbUserId.toString().trim();
 
-        // Check if user already exists by phone number (primary unique identifier)
+        // Check if user already exists by bbUserId (primary unique identifier)
         const existingUser = await UserModel.findOne({
-          phoneNumber: cleanPhoneNumber
+          bbUserId: cleanBbUserId
         });
 
         if (existingUser) {
-          // Check if this is a duplicate entry (same phone number)
+          // Check if this is a duplicate entry (same bbUserId)
           fileResult.duplicateUsers++;
           fileResult.totalUsers++;
 
           // Add to duplicate details
           fileResult.duplicateDetails.push({
-            phoneNumber: cleanPhoneNumber,
-            email: userData.email,
+            bbUserId: cleanBbUserId,
+            phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, '') : undefined,
+            email: userData.email || undefined,
             action: 'updated'
           });
 
           // Update existing user with new data from Excel
           const updateData = { ...userData };
 
-          delete updateData.phoneNumber; // Don't update phone number as it's the unique identifier
+          delete updateData.bbUserId; // Don't update bbUserId as it's the unique identifier
 
           // Update user with new information
           const updatedUser = await UserModel.findByIdAndUpdate(
@@ -5376,16 +5377,17 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
 
           if (updatedUser) {
             fileResult.updatedUsers++;
-            console.log(`Updated existing user with phone: ${cleanPhoneNumber}`);
+            console.log(`Updated existing user with bbUserId: ${cleanBbUserId}`);
           }
         } else {
           // Create new user
           const newUser = new UserModel({
             ...userData,
-            phoneNumber: cleanPhoneNumber, // Use cleaned phone number
-            email: userData.email.toLowerCase(),
+            bbUserId: cleanBbUserId, // Use cleaned bbUserId as unique identifier
+            phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, '') : undefined,
+            email: userData.email ? userData.email.toLowerCase() : undefined,
             role: 'user', // Default role
-            userName: userData.email.split('@')[0], // Generate username from email
+            userName: userData.email ? userData.email.split('@')[0] : `user_${cleanBbUserId}`, // Generate username from email or bbUserId
             country: 'India', // Default country
             status: 'active'
           });
@@ -5394,7 +5396,7 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
           if (savedUser) {
             fileResult.newUsers++;
             fileResult.totalUsers++;
-            console.log(`Created new user with phone: ${cleanPhoneNumber}`);
+            console.log(`Created new user with bbUserId: ${cleanBbUserId}`);
           }
         }
 
