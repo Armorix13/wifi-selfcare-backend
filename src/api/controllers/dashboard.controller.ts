@@ -3721,12 +3721,12 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
                 }
               }
             }
-            
+
             // Remove all user outputs from this FDB
             fdb.outputs = fdb.outputs.filter((output: any) =>
               !(output.type === "user" && output.id === userId)
             );
-            
+
             // Mark ports and outputs as modified so Mongoose saves them
             fdb.markModified('ports');
             fdb.markModified('outputs');
@@ -5240,11 +5240,14 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
     const missingHeaders: string[] = [];
 
     requiredHeaders.forEach(required => {
-      const found = headers.some(header =>
-        header && required.patterns.some(pattern =>
-          header.toString().toUpperCase().includes(pattern.replace('_', '').replace(' ', ''))
-        )
-      );
+      const found = headers.some(header => {
+        if (!header) return false;
+        const normalizedHeader = header.toString().toUpperCase().replace(/[_\s]/g, '');
+        return required.patterns.some(pattern => {
+          const normalizedPattern = pattern.toString().toUpperCase().replace(/[_\s]/g, '');
+          return normalizedHeader === normalizedPattern || normalizedHeader.includes(normalizedPattern) || normalizedPattern.includes(normalizedHeader);
+        });
+      });
       if (!found) {
         missingHeaders.push(required.key);
       }
@@ -5344,7 +5347,7 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
         // Check if user already exists by bbUserId (primary unique identifier)
         const existingUser = await UserModel.findOne({
           bbUserId: cleanBbUserId,
-          role:Role.USER
+          role: Role.USER
         });
 
         if (existingUser) {
@@ -6994,7 +6997,7 @@ export const checkEmail = async (req: Request, res: Response, next: NextFunction
     }
 
     // Check if email exists in UserModel
-    const existingUser = await UserModel.findOne({ email,role:Role.ADMIN });
+    const existingUser = await UserModel.findOne({ email, role: Role.ADMIN });
 
     if (existingUser) {
       return sendSuccess(res, { exists: true, message: 'Email already exists' }, 'Email check completed');

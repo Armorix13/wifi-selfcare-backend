@@ -52,7 +52,7 @@ dashboardRoute.get('/leave-requests-analytics', authenticate, getLeaveRequestAna
 dashboardRoute.post('/leave-requests/approve-reject', authenticate, approveRejectLeaveRequest);
 
 // Excel Upload Routes
-dashboardRoute.post('/upload-users-excel', authenticate, excelUpload.array('files', 10), addUserFromExcel);
+dashboardRoute.post('/upload-users-excel', authenticate, excelUpload.array('files', 10), addBsnlUserFromExcel);
 
 //New workflow for company
 dashboardRoute.post('/upload-bsnl-users-excel', authenticate, excelUpload.array('files', 10), addBsnlUserFromExcel);
