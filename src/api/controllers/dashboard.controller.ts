@@ -5477,8 +5477,9 @@ export const addRailWireUserFromExcel = async (req: Request, res: Response, next
         duplicateUsers: number;
         errors: string[];
         duplicateDetails: Array<{
-          phoneNumber: string;
-          email: string;
+          userName: string;
+          phoneNumber?: string;
+          email?: string;
           action: 'updated' | 'skipped';
         }>;
       }>;
@@ -5518,7 +5519,7 @@ export const addRailWireUserFromExcel = async (req: Request, res: Response, next
     let message = `Processed ${results.processedFiles} files. `;
     if (results.newUsers > 0) message += `Added ${results.newUsers} new users. `;
     if (results.updatedUsers > 0) message += `Updated ${results.updatedUsers} existing users. `;
-    if (results.duplicateUsers > 0) message += `Found ${results.duplicateUsers} duplicate users (based on phone number). `;
+    if (results.duplicateUsers > 0) message += `Found ${results.duplicateUsers} duplicate users (based on userName). `;
     if (results.errors.length > 0) message += `${results.errors.length} errors occurred.`;
 
     return sendSuccess(res, results, message);
@@ -5553,8 +5554,9 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
     duplicateUsers: 0,
     errors: [] as string[],
     duplicateDetails: [] as Array<{
-      phoneNumber: string;
-      email: string;
+      userName: string;
+      phoneNumber?: string;
+      email?: string;
       action: 'updated' | 'skipped';
     }>
   };
@@ -5701,7 +5703,7 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
     }
 
 
-    // Map Excel headers to User model fields (PHONE_NO is primary unique identifier)
+    // Map Excel headers to User model fields (userName is primary unique identifier)
     const headerMapping: { [key: string]: string } = {
       'firstname': 'firstName',
       'mobileno': 'phoneNumber',
@@ -5721,11 +5723,9 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
       'remarks': 'remarks',
     };
 
-    // Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
-    // Validate required headers with flexible matching (PHONE_NO is primary unique identifier)
+    // Validate required headers with flexible matching (userName is primary unique identifier)
     const requiredHeaders = [
-      { key: 'mobileno', patterns: ['mobileno', 'mobile', 'phone'] },
-      { key: 'email', patterns: ['email', 'e-mail', 'mail'] }
+      { key: 'username', patterns: ['username', 'user name', 'user_name', 'user', 'usern'] }
     ];
 
     const missingHeaders: string[] = [];
@@ -5749,20 +5749,6 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
 
     console.log('Found headers:', headers);
     console.log('Missing headers:', missingHeaders);
-
-    // Debug header mapping
-    console.log('Header mapping results:');
-    headers.forEach((header, index) => {
-      if (header) {
-        const mappedField = headerMapping[header];
-        console.log(`Column ${index}: "${header}" -> ${mappedField || 'UNMAPPED'}`);
-      }
-    });
-
-    if (missingHeaders.length > 0) {
-      throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
-    }
-
 
     // Debug header mapping
     console.log('Header mapping results:');
@@ -5843,36 +5829,38 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
           }
         });
 
-        // Validate required fields
-        if (!userData.phoneNumber || !userData.email || !userData.firstName) {
-          fileResult.errors.push(`Row ${rowIndex + 2}: Missing required fields (phone, email, or name)`);
+        // Validate required fields - userName is the primary unique identifier
+        if (!userData.userName) {
+          fileResult.errors.push(`Row ${rowIndex + 2}: Missing required fields (userName)`);
           continue;
         }
 
-        // Clean phone number for comparison
-        const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+        // Clean userName for comparison
+        const cleanUserName = userData.userName.toString().trim();
 
-        // Check if user already exists by phone number (primary unique identifier)
+        // Check if user already exists by userName (primary unique identifier)
         const existingUser = await UserModel.findOne({
-          phoneNumber: cleanPhoneNumber
+          userName: cleanUserName,
+          role: Role.USER
         });
 
         if (existingUser) {
-          // Check if this is a duplicate entry (same phone number)
+          // Check if this is a duplicate entry (same userName)
           fileResult.duplicateUsers++;
           fileResult.totalUsers++;
 
           // Add to duplicate details
           fileResult.duplicateDetails.push({
-            phoneNumber: cleanPhoneNumber,
-            email: userData.email,
+            userName: cleanUserName,
+            phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, '') : undefined,
+            email: userData.email || undefined,
             action: 'updated'
           });
 
           // Update existing user with new data from Excel
           const updateData = { ...userData };
 
-          delete updateData.phoneNumber; // Don't update phone number as it's the unique identifier
+          delete updateData.userName; // Don't update userName as it's the unique identifier
 
           // Update user with new information
           const updatedUser = await UserModel.findByIdAndUpdate(
@@ -5887,16 +5875,16 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
 
           if (updatedUser) {
             fileResult.updatedUsers++;
-            console.log(`Updated existing user with phone: ${cleanPhoneNumber}`);
+            console.log(`Updated existing user with userName: ${cleanUserName}`);
           }
         } else {
           // Create new user
           const newUser = new UserModel({
             ...userData,
-            phoneNumber: cleanPhoneNumber, // Use cleaned phone number
-            email: userData.email.toLowerCase(),
+            userName: cleanUserName, // Use cleaned userName as unique identifier
+            phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, '') : undefined,
+            email: userData.email ? userData.email.toLowerCase() : undefined,
             role: 'user', // Default role
-            // userName: userData.email.split('@')[0], // Generate username from email
             country: 'India', // Default country
             status: 'active'
           });
@@ -5905,7 +5893,7 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
           if (savedUser) {
             fileResult.newUsers++;
             fileResult.totalUsers++;
-            console.log(`Created new user with phone: ${cleanPhoneNumber}`);
+            console.log(`Created new user with userName: ${cleanUserName}`);
           }
         }
 
@@ -5969,8 +5957,8 @@ export const addMyInternetUserFromExcel = async (req: Request, res: Response, ne
         duplicateUsers: number;
         errors: string[];
         duplicateDetails: Array<{
-          phoneNumber: string;
-          username: string;
+          userName: string;
+          phoneNumber?: string;
           action: 'updated' | 'skipped';
         }>;
       }>;
@@ -6035,8 +6023,8 @@ const processMyInternetExcelFile = async (
     duplicateUsers: 0,
     errors: [] as string[],
     duplicateDetails: [] as Array<{
-      phoneNumber: string;
-      username: string;
+      userName: string;
+      phoneNumber?: string;
       action: 'updated' | 'skipped';
     }>
   };
@@ -6226,13 +6214,14 @@ const processMyInternetExcelFile = async (
 
     console.log('Final Column Index Map:', columnIndexMap);
 
-    if (!columnIndexMap['firstname'] || !columnIndexMap['phonenumber']) {
-      throw new Error('Could not detect required columns: First Name and Phone Number');
+    if (!columnIndexMap['username']) {
+      throw new Error('Could not detect required column: Username');
     }
 
     // Process each row
     console.log(`Processing ${rows.length} rows`);
     let processedCount = 0;
+
 
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex];
@@ -6451,42 +6440,43 @@ const processMyInternetExcelFile = async (
           });
         }
 
-        // Validate required fields
-        if (!userData.phoneNumber || !userData.firstName) {
-          console.log(`Row ${rowIndex + headerRowIndex + 2} validation failed - Missing required fields`);
+        // Validate required fields - userName is the primary unique identifier
+        if (!userData.userName) {
+          console.log(`Row ${rowIndex + headerRowIndex + 2} validation failed - Missing required field: userName`);
           fileResult.errors.push(
-            `Row ${rowIndex + headerRowIndex + 2}: Missing required fields (phone: ${userData.phoneNumber || 'MISSING'}, firstName: ${userData.firstName || 'MISSING'})`
+            `Row ${rowIndex + headerRowIndex + 2}: Missing required field (userName: ${userData.userName || 'MISSING'})`
           );
           continue;
         }
 
-        const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+        // Clean userName for comparison
+        const cleanUserName = userData.userName.toString().trim();
 
-        if (cleanPhoneNumber.length < 10) {
-          fileResult.errors.push(`Row ${rowIndex + headerRowIndex + 2}: Invalid phone number: ${cleanPhoneNumber}`);
-          continue;
-        }
-
-        // Check if user already exists
+        // Check if user already exists by userName and role
         const existingUser = await UserModel.findOne({
-          phoneNumber: cleanPhoneNumber
+          userName: cleanUserName,
+          role: Role.USER
         });
 
         if (existingUser) {
+          // Check if this is a duplicate entry (same userName)
           fileResult.duplicateUsers++;
           fileResult.totalUsers++;
 
           fileResult.duplicateDetails.push({
-            phoneNumber: cleanPhoneNumber,
-            username: userData.userName || 'N/A',
+            userName: cleanUserName,
+            phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, '') : undefined,
             action: 'updated'
           });
 
           const updateData = { ...userData };
-          delete updateData.phoneNumber;
+          delete updateData.userName; // Don't update userName as it's the unique identifier
 
-          // Ensure email is set to phoneNumber@yopmail.com for updates too
-          updateData.email = updateData.email || `${cleanPhoneNumber}@yopmail.com`;
+          // Ensure email is set if not provided
+          if (!updateData.email && userData.phoneNumber) {
+            const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+            updateData.email = `${cleanPhoneNumber}@yopmail.com`;
+          }
 
           const updatedUser = await UserModel.findByIdAndUpdate(
             existingUser._id,
@@ -6500,13 +6490,15 @@ const processMyInternetExcelFile = async (
           if (updatedUser) {
             fileResult.updatedUsers++;
             processedCount++;
-            console.log(`✓ Updated user ${processedCount}: ${cleanPhoneNumber}`);
+            console.log(`✓ Updated user ${processedCount}: ${cleanUserName}`);
           }
         } else {
+          // Create new user
           const newUser = new UserModel({
             ...userData,
-            phoneNumber: cleanPhoneNumber,
-            email: userData.email || `${cleanPhoneNumber}@yopmail.com`,
+            userName: cleanUserName, // Use cleaned userName as unique identifier
+            phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, '') : undefined,
+            email: userData.email || (userData.phoneNumber ? `${userData.phoneNumber.replace(/[^0-9]/g, '')}@yopmail.com` : undefined),
           });
 
           const savedUser = await newUser.save();
@@ -6514,7 +6506,7 @@ const processMyInternetExcelFile = async (
             fileResult.newUsers++;
             fileResult.totalUsers++;
             processedCount++;
-            console.log(`✓ Created user ${processedCount}: ${cleanPhoneNumber}`);
+            console.log(`✓ Created user ${processedCount}: ${cleanUserName}`);
           }
         }
 
@@ -6580,8 +6572,9 @@ export const addConnectUserFromExcel = async (req: Request, res: Response, next:
         duplicateUsers: number;
         errors: string[];
         duplicateDetails: Array<{
-          phoneNumber: string;
-          accountNumber: string;
+          landlineNumber: string;
+          accountNumber?: string;
+          phoneNumber?: string;
           action: 'updated' | 'skipped';
         }>;
       }>;
@@ -6646,8 +6639,9 @@ const processConnectExcelFile = async (
     duplicateUsers: 0,
     errors: [] as string[],
     duplicateDetails: [] as Array<{
-      phoneNumber: string;
-      accountNumber: string;
+      landlineNumber: string;
+      accountNumber?: string;
+      phoneNumber?: string;
       action: 'updated' | 'skipped';
     }>
   };
@@ -6753,8 +6747,8 @@ const processConnectExcelFile = async (
       'EXPIRE RENTAL': 'expireRental'
     };
 
-    // Validate required headers
-    const requiredHeaders = ['Acct_No', 'Mob', 'Subs_Name'];
+    // Validate required headers - Phone_No (landlineNumber) is the primary unique identifier
+    const requiredHeaders = ['Phone_No'];
     const missingHeaders: string[] = [];
 
     requiredHeaders.forEach(required => {
@@ -6902,49 +6896,57 @@ const processConnectExcelFile = async (
           });
         }
 
-        // Validate required fields
-        if (!userData.phoneNumber || !userData.firstName) {
-          console.log(`Row ${rowIndex + 2} validation failed - Missing required fields`);
+        // Validate required fields - landlineNumber is the primary unique identifier
+        if (!userData.landlineNumber) {
+          console.log(`Row ${rowIndex + 2} validation failed - Missing required field: landlineNumber`);
           fileResult.errors.push(
-            `Row ${rowIndex + 2}: Missing required fields (phone: ${userData.phoneNumber || 'MISSING'}, firstName: ${userData.firstName || 'MISSING'})`
+            `Row ${rowIndex + 2}: Missing required field (landlineNumber: ${userData.landlineNumber || 'MISSING'})`
           );
           continue;
         }
 
-        const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+        // Clean landlineNumber for comparison
+        const cleanLandlineNumber = userData.landlineNumber.toString().trim().replace(/[^0-9]/g, '');
 
-        if (cleanPhoneNumber.length < 10) {
-          fileResult.errors.push(`Row ${rowIndex + 2}: Invalid phone number: ${cleanPhoneNumber}`);
+        if (cleanLandlineNumber.length < 6) {
+          fileResult.errors.push(`Row ${rowIndex + 2}: Invalid landline number: ${cleanLandlineNumber}`);
           continue;
         }
 
-        // Check if user already exists by phone number OR account number
+        // Check if user already exists by landlineNumber and role
         const existingUser = await UserModel.findOne({
-          $or: [
-            { phoneNumber: cleanPhoneNumber },
-            { accountNumber: userData.accountNumber }
-          ]
+          landlineNumber: cleanLandlineNumber,
+          role: Role.USER
         });
 
         if (existingUser) {
+          // Check if this is a duplicate entry (same landlineNumber)
           fileResult.duplicateUsers++;
           fileResult.totalUsers++;
 
           fileResult.duplicateDetails.push({
-            phoneNumber: cleanPhoneNumber,
-            accountNumber: userData.accountNumber || 'N/A',
+            landlineNumber: cleanLandlineNumber,
+            accountNumber: userData.accountNumber || undefined,
+            phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, '') : undefined,
             action: 'updated'
           });
 
           const updateData = { ...userData };
-          // delete updateData.phoneNumber; // Don't update phone number
+          delete updateData.landlineNumber; // Don't update landlineNumber as it's the unique identifier
+
+          // Ensure email is set if not provided
+          if (!updateData.email && userData.phoneNumber) {
+            const cleanPhoneNumber = userData.phoneNumber.replace(/[^0-9]/g, '');
+            updateData.email = `${cleanPhoneNumber}@yopmail.com`;
+          } else if (!updateData.email && cleanLandlineNumber) {
+            updateData.email = `${cleanLandlineNumber}@yopmail.com`;
+          }
 
           const updatedUser = await UserModel.findByIdAndUpdate(
             existingUser._id,
             {
               ...updateData,
-              updatedAt: new Date(),
-              email: userData.email || `${cleanPhoneNumber}@yopmail.com`,
+              updatedAt: new Date()
             },
             { new: true, runValidators: true }
           );
@@ -6952,13 +6954,15 @@ const processConnectExcelFile = async (
           if (updatedUser) {
             fileResult.updatedUsers++;
             processedCount++;
-            console.log(`✓ Updated user ${processedCount}: ${cleanPhoneNumber} (Account: ${userData.accountNumber})`);
+            console.log(`✓ Updated user ${processedCount}: ${cleanLandlineNumber} (Account: ${userData.accountNumber || 'N/A'})`);
           }
         } else {
+          // Create new user
           const newUser = new UserModel({
             ...userData,
-            phoneNumber: cleanPhoneNumber,
-            email: userData.email || `${cleanPhoneNumber}@yopmail.com`,
+            landlineNumber: cleanLandlineNumber, // Use cleaned landlineNumber as unique identifier
+            phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, '') : undefined,
+            email: userData.email || (userData.phoneNumber ? `${userData.phoneNumber.replace(/[^0-9]/g, '')}@yopmail.com` : `${cleanLandlineNumber}@yopmail.com`),
           });
 
           const savedUser = await newUser.save();
@@ -6966,7 +6970,7 @@ const processConnectExcelFile = async (
             fileResult.newUsers++;
             fileResult.totalUsers++;
             processedCount++;
-            console.log(`✓ Created user ${processedCount}: ${cleanPhoneNumber} (Account: ${userData.accountNumber})`);
+            console.log(`✓ Created user ${processedCount}: ${cleanLandlineNumber} (Account: ${userData.accountNumber || 'N/A'})`);
           }
         }
 
