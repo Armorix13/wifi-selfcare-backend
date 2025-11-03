@@ -5343,7 +5343,8 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
 
         // Check if user already exists by bbUserId (primary unique identifier)
         const existingUser = await UserModel.findOne({
-          bbUserId: cleanBbUserId
+          bbUserId: cleanBbUserId,
+          role:Role.USER
         });
 
         if (existingUser) {
