@@ -490,6 +490,9 @@ export const addComplaintByIVR = async (req: Request, res: Response, next: NextF
   try {
     const { id, complaintId } = req.body;
 
+    console.log("body",req.body);
+    
+
     // Validate required fields
     if (!id || !complaintId) {
       return sendError(res, "User ID and Complaint ID are required", 400);
