@@ -455,10 +455,7 @@ export const checkCustomerDetails = async (req: Request, res: Response, next: Ne
     }).select('-password -otp -otpExpiry -otpVerified -jti -deviceToken');
 
     if (!user) {
-      return sendSuccess(res, {
-        success: false,
-        message: "User not found with this mobile number"
-      }, "User not found", 404);
+      return sendError(res, "User not found with this mobile number", 404);
     }
     return sendSuccess(res, {
       success: true,
