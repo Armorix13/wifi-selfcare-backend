@@ -13,7 +13,8 @@ import {
   getUnassignedIVRs,
   getIVRsByArea,
   toggleIVRStatus,
-  checkCustomerDetails
+  checkCustomerDetails,
+  addComplaintByIVR
 } from '../controllers/ivr.controller';
 
 const ivrRoute = Router();
@@ -56,6 +57,9 @@ ivrRoute.patch('/:ivrId/status', authenticate, toggleIVRStatus);
 
 // Check Customer Details by Mobile Number - can be public or authenticated depending on IVR system requirements
 ivrRoute.post('/check-customer', checkCustomerDetails);
+
+// Add Complaint by IVR - public endpoint for IVR systems
+ivrRoute.post('/add-complaint', addComplaintByIVR);
 
 export default ivrRoute;
 

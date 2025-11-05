@@ -3,6 +3,8 @@ import { IVRModel, AreaType, IVRStatus } from '../models/ivr.model';
 import { UserModel, Role } from '../models/user.model';
 import { sendError, sendSuccess } from '../../utils/helper';
 import mongoose from 'mongoose';
+import { ComplaintModel, ComplaintStatus, ComplaintStatusColor } from '../models/complaint.model';
+import { IssueType } from '../models/IssueType.model';
 
 // Add IVR
 export const addIVR = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -480,6 +482,60 @@ export const checkCustomerDetails = async (req: Request, res: Response, next: Ne
 
   } catch (error) {
     console.error("Error in checkCustomerDetails:", error);
+    next(error);
+  }
+}
+
+export const addComplaintByIVR = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { id, complaintId } = req.body;
+
+    // Validate required fields
+    if (!id || !complaintId) {
+      return sendError(res, "User ID and Complaint ID are required", 400);
+    }
+
+    // Validate ObjectId format for user ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, "Invalid user ID format", 400);
+    }
+
+    // Find user
+    const user = await UserModel.findById(id);
+    if (!user) {
+      return sendError(res, "User not found", 404);
+    }
+
+    // Find issue type by dt field (complaintId is the dt value like "2", "3", "4", etc.)
+    const issueType = await IssueType.findOne({ dt: complaintId });
+    if (!issueType) {
+      return sendError(res, "Issue type not found with the provided complaint ID", 404);
+    }
+
+    // Create complaint with proper data from IssueType
+    const issueTypeId = new mongoose.Types.ObjectId(String(issueType._id));
+    
+    const complaint = await ComplaintModel.create({
+      user: new mongoose.Types.ObjectId(id),
+      complaintId: complaintId,
+      title: issueType.name || "Complaint from IVR",
+      issueDescription: issueType.description || "Complaint submitted via IVR system",
+      issueType: issueTypeId,
+      phoneNumber: user.phoneNumber,
+      complaintType: issueType.type,
+      type: issueType.type,
+      status: ComplaintStatus.PENDING,
+      statusColor: ComplaintStatusColor[ComplaintStatus.PENDING],
+    });
+
+    // Initialize status history
+    const userId = new mongoose.Types.ObjectId(String(user._id));
+    await complaint.initializeStatusHistory(userId);
+
+    return sendSuccess(res, { complaint }, "Complaint created successfully via IVR", 201);
+
+  } catch (error) {
+    console.error("Add complaint error with IVR:", error);
     next(error);
   }
 }
