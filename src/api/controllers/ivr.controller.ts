@@ -57,19 +57,19 @@ export const getAllIVRs = async (req: Request, res: Response, next: NextFunction
 
     // Build query
     const query: any = {};
-    
+
     if (isAssigned !== undefined) {
       query.isAssigned = isAssigned === 'true';
     }
-    
+
     if (area) {
       query.area = area;
     }
-    
+
     if (status) {
       query.status = status;
     }
-    
+
     if (companyId) {
       query.assignedToCompany = companyId;
     }
@@ -145,7 +145,7 @@ export const updateIVR = async (req: Request, res: Response, next: NextFunction)
 
     // Check if IVR number is being updated and if it already exists
     if (ivrNumber && ivrNumber !== ivr.ivrNumber) {
-      const existingIVR = await IVRModel.findOne({ 
+      const existingIVR = await IVRModel.findOne({
         ivrNumber: ivrNumber.trim(),
         _id: { $ne: ivrId }
       });
@@ -246,7 +246,10 @@ export const assignIVRToCompany = async (req: Request, res: Response, next: Next
     }
 
     // Assign IVR to company
-    const updatedIVR = await IVRModel.assignToCompany(ivrId, companyId);
+    const updatedIVR = await IVRModel.assignToCompany(
+      new mongoose.Types.ObjectId(ivrId),
+      new mongoose.Types.ObjectId(companyId)
+    );
 
     return sendSuccess(res, {
       ivr: updatedIVR
@@ -284,7 +287,9 @@ export const unassignIVRFromCompany = async (req: Request, res: Response, next: 
     }
 
     // Unassign IVR from company
-    const updatedIVR = await IVRModel.unassignFromCompany(ivrId);
+    const updatedIVR = await IVRModel.unassignFromCompany(
+      new mongoose.Types.ObjectId(ivrId)
+    );
 
     return sendSuccess(res, {
       ivr: updatedIVR
@@ -311,7 +316,9 @@ export const getIVRsByCompany = async (req: Request, res: Response, next: NextFu
     }
 
     // Find IVRs assigned to company
-    const ivrs = await IVRModel.findIVRsByCompany(companyId);
+    const ivrs = await IVRModel.findIVRsByCompany(
+      new mongoose.Types.ObjectId(companyId)
+    );
 
     return sendSuccess(res, {
       ivrs,
@@ -415,3 +422,67 @@ export const toggleIVRStatus = async (req: Request, res: Response, next: NextFun
   }
 };
 
+// ============================================================================================
+// =============================================================================================
+
+
+export const checkCustomerDetails = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { mobile } = req.body; //mobile number will be  829433530 or +91829433530 or +91-8294335230
+
+    // Validate mobile number input
+    if (!mobile) {
+      return sendError(res, "Mobile number is required", 400);
+    }
+
+    // Clean and normalize phone number - remove all non-digit characters
+    const phoneNumber = mobile.replace(/[^0-9]/g, '');
+
+    // Validate phone number length (should be at least 10 digits)
+    if (phoneNumber.length < 10) {
+      return sendError(res, "Invalid mobile number format", 400);
+    }
+
+    // Extract last 10 digits if number includes country code (e.g., +91-8294335230 -> 8294335230)
+    const cleanPhoneNumber = phoneNumber.length > 10 ? phoneNumber.slice(-10) : phoneNumber;
+
+    // Find user by phoneNumber or mobile field
+    const user = await UserModel.findOne({
+      $or: [
+        { phoneNumber: cleanPhoneNumber },
+        { mobile: cleanPhoneNumber }
+      ]
+    }).select('-password -otp -otpExpiry -otpVerified -jti -deviceToken');
+
+    if (!user) {
+      return sendSuccess(res, {
+        success: false,
+        message: "User not found with this mobile number"
+      }, "User not found", 404);
+    }
+    return sendSuccess(res, {
+      success: true,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        mobile: user.mobile,
+        countryCode: user.countryCode,
+        userName: user.userName,
+        permanentAddress: user.permanentAddress,
+        residentialAddress: user.residentialAddress,
+        billingAddress: user.billingAddress,
+        landlineNumber: user.landlineNumber,
+        bbUserId: user.bbUserId,
+        bbPlan: user.bbPlan,
+        status: user.status,
+      }
+    }, "User details fetched successfully", 200);
+
+  } catch (error) {
+    console.error("Error in checkCustomerDetails:", error);
+    next(error);
+  }
+}

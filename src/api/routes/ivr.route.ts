@@ -12,7 +12,8 @@ import {
   getAssignedIVRs,
   getUnassignedIVRs,
   getIVRsByArea,
-  toggleIVRStatus
+  toggleIVRStatus,
+  checkCustomerDetails
 } from '../controllers/ivr.controller';
 
 const ivrRoute = Router();
@@ -52,6 +53,9 @@ ivrRoute.get('/area/:area', authenticate, getIVRsByArea);
 
 // Toggle IVR Status - requires authentication
 ivrRoute.patch('/:ivrId/status', authenticate, toggleIVRStatus);
+
+// Check Customer Details by Mobile Number - can be public or authenticated depending on IVR system requirements
+ivrRoute.post('/check-customer', checkCustomerDetails);
 
 export default ivrRoute;
 
