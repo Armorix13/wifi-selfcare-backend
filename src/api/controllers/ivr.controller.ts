@@ -580,15 +580,11 @@ export const addLeadFromIvr = async (req: Request, res: Response, next: NextFunc
       ]
     }).select('-password -otp -otpExpiry -otpVerified -jti -deviceToken');
 
-    if (!user) {
-      return sendError(res, "User not found with this mobile number", 404);
-    }
-
     // Find company associated with the IVR number
     // First, try to find IVR document and get assigned company
     let company = null;
     const ivr = await IVRModel.findOne({ ivrNumber: cleanIvrNumber });
-
+    
     if (ivr && ivr.assignedToCompany) {
       // If IVR is assigned to a company, use that company
       company = await UserModel.findById(ivr.assignedToCompany)
@@ -604,16 +600,29 @@ export const addLeadFromIvr = async (req: Request, res: Response, next: NextFunc
         .lean();
     }
 
-    // Create lead with company information if found
+    // Extract country code from mobile number if available (e.g., +91-8294335230 -> +91)
+    let countryCode = '+91'; // Default country code
+    if (mobile.includes('+')) {
+      const countryCodeMatch = mobile.match(/^\+(\d{1,3})/);
+      if (countryCodeMatch) {
+        countryCode = '+' + countryCodeMatch[1];
+      }
+    }
+
+    // Create lead data - conditionally include user fields if user exists
     const leadData: any = {
-      byUserId: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      phoneNumber: user.phoneNumber,
-      countryCode: user.countryCode,
+      phoneNumber: cleanPhoneNumber,
+      countryCode: user ? user.countryCode : countryCode,
       leadPlatform: LeadPlatform.FROM_IVR,
       status: LeadStatus.UNTRACKED,
     };
+
+    // Add user information only if user exists
+    if (user) {
+      leadData.byUserId = user._id;
+      leadData.firstName = user.firstName;
+      leadData.lastName = user.lastName;
+    }
 
     // Add company information if found
     if (company) {
