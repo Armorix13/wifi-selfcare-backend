@@ -14,7 +14,8 @@ import {
   getIVRsByArea,
   toggleIVRStatus,
   checkCustomerDetails,
-  addComplaintByIVR
+  addComplaintByIVR,
+  addLeadFromIvr
 } from '../controllers/ivr.controller';
 
 const ivrRoute = Router();
@@ -60,6 +61,9 @@ ivrRoute.post('/check-customer', checkCustomerDetails);
 
 // Add Complaint by IVR - public endpoint for IVR systems
 ivrRoute.post('/add-complaint', addComplaintByIVR);
+
+// Add Lead from IVR - public endpoint for IVR systems
+ivrRoute.post('/add-lead', addLeadFromIvr);
 
 export default ivrRoute;
 

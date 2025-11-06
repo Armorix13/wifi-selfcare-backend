@@ -10,7 +10,9 @@ export enum LeadPlatform {
     FROM_ENGINEER = "From Engineer",
     FROM_WEBSITE = "From our website",
     FROM_APPLICATION = "From our application",
-    FROM_ADMIN_PANEL = "From admin panel"
+    FROM_ADMIN_PANEL = "From admin panel",
+    FROM_IVR = "From IVR",
+    FROM_COMPLAINT = "From complaint"
 }
 
 export interface ILeads extends Document {

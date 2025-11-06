@@ -5,6 +5,7 @@ import { sendError, sendSuccess } from '../../utils/helper';
 import mongoose from 'mongoose';
 import { ComplaintModel, ComplaintStatus, ComplaintStatusColor } from '../models/complaint.model';
 import { IssueType } from '../models/IssueType.model';
+import { LeadPlatform, Leads, LeadStatus } from '../models/leads.model';
 
 // Add IVR
 export const addIVR = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -490,8 +491,8 @@ export const addComplaintByIVR = async (req: Request, res: Response, next: NextF
   try {
     const { id, complaintId } = req.body;
 
-    console.log("body",req.body);
-    
+    console.log("body", req.body);
+
 
     // Validate required fields
     if (!id || !complaintId) {
@@ -517,7 +518,7 @@ export const addComplaintByIVR = async (req: Request, res: Response, next: NextF
 
     // Create complaint with proper data from IssueType
     const issueTypeId = new mongoose.Types.ObjectId(String(issueType._id));
-    
+
     const complaint = await ComplaintModel.create({
       user: new mongoose.Types.ObjectId(id),
       complaintId: complaintId,
@@ -539,6 +540,105 @@ export const addComplaintByIVR = async (req: Request, res: Response, next: NextF
 
   } catch (error) {
     console.error("Add complaint error with IVR:", error);
+    next(error);
+  }
+}
+
+export const addLeadFromIvr = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { mobile, ivrNumber } = req.body; //mobile number will be  829433530 or +91829433530 or +91-8294335230
+
+    // Validate mobile number input
+    if (!mobile) {
+      return sendError(res, "Mobile number is required", 400);
+    }
+
+    // Validate IVR number input
+    if (!ivrNumber) {
+      return sendError(res, "IVR number is required", 400);
+    }
+
+    // Clean and normalize phone number - remove all non-digit characters
+    const phoneNumber = mobile.replace(/[^0-9]/g, '');
+
+    // Validate phone number length (should be at least 10 digits)
+    if (phoneNumber.length < 10) {
+      return sendError(res, "Invalid mobile number format", 400);
+    }
+
+    // Extract last 10 digits if number includes country code (e.g., +91-8294335230 -> 8294335230)
+    const cleanPhoneNumber = phoneNumber.length > 10 ? phoneNumber.slice(-10) : phoneNumber;
+
+    // Clean and normalize IVR number
+    const cleanIvrNumber = ivrNumber.trim();
+
+    // Find user by phoneNumber or mobile field
+    const user = await UserModel.findOne({
+      $or: [
+        { phoneNumber: cleanPhoneNumber },
+        { mobile: cleanPhoneNumber }
+      ]
+    }).select('-password -otp -otpExpiry -otpVerified -jti -deviceToken');
+
+    if (!user) {
+      return sendError(res, "User not found with this mobile number", 404);
+    }
+
+    // Find company associated with the IVR number
+    // First, try to find IVR document and get assigned company
+    let company = null;
+    const ivr = await IVRModel.findOne({ ivrNumber: cleanIvrNumber });
+
+    if (ivr && ivr.assignedToCompany) {
+      // If IVR is assigned to a company, use that company
+      company = await UserModel.findById(ivr.assignedToCompany)
+        .select('_id companyName companyEmail companyPhone firstName lastName email role')
+        .lean();
+    } else {
+      // If IVR is not found or not assigned, try to find company by ivrNumber array in UserModel
+      company = await UserModel.findOne({
+        role: Role.ADMIN,
+        ivrNumber: { $in: [cleanIvrNumber] }
+      })
+        .select('_id companyName companyEmail companyPhone firstName lastName email role')
+        .lean();
+    }
+
+    // Create lead with company information if found
+    const leadData: any = {
+      byUserId: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phoneNumber: user.phoneNumber,
+      countryCode: user.countryCode,
+      leadPlatform: LeadPlatform.FROM_IVR,
+      status: LeadStatus.UNTRACKED,
+    };
+
+    // Add company information if found
+    if (company) {
+      leadData.byCompanyId = company._id;
+    }
+
+    const lead = await Leads.create(leadData);
+    const savedLead = await lead.save();
+
+    return sendSuccess(
+      res,
+      {
+        savedLead,
+        company: company ? {
+          id: company._id,
+          companyName: company.companyName,
+          companyEmail: company.companyEmail,
+          companyPhone: company.companyPhone
+        } : null
+      },
+      "Lead created successfully from IVR",
+      200
+    );
+  } catch (error) {
+    console.error("Error in addLeadFromIvr:", error);
     next(error);
   }
 }
