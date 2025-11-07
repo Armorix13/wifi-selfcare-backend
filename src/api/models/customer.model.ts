@@ -16,6 +16,7 @@ export interface ICustomer extends Document {
 
     balanceDue?: number;
     lastPaymentDate?: Date;
+    
     lastPaymentAmount?: number;
     billingCycle?: string;
     attachments?: string[];

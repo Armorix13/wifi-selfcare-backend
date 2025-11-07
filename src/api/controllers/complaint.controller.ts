@@ -212,7 +212,7 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
             const dateFilter: any = {};
             if (startDate) dateFilter.$gte = new Date(startDate as string);
             if (endDate) dateFilter.$lte = new Date(endDate as string);
-            
+
             activeFilter.createdAt = dateFilter;
             resolvedFilter.createdAt = dateFilter;
         }
@@ -227,7 +227,7 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
 
         // Fetch active complaints (excluding resolved)
         const activeComplaints = await ComplaintModel.find(activeFilter)
-            .populate("user", "firstName lastName email phoneNumber")
+            .populate("user", "customerId firstName lastName email phoneNumber landlineNumber permanentAddress residentialAddress fatherName fatherOrCompanyName billingAddress1 billingAddress2")
             .populate("engineer", "firstName lastName email phoneNumber")
             .populate("assignedBy", "firstName lastName email")
             .populate("statusHistory.updatedBy", "firstName lastName email")
@@ -237,7 +237,7 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
 
         // Fetch resolved complaints with independent pagination
         const resolvedComplaints = await ComplaintModel.find(resolvedFilter)
-            .populate("user", "firstName lastName email phoneNumber")
+            .populate("user", "customerId firstName lastName email phoneNumber landlineNumber permanentAddress residentialAddress fatherName fatherOrCompanyName billingAddress1 billingAddress2")
             .populate("engineer", "firstName lastName email phoneNumber")
             .populate("assignedBy", "firstName lastName email")
             .populate("statusHistory.updatedBy", "firstName lastName email")
@@ -249,9 +249,62 @@ const getAllComplaints = async (req: Request, res: Response): Promise<any> => {
         const activeTotal = await ComplaintModel.countDocuments(activeFilter);
         const resolvedTotal = await ComplaintModel.countDocuments(resolvedFilter);
 
+        // Collect all unique user IDs from both active and resolved complaints
+        const userIds = new Set<string>();
+        activeComplaints.forEach(complaint => {
+            if (complaint.user && (complaint.user as any)._id) {
+                userIds.add((complaint.user as any)._id.toString());
+            }
+        });
+        resolvedComplaints.forEach(complaint => {
+            if (complaint.user && (complaint.user as any)._id) {
+                userIds.add((complaint.user as any)._id.toString());
+            }
+        });
+
+        // Fetch all customer details for the collected user IDs
+        const customerMap = new Map<string, any>();
+        if (userIds.size > 0) {
+            try {
+                const customers = await CustomerModel.find({
+                    userId: { $in: Array.from(userIds).map(id => new mongoose.Types.ObjectId(id)) }
+                })
+                    .populate("fdbId")
+                    .populate("x2Id", "x2Id x2Name x2Type x2Power status location address city state")
+                    .populate("oltId", "oltId name oltIp oltType status location address city state");
+
+                customers.forEach(customer => {
+                    if (customer.userId) {
+                        customerMap.set(customer.userId.toString(), customer);
+                    }
+                });
+            } catch (customerError) {
+                console.error("Error fetching customer details:", customerError);
+            }
+        }
+
+        // Attach customer details to each complaint's user
+        const activeComplaintsWithCustomer = activeComplaints.map(complaint => {
+            const complaintObj = complaint.toObject();
+            if (complaintObj.user && typeof complaintObj.user === 'object' && '_id' in complaintObj.user) {
+                const userId = (complaintObj.user as any)._id.toString();
+                (complaintObj.user as any).customerDetails = customerMap.get(userId) || null;
+            }
+            return complaintObj;
+        });
+
+        const resolvedComplaintsWithCustomer = resolvedComplaints.map(complaint => {
+            const complaintObj = complaint.toObject();
+            if (complaintObj.user && typeof complaintObj.user === 'object' && '_id' in complaintObj.user) {
+                const userId = (complaintObj.user as any)._id.toString();
+                (complaintObj.user as any).customerDetails = customerMap.get(userId) || null;
+            }
+            return complaintObj;
+        });
+
         return sendSuccess(res, {
-            activeComplaints,
-            resolvedComplaints,
+            activeComplaints: activeComplaintsWithCustomer,
+            resolvedComplaints: resolvedComplaintsWithCustomer,
             activePagination: {
                 page: Number(page),
                 limit: Number(limit),
@@ -547,7 +600,7 @@ const updateComplaintStatus = async (req: Request, res: Response): Promise<any> 
         }
 
         // Update status with notes and track who made the change
-        await complaint.updateStatus(status,remark || resolutionNotes, userId);
+        await complaint.updateStatus(status, remark || resolutionNotes, userId);
 
         // Update additional fields if provided
         if (remark) {
@@ -557,7 +610,7 @@ const updateComplaintStatus = async (req: Request, res: Response): Promise<any> 
         if (notResolvedReason) {
             complaint.notResolvedReason = notResolvedReason;
         }
-        if(resolutionNotes){
+        if (resolutionNotes) {
             complaint.resolutionNotes = resolutionNotes;
         }
 
@@ -1546,8 +1599,8 @@ const reassignComplaint = async (req: Request, res: Response): Promise<any> => {
             },
             { new: true, runValidators: true }
         ).populate('user', 'firstName lastName email phoneNumber')
-         .populate('engineer', 'firstName lastName email phoneNumber role')
-         .populate('assignedBy', 'firstName lastName email phoneNumber role');
+            .populate('engineer', 'firstName lastName email phoneNumber role')
+            .populate('assignedBy', 'firstName lastName email phoneNumber role');
 
         // Add status history entry for reassignment
         const statusHistoryEntry = {
@@ -1632,8 +1685,8 @@ const adminResolveComplaint = async (req: Request, res: Response): Promise<any> 
             },
             { new: true, runValidators: true }
         ).populate('user', 'firstName lastName email phoneNumber')
-         .populate('engineer', 'firstName lastName email phoneNumber role')
-         .populate('assignedBy', 'firstName lastName email phoneNumber role');
+            .populate('engineer', 'firstName lastName email phoneNumber role')
+            .populate('assignedBy', 'firstName lastName email phoneNumber role');
 
         // Add status history entry for admin resolution
         const statusHistoryEntry = {
@@ -1676,9 +1729,9 @@ const adminResolveComplaint = async (req: Request, res: Response): Promise<any> 
                 const complaintId = finalComplaint.id;
 
                 if (userEmail && complaintId) {
-                const emailSubject = `✅ Complaint Resolved - Admin Resolution`;
-                const emailText = `Dear Customer,\n\nWe hope you're doing well.\n\nWe're pleased to inform you that your complaint (ID: ${complaintId}) has been resolved by our admin team.\n\nResolution Notes: ${resolutionNotes || 'Issue has been resolved by admin.'}\n\nWe truly appreciate your patience and cooperation throughout the process. Thank you for choosing our service.\n\nBest regards,\nWiFi SelfCare Team`;
-                const emailHtml = `
+                    const emailSubject = `✅ Complaint Resolved - Admin Resolution`;
+                    const emailText = `Dear Customer,\n\nWe hope you're doing well.\n\nWe're pleased to inform you that your complaint (ID: ${complaintId}) has been resolved by our admin team.\n\nResolution Notes: ${resolutionNotes || 'Issue has been resolved by admin.'}\n\nWe truly appreciate your patience and cooperation throughout the process. Thank you for choosing our service.\n\nBest regards,\nWiFi SelfCare Team`;
+                    const emailHtml = `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                         <h2 style="color: #28A745;">✅ Complaint Resolved - Admin Resolution</h2>
                         <p>Dear Customer,</p>
@@ -1691,12 +1744,12 @@ const adminResolveComplaint = async (req: Request, res: Response): Promise<any> 
                     </div>
                 `;
 
-                await sendMessage.sendEmail({
-                    userEmail,
-                    subject: emailSubject,
-                    text: emailText,
-                    html: emailHtml
-                });
+                    await sendMessage.sendEmail({
+                        userEmail,
+                        subject: emailSubject,
+                        text: emailText,
+                        html: emailHtml
+                    });
 
                     console.log(`Resolution notification email sent successfully to ${userEmail} for complaint ${id}`);
                 } else {
