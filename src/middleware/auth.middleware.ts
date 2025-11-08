@@ -64,31 +64,19 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
       });
     }
 
-
-    if (user.role === Role.USER) {
-      // Check if user has an assigned company
-      if (!user.assignedCompany) {
-        return res.status(403).json({
-          success: false,
-          message: "No company assigned to your account",
-        });
-      }
-
+    // Check if user has a company and if it's suspended or inactive
+    if (user.assignedCompany) {
       const myCompany = await UserModel.findById(user.assignedCompany);
-      if (!myCompany) {
-        return res.status(403).json({
-          success: false,
-          message: "Associated company not found",
-        });
-      }
-
-      if (myCompany.adminStatus === "inactive" || myCompany.adminStatus === "suspended") {
-        return res.status(403).json({
-          success: false,
-          message: `Your ISP has been ${myCompany.adminStatus}`,
-        });
+      if (myCompany) {
+        if (myCompany.adminStatus === "inactive" || myCompany.adminStatus === "suspended") {
+          return res.status(403).json({
+            success: false,
+            message: `Your ISP has been ${myCompany.adminStatus}`,
+          });
+        }
       }
     }
+    // If user doesn't have a company (assignedCompany is null/undefined), continue normally
 
     (req as any).userId = decoded.userId;
     (req as any).role = decoded.role;

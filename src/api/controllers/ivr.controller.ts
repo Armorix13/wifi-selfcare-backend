@@ -653,3 +653,57 @@ export const addLeadFromIvr = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 }
+
+export const complaintCheck = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { id } = req.body;
+
+    console.log("body", req.body);
+
+    // Validate required fields
+    if (!id) {
+      return sendError(res, "User ID is required", 400);
+    }
+
+    // Validate ObjectId format for user ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, "Invalid user ID format", 400);
+    }
+
+    // Find user
+    const user = await UserModel.findById(id);
+    if (!user) {
+      return sendError(res, "User not found", 404);
+    }
+
+    // Find the last added complaint for this user (sorted by createdAt descending)
+    const complaint = await ComplaintModel.findOne({ user: id })
+      .sort({ createdAt: -1 })
+      .select("status resolved");
+
+    // Check if user can add a new complaint
+    if (!complaint) {
+      // No complaint exists - user can add a new complaint
+      return sendSuccess(res, { 
+        success: true,
+        message: "You can add a new complaint"
+      }, "You can add a new complaint", 200);
+    } else if (complaint.status === ComplaintStatus.RESOLVED && complaint.resolved === true) {
+      // Complaint exists and is resolved - user can add a new complaint
+      return sendSuccess(res, { 
+        success: true,
+        message: "You can add a new complaint"
+      }, "You can add a new complaint", 200);
+    } else {
+      // Complaint exists but is not resolved - user cannot add new complaint, can only update
+      return sendSuccess(res, { 
+        success: false,
+        message: "You have an active complaint. Please update the existing complaint instead of adding a new one"
+      }, "You have an active complaint. Please update the existing complaint instead of adding a new one", 200);
+    }
+
+  } catch (error) {
+    console.error("Complaint check error with IVR:", error);
+    next(error);
+  }
+}
