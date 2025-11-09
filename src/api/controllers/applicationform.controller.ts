@@ -340,4 +340,132 @@ export const deleteApplication = async (req: Request, res: Response): Promise<an
     } catch (error: any) {
         return sendError(res, 'Failed to delete application', 500, error.message || error);
     }
+};
+
+export const getUntrackedApplications = async (req: Request, res: Response): Promise<any> => {
+    try {
+        // Get query parameters for pagination
+        const { page = 1, limit = 10, status } = req.query;
+        const skip = (Number(page) - 1) * Number(limit);
+
+        // Build filter for status if provided
+        const statusFilter: any = {};
+        if (status && ['inreview', 'accept', 'reject'].includes(status as string)) {
+            statusFilter.status = status;
+        }
+
+        // Use aggregation to find applications where user's assignedCompany is null/undefined
+        const untrackedApplications = await ApplicationForm.aggregate([
+            // Match applications with optional status filter
+            { $match: statusFilter },
+            // Lookup user details
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'userId',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            // Unwind user array (should be single user)
+            { $unwind: '$user' },
+            // Filter where user's assignedCompany is null or doesn't exist
+            {
+                $match: {
+                    $or: [
+                        { 'user.assignedCompany': { $exists: false } },
+                        { 'user.assignedCompany': null }
+                    ]
+                }
+            },
+            // Lookup plan details
+            {
+                $lookup: {
+                    from: 'plans',
+                    localField: 'planId',
+                    foreignField: '_id',
+                    as: 'plan'
+                }
+            },
+            // Unwind plan array
+            { $unwind: { path: '$plan', preserveNullAndEmptyArrays: true } },
+            // Project fields
+            {
+                $project: {
+                    userId: 1,
+                    applicationId: 1,
+                    phoneNumber: 1,
+                    countryCode: 1,
+                    alternateCountryCode: 1,
+                    alternatePhoneNumber: 1,
+                    status: 1,
+                    planId: 1,
+                    pincode: 1,
+                    name: 1,
+                    village: 1,
+                    address: 1,
+                    assignedCompany: 1,
+                    rejectedAt: 1,
+                    createdAt: 1,
+                    updatedAt: 1,
+                    user: {
+                        _id: '$user._id',
+                        firstName: '$user.firstName',
+                        lastName: '$user.lastName',
+                        email: '$user.email',
+                        phoneNumber: '$user.phoneNumber',
+                        countryCode: '$user.countryCode',
+                        profileImage: '$user.profileImage',
+                        role: '$user.role',
+                        status: '$user.status',
+                        assignedCompany: '$user.assignedCompany'
+                    },
+                    plan: 1
+                }
+            },
+            // Sort by creation date (newest first)
+            { $sort: { createdAt: -1 } },
+            // Pagination
+            { $skip: skip },
+            { $limit: Number(limit) }
+        ]);
+
+        // Get total count for pagination
+        const totalCount = await ApplicationForm.aggregate([
+            { $match: statusFilter },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'userId',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            { $unwind: '$user' },
+            {
+                $match: {
+                    $or: [
+                        { 'user.assignedCompany': { $exists: false } },
+                        { 'user.assignedCompany': null }
+                    ]
+                }
+            },
+            { $count: 'total' }
+        ]);
+
+        const total = totalCount.length > 0 ? totalCount[0].total : 0;
+
+        return sendSuccess(res, {
+            applications: untrackedApplications,
+            pagination: {
+                page: Number(page),
+                limit: Number(limit),
+                total,
+                pages: Math.ceil(total / Number(limit))
+            }
+        }, 'Untracked applications fetched successfully');
+    } catch (error: any) {
+        console.error('Error fetching untracked applications:', error);
+        return sendError(res, 'Failed to fetch untracked applications', 500, error.message || error);
+    }
 }; 

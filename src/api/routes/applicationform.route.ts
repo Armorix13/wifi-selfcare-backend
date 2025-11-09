@@ -5,7 +5,8 @@ import {
     getUserApplications,
     getAllApplications,
     updateApplicationStatus,
-    deleteApplication
+    deleteApplication,
+    getUntrackedApplications
 } from '../controllers/applicationform.controller';
 import authenticate from '../../middleware/auth.middleware';
 
@@ -17,11 +18,14 @@ router.post('/apply', authenticate, applyApplication);
 // Get user's applications (requires authentication)
 router.get('/user', authenticate, getUserApplications);
 
-// Get specific application by ID (requires authentication)
-router.get('/:id',authenticate, getApplicationById);
+// Get untracked applications (applications where user's assignedCompany doesn't exist)
+router.get('/untracked', authenticate, getUntrackedApplications);
 
 // Get all applications (admin only - requires authentication)
 router.get('/', authenticate, getAllApplications);
+
+// Get specific application by ID (requires authentication)
+router.get('/:id',authenticate, getApplicationById);
 
 // Update application status (admin only - requires authentication)
 router.patch('/:id/status',authenticate, updateApplicationStatus);
