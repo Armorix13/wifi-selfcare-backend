@@ -2072,7 +2072,8 @@ const processExcelFile = async (file: Express.Multer.File, addedBy: string) => {
           isActivated: true,
           isAccountVerified: true,
           isDeactivated: false,
-          isSuspended: false
+          isSuspended: false,
+          isExisting: true
         };
 
         headers.forEach((header, colIndex) => {
@@ -5289,6 +5290,7 @@ const processBsnlExcelFile = async (file: Express.Multer.File, addedBy: string, 
           isDeactivated: false,
           isSuspended: false,
           countryCode: '+91',
+          isExisting: true
         };
 
         headers.forEach((header, colIndex) => {
@@ -5783,6 +5785,7 @@ const processRailWireExcelFile = async (file: Express.Multer.File, addedBy: stri
           isDeactivated: false,
           isSuspended: false,
           countryCode: '+91',
+          isExisting: true
         };
 
         headers.forEach((header, colIndex) => {
@@ -6256,7 +6259,8 @@ const processMyInternetExcelFile = async (
           isSuspended: false,
           countryCode: '+91',
           role: 'user',
-          country: 'India'
+          country: 'India',
+          isExisting: true
         };
 
         // Helper function to safely extract and convert values
@@ -6798,7 +6802,8 @@ const processConnectExcelFile = async (
           isSuspended: false,
           countryCode: '+91',
           role: 'user',
-          country: 'India'
+          country: 'India',
+          isExisting: true
         };
 
         headers.forEach((header, colIndex) => {

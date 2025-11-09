@@ -519,6 +519,11 @@ const logout = async (req: Request, res: Response): Promise<any> => {
 const dashboard = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
+
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            return sendError(res, "User not found", 404);
+        }
         // 1. Get all advertisements
         const allAds = await Advertisement.find({}, '_id imageUrl title description type').sort({ createdAt: -1 });
 
@@ -719,7 +724,8 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
                 cctvInstallationRemarks: cctvRequest?.remarks || null,
                 assignedEngineer: cctvRequest?.assignedEngineer || null,
             },
-            isBillRequestSend
+            isBillRequestSend,
+            isExisting: user.isExisting
         };
 
         return sendSuccess(res, {
