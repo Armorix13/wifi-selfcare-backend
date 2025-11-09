@@ -109,15 +109,40 @@ export const addWifiInstallationRequest = async (req: Request, res: Response): P
     console.log('Request body:', req.body);
     console.log('Clean data:', cleanData);
 
+    // Validate that at least one phone number is provided
+    if (!cleanData.phoneNumber && !cleanData.alternatePhoneNumber) {
+      return sendError(res, 'Either phone number or alternate phone number is required', 400);
+    }
+
+    // Handle case where phoneNumber is missing but alternatePhoneNumber exists
+    // Use alternatePhoneNumber as phoneNumber if phoneNumber is not provided
+    let finalPhoneNumber = cleanData.phoneNumber;
+    let finalCountryCode = cleanData.countryCode;
+    
+    if (!cleanData.phoneNumber && cleanData.alternatePhoneNumber) {
+      finalPhoneNumber = cleanData.alternatePhoneNumber;
+      finalCountryCode = cleanData.alternateCountryCode;
+    }
+    
+    // Handle case where alternatePhoneNumber is missing but phoneNumber exists
+    // Use phoneNumber as alternatePhoneNumber if alternatePhoneNumber is not provided
+    let finalAlternatePhoneNumber = cleanData.alternatePhoneNumber;
+    let finalAlternateCountryCode = cleanData.alternateCountryCode;
+    
+    if (!cleanData.alternatePhoneNumber && cleanData.phoneNumber) {
+      finalAlternatePhoneNumber = cleanData.phoneNumber;
+      finalAlternateCountryCode = cleanData.countryCode;
+    }
+
     const requestData = {
       userId,
       applicationId: approvedApplication._id,
       name: cleanData.name,
       email: cleanData.email,
-      phoneNumber: cleanData.phoneNumber,
-      countryCode: cleanData.countryCode,
-      alternateCountryCode: cleanData.alternateCountryCode,
-      alternatePhoneNumber: cleanData.alternatePhoneNumber,
+      phoneNumber: finalPhoneNumber,
+      countryCode: finalCountryCode,
+      alternateCountryCode: finalAlternateCountryCode,
+      alternatePhoneNumber: finalAlternatePhoneNumber,
       passportPhotoUrl,
       aadhaarFrontUrl,
       aadhaarBackUrl,
