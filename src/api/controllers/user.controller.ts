@@ -228,7 +228,7 @@ const adminLogin = async (req: Request, res: Response): Promise<any> => {
         if (user.isDeleted) {
             return sendError(res, "Account is deleted", 403);
         }
-        
+
         // Check adminStatus
         if (user.adminStatus === "inactive" || user.adminStatus === "suspended") {
             return sendError(res, `Account is ${user.adminStatus}`, 403);
@@ -279,7 +279,10 @@ const forgotPassword = async (req: Request, res: Response): Promise<any> => {
         console.log("body", req.body);
 
 
-        const user = await UserModel.findOne({ email });
+        const user = await UserModel.findOne({
+            email,
+            role: { $in: [Role.USER, Role.ENGINEER] }
+        });
         if (!user) {
             return sendSuccess(res, {}, "If the email exists, an OTP has been sent.");
         }
@@ -455,7 +458,7 @@ const updateUser = async (req: Request, res: Response): Promise<any> => {
         if (Object.keys(updateData).length === 0) {
             return sendError(res, "No valid fields to update", 400);
         }
-        if(req.body.longitude && req.body.latitude){
+        if (req.body.longitude && req.body.latitude) {
             updateData.location = {
                 type: "Point",
                 coordinates: [req.body.longitude, req.body.latitude]
@@ -583,8 +586,8 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
             installationStatus = 7;//Rejected for wifi installation
         }
 
-        console.log("installationStatus",installationStatus);
-        
+        console.log("installationStatus", installationStatus);
+
 
 
         //Ott Installation Request
@@ -659,16 +662,16 @@ const dashboard = async (req: Request, res: Response): Promise<any> => {
         let wifiInstallationRequestActive = 1; // not active
         const customer = await CustomerModel.findOne({ userId });
 
-        if(customer && customer.isInstalled) {
+        if (customer && customer.isInstalled) {
             wifiInstallationRequestActive = 2;
         }
 
         const result = {
-            wifiInstallationActive:{
+            wifiInstallationActive: {
                 wifiInstallationRequestActive,
-                installationDate:customer?.installationDate,
-                activationDate:customer?.activationDate,
-                expirationDate:customer?.expirationDate,
+                installationDate: customer?.installationDate,
+                activationDate: customer?.activationDate,
+                expirationDate: customer?.expirationDate,
             },
             installationStatus,
             cctv: cctvAds,
@@ -1457,7 +1460,7 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
         }
 
         // Check if user with this email already exists
-        const existingUser = await UserModel.findOne({ email,role:Role.ADMIN });
+        const existingUser = await UserModel.findOne({ email, role: Role.ADMIN });
         if (existingUser) {
             return sendError(res, "User with this email already exists", 400);
         }
@@ -1520,7 +1523,7 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
             country: "India", // Default country
             isAccountVerified: true, // Auto-verify company accounts
             isActivated: true, // Auto-activate company accounts
-            adminStatus:"active"
+            adminStatus: "active"
         });
 
         // Send welcome email with credentials
@@ -1563,13 +1566,13 @@ const addCompany = async (req: Request, res: Response): Promise<any> => {
         };
 
         return sendSuccess(
-            res, 
-            { 
+            res,
+            {
                 company: companyResponse,
                 message: "Company added successfully. Admin portal access credentials sent to email.",
                 adminPortal: "http://wifiselfcare.com/admin/login"
-            }, 
-            "Company added successfully. Admin portal access credentials sent to email.", 
+            },
+            "Company added successfully. Admin portal access credentials sent to email.",
             201
         );
 
@@ -1748,12 +1751,12 @@ const updateCompany = async (req: Request, res: Response): Promise<any> => {
         };
 
         return sendSuccess(
-            res, 
-            { 
+            res,
+            {
                 company: companyResponse,
                 message: "Company updated successfully"
-            }, 
-            "Company updated successfully", 
+            },
+            "Company updated successfully",
             200
         );
 
@@ -1797,12 +1800,12 @@ const getCompanyProfile = async (req: Request, res: Response): Promise<any> => {
         };
 
         return sendSuccess(
-            res, 
-            { 
+            res,
+            {
                 companyProfile,
                 message: "Company profile retrieved successfully"
-            }, 
-            "Company profile retrieved successfully", 
+            },
+            "Company profile retrieved successfully",
             200
         );
 
@@ -1816,7 +1819,7 @@ const updateCompanyProfile = async (req: Request, res: Response): Promise<any> =
     try {
         const userId = (req as any).userId;
 
-       
+
 
         const user = await UserModel.findById(userId);
         if (!user) {
@@ -1851,21 +1854,21 @@ const updateCompanyProfile = async (req: Request, res: Response): Promise<any> =
             const absolutePath = req.file.path.replace(/\\/g, "/");
             const viewIndex = absolutePath.lastIndexOf("/view/");
             let fileUrl = absolutePath;
-            
+
             if (viewIndex !== -1) {
                 fileUrl = absolutePath.substring(viewIndex);
             }
-            
+
             if (!fileUrl.startsWith("/view/")) {
                 fileUrl = `/view/${fileUrl.split("/view/")[1]}`;
             }
-            
+
             companyLogo = fileUrl;
         }
 
         // Update company fields
         const updateData: any = {};
-        
+
         if (companyName !== undefined) updateData.companyName = companyName;
         if (contactPerson !== undefined) updateData.contactPerson = contactPerson;
         if (companyEmail !== undefined) updateData.companyEmail = companyEmail;
@@ -1892,12 +1895,12 @@ const updateCompanyProfile = async (req: Request, res: Response): Promise<any> =
         }
 
         return sendSuccess(
-            res, 
-            { 
+            res,
+            {
                 user: updatedUser,
                 message: "Company profile updated successfully"
-            }, 
-            "Company profile updated successfully", 
+            },
+            "Company profile updated successfully",
             200
         );
 
@@ -1915,32 +1918,32 @@ const getAdminDashboardData = async (req: Request, res: Response): Promise<any> 
 
         // Get total counts for dashboard
         const totalAdmins = await UserModel.countDocuments({ role: { $in: [Role.ADMIN] } });
-        const activeAdmins = await UserModel.countDocuments({ 
-            role: { $in: [Role.ADMIN] }, 
+        const activeAdmins = await UserModel.countDocuments({
+            role: { $in: [Role.ADMIN] },
             adminStatus: "active"
         });
-        const inactiveAdmins = await UserModel.countDocuments({ 
-            role: { $in: [Role.ADMIN] }, 
+        const inactiveAdmins = await UserModel.countDocuments({
+            role: { $in: [Role.ADMIN] },
             $or: [
                 { adminStatus: "inactive" },
                 // { isDeactivated: true },
                 // { isSuspended: true }
             ]
         });
-        const totalCompanies = await UserModel.countDocuments({ 
+        const totalCompanies = await UserModel.countDocuments({
             role: Role.ADMIN,
             companyName: { $exists: true, $ne: "" }
         });
 
         // Get paginated admin data with company details
-        const admins = await UserModel.find({ 
+        const admins = await UserModel.find({
             role: { $in: [Role.ADMIN] }
         })
-        .select('_id firstName lastName email companyName companyAddress companyPhone companyEmail companyWebsite companyLogo contactPerson internetProvider isActivated isDeactivated isSuspended createdAt lastLogin adminStatus ivrNumber')
-        .populate('internetProvider', 'name')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+            .select('_id firstName lastName email companyName companyAddress companyPhone companyEmail companyWebsite companyLogo contactPerson internetProvider isActivated isDeactivated isSuspended createdAt lastLogin adminStatus ivrNumber')
+            .populate('internetProvider', 'name')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
         // Calculate performance metrics (mock data for now - can be enhanced with real metrics)
         const adminPerformance = {
@@ -2071,20 +2074,20 @@ const deleteAdmin = async (req: Request, res: Response): Promise<any> => {
     }
 };
 
-const userManagement  = async (req: Request, res: Response): Promise<any> => {
+const userManagement = async (req: Request, res: Response): Promise<any> => {
     try {
         const companyId = (req as any).userId;
-        
-        
+
+
     } catch (error) {
-        return sendError(res, "Internal server error", 500, error);  
+        return sendError(res, "Internal server error", 500, error);
     }
 }
 
 const giveUserCompanyDetails = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
-        
+
         // Validate user ID
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return sendError(res, "Invalid user ID", 400);
@@ -2185,13 +2188,13 @@ const giveUserCompanyDetails = async (req: Request, res: Response): Promise<any>
         if (user.role === Role.USER) {
             const ComplaintModel = mongoose.model('Complaint');
             const totalComplaints = await ComplaintModel.countDocuments({ user: userId });
-            const activeComplaints = await ComplaintModel.countDocuments({ 
-                user: userId, 
-                status: { $ne: 'resolved' } 
+            const activeComplaints = await ComplaintModel.countDocuments({
+                user: userId,
+                status: { $ne: 'resolved' }
             });
-            const resolvedComplaints = await ComplaintModel.countDocuments({ 
-                user: userId, 
-                status: 'resolved' 
+            const resolvedComplaints = await ComplaintModel.countDocuments({
+                user: userId,
+                status: 'resolved'
             });
 
             userStats.totalComplaints = totalComplaints;
@@ -2203,7 +2206,7 @@ const giveUserCompanyDetails = async (req: Request, res: Response): Promise<any>
         if (user.role === Role.ENGINEER) {
             const ComplaintModel = mongoose.model('Complaint');
             const assignedComplaints = await ComplaintModel.countDocuments({ engineer: userId });
-            
+
             userStats.assignedComplaints = assignedComplaints;
         }
 
