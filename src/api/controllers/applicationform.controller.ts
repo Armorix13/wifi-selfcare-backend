@@ -136,58 +136,70 @@ const assignApplicationToCompany = async (userId: string, applicationId: string 
         console.log(`Processing application assignment for user at coordinates: ${userLatitude}, ${userLongitude}`);
         console.log(`User GeoJSON location: ${JSON.stringify(user.location)}`);
 
-        // Use MongoDB geospatial query to find OLTs within 3km first
-        // This is much more efficient than checking all OLTs
-        const MAX_DISTANCE_METERS = 3000; // 3km in meters for MongoDB query
+        // Helper function to find nearby OLTs within a given distance
+        const findNearbyOlts = async (maxDistanceKm: number): Promise<any[]> => {
+            const MAX_DISTANCE_METERS = maxDistanceKm * 1000; // Convert km to meters
 
-        let nearbyOlts;
-
-        try {
-            // Try geospatial query first (most efficient)
-            // MongoDB automatically sorts by distance when using $near
-            nearbyOlts = await OLTModel.find({
-                status: 'active',
-                location: {
-                    $near: {
-                        $geometry: {
-                            type: "Point",
-                            coordinates: [userLongitude, userLatitude] // MongoDB uses [longitude, latitude] order
-                        },
-                        $maxDistance: MAX_DISTANCE_METERS
+            try {
+                // Try geospatial query first (most efficient)
+                // MongoDB automatically sorts by distance when using $near
+                const nearbyOlts = await OLTModel.find({
+                    status: 'active',
+                    location: {
+                        $near: {
+                            $geometry: {
+                                type: "Point",
+                                coordinates: [userLongitude, userLatitude] // MongoDB uses [longitude, latitude] order
+                            },
+                            $maxDistance: MAX_DISTANCE_METERS
+                        }
                     }
-                }
-            })
-                .select("_id latitude longitude ownedBy location");
+                })
+                    .select("_id latitude longitude ownedBy location");
 
-            console.log(`Geospatial query found ${nearbyOlts.length} OLTs within 3km range`);
-        } catch (geospatialError) {
-            console.log('Geospatial query failed, falling back to manual distance calculation');
+                console.log(`Geospatial query found ${nearbyOlts.length} OLTs within ${maxDistanceKm}km range`);
+                return nearbyOlts;
+            } catch (geospatialError) {
+                console.log(`Geospatial query failed for ${maxDistanceKm}km, falling back to manual distance calculation`);
 
-            // Fallback: Get all active OLTs and filter by distance manually
-            const allOlts = await OLTModel.find({
-                status: 'active',
-                latitude: { $exists: true, $ne: null },
-                longitude: { $exists: true, $ne: null }
-            }).select("_id latitude longitude ownedBy");
+                // Fallback: Get all active OLTs and filter by distance manually
+                const allOlts = await OLTModel.find({
+                    status: 'active',
+                    latitude: { $exists: true, $ne: null },
+                    longitude: { $exists: true, $ne: null }
+                }).select("_id latitude longitude ownedBy");
 
-            // Filter OLTs within 3km manually
-            nearbyOlts = allOlts.filter(olt => {
-                if (olt.latitude && olt.longitude) {
-                    const distance = calculateDistance(userLatitude, userLongitude, olt.latitude, olt.longitude);
-                    return distance <= 3; // 3km
-                }
-                return false;
-            });
+                // Filter OLTs within maxDistanceKm manually
+                const nearbyOlts = allOlts.filter(olt => {
+                    if (olt.latitude && olt.longitude) {
+                        const distance = calculateDistance(userLatitude, userLongitude, olt.latitude, olt.longitude);
+                        return distance <= maxDistanceKm;
+                    }
+                    return false;
+                });
 
-            console.log(`Manual filtering found ${nearbyOlts.length} OLTs within 3km range`);
+                console.log(`Manual filtering found ${nearbyOlts.length} OLTs within ${maxDistanceKm}km range`);
+                return nearbyOlts;
+            }
+        };
+
+        // First layer: Check for OLTs within 3km
+        let nearbyOlts = await findNearbyOlts(3);
+        let searchDistance = 3;
+
+        // Second layer: If no OLTs found within 3km, check within 15km
+        if (nearbyOlts.length === 0) {
+            console.log('No OLTs found within 3km range, checking 15km range...');
+            nearbyOlts = await findNearbyOlts(15);
+            searchDistance = 15;
         }
 
         if (nearbyOlts.length === 0) {
-            console.log('No OLTs found within 3km range');
+            console.log(`No OLTs found within ${searchDistance}km range, application not assigned to any company`);
             return;
         }
 
-        console.log(`Found ${nearbyOlts.length} OLTs within 3km range`);
+        console.log(`Found ${nearbyOlts.length} OLTs within ${searchDistance}km range`);
 
         // Now calculate exact distances only for the nearby OLTs
         // This is much more efficient as we're only processing relevant candidates
@@ -212,7 +224,7 @@ const assignApplicationToCompany = async (userId: string, applicationId: string 
         }
 
         if (nearestOlt) {
-            // Assign the application to the nearest company within 3km
+            // Assign the application to the nearest company
             // Update both application and user in parallel for better performance
             // This is ~2x faster than sequential updates
             await Promise.all([
@@ -223,10 +235,10 @@ const assignApplicationToCompany = async (userId: string, applicationId: string 
                     assignedCompany: nearestOlt.ownedBy
                 })
             ]);
-            console.log(`✅ Application assigned to company ${nearestOlt.ownedBy} at distance ${shortestDistance.toFixed(2)}km`);
-            console.log(`📊 Performance: Processed ${nearbyOlts.length} OLTs to find nearest within 3km`);
+            console.log(`✅ Application assigned to company ${nearestOlt.ownedBy} at distance ${shortestDistance.toFixed(2)}km (within ${searchDistance}km range)`);
+            console.log(`📊 Performance: Processed ${nearbyOlts.length} OLTs to find nearest within ${searchDistance}km`);
         } else {
-            console.log('❌ No OLT found within 3km range, application not assigned to any company');
+            console.log(`❌ No OLT found within ${searchDistance}km range, application not assigned to any company`);
         }
     } catch (error: any) {
         console.error('Error assigning application to company:', error.message);
