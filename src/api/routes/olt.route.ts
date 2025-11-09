@@ -4,6 +4,7 @@ import {
   getAllOLTs,
   getOLTById,
   updateOLT,
+  updateOLTByOLTId,
   deleteOLT,
   getOLTNetworkTopology,
   searchOLTsByLocation,
@@ -101,6 +102,9 @@ router.get("/olt/complete/:id", getOLTCompleteDetails);
 
 // Update OLT
 router.put("/olt/:id", updateOLT);
+
+// Update OLT by oltId (with optional image uploads)
+router.put("/olt/oltId/:oltId", upload.array('images', 10), updateOLTByOLTId);
 
 // Delete OLT
 router.delete("/olt/:id", deleteOLT);

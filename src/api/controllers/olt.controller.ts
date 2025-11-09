@@ -566,6 +566,67 @@ export const updateOLT = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
+// Update OLT by oltId
+export const updateOLTByOLTId = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { oltId } = req.params;
+    const updateData = req.body;
+
+    console.log('Update OLT request body:', req.body);
+    console.log('Update OLT oltId:', oltId);
+
+    // Handle uploaded images
+    if (req.files && Array.isArray(req.files)) {
+      // Convert uploaded files to attachment URLs
+      const attachments = (req.files as Express.Multer.File[]).map(f => `/view/image/${f.filename}`);
+      updateData.attachments = attachments;
+    }
+
+    // Extract location array if provided
+    if (updateData.location && Array.isArray(updateData.location)) {
+      updateData.latitude = updateData.location[0];
+      updateData.longitude = updateData.location[1];
+      delete updateData.location;
+    }
+
+    // Find OLT by oltId and update
+    const olt = await OLTModel.findOneAndUpdate(
+      { oltId: oltId },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!olt) {
+      return res.status(404).json({
+        success: false,
+        message: "OLT not found with the provided oltId"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "OLT updated successfully",
+      data: olt
+    });
+  } catch (error: any) {
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const errorInfo = handleDuplicateKeyError(error, 'OLT');
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errorInfo = handleValidationError(error);
+      return res.status(errorInfo.status).json(errorInfo.response);
+    }
+
+    // Handle other errors
+    const errorInfo = handleGeneralError(error, 'updating OLT');
+    res.status(errorInfo.status).json(errorInfo.response);
+  }
+};
+
 // Delete OLT
 export const deleteOLT = async (req: Request, res: Response): Promise<any> => {
   try {

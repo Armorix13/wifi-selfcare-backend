@@ -194,6 +194,13 @@ const assignApplicationToCompany = async (userId: string, applicationId: string 
             searchDistance = 15;
         }
 
+        // Third layer: If no OLTs found within 15km, check within 30km
+        if (nearbyOlts.length === 0) {
+            console.log('No OLTs found within 15km range, checking 30km range...');
+            nearbyOlts = await findNearbyOlts(30);
+            searchDistance = 30;
+        }
+
         if (nearbyOlts.length === 0) {
             console.log(`No OLTs found within ${searchDistance}km range, application not assigned to any company`);
             return;
