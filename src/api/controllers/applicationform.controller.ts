@@ -18,12 +18,37 @@ export const applyApplication = async (req: Request, res: Response): Promise<any
             address
         } = req.body;
 
-        console.log("req.body",req.body);
+        console.log("req.body", req.body);
 
         // Get userId from authenticated user (assuming it's set in auth middleware)
         const userId = (req as any).userId;
         if (!userId) {
             return sendError(res, 'User not authenticated', 401);
+        }
+
+        // Validate that at least one phone number is provided
+        if (!phoneNumber && !alternatePhoneNumber) {
+            return sendError(res, 'Either phone number or alternate phone number is required', 400);
+        }
+
+        // Handle case where phoneNumber is missing but alternatePhoneNumber exists
+        // Use alternatePhoneNumber as phoneNumber if phoneNumber is not provided
+        let finalPhoneNumber = phoneNumber;
+        let finalCountryCode = countryCode;
+
+        if (!phoneNumber && alternatePhoneNumber) {
+            finalPhoneNumber = alternatePhoneNumber;
+            finalCountryCode = alternateCountryCode;
+        }
+
+        // Handle case where alternatePhoneNumber is missing but phoneNumber exists
+        // Use phoneNumber as alternatePhoneNumber if alternatePhoneNumber is not provided
+        let finalAlternatePhoneNumber = alternatePhoneNumber;
+        let finalAlternateCountryCode = alternateCountryCode;
+
+        if (!alternatePhoneNumber && phoneNumber) {
+            finalAlternatePhoneNumber = phoneNumber;
+            finalAlternateCountryCode = countryCode;
         }
 
         // Check if user already has a pending application
@@ -56,10 +81,10 @@ export const applyApplication = async (req: Request, res: Response): Promise<any
 
         const application = new ApplicationForm({
             userId,
-            phoneNumber,
-            countryCode,
-            alternateCountryCode,
-            alternatePhoneNumber,
+            phoneNumber: finalPhoneNumber,
+            countryCode: finalCountryCode,
+            alternateCountryCode: finalAlternateCountryCode,
+            alternatePhoneNumber: finalAlternatePhoneNumber,
             planId,
             pincode,
             name,
@@ -68,7 +93,7 @@ export const applyApplication = async (req: Request, res: Response): Promise<any
         });
 
         await application.save();
-        
+
         // Try to assign application to company, but don't let it interrupt the main flow
         try {
             await assignApplicationToCompany(userId, application._id);
@@ -77,10 +102,10 @@ export const applyApplication = async (req: Request, res: Response): Promise<any
             console.error('⚠️ Company assignment failed, but application was saved:', assignmentError);
             // Continue with the response - don't let assignment failure affect application submission
         }
-        
+
         return sendSuccess(res, application, 'Application submitted successfully', 201);
     } catch (error: any) {
-        console.log("error",error);
+        console.log("error", error);
         return sendError(res, 'Failed to submit application', 500, error.message || error);
     }
 };
@@ -246,7 +271,7 @@ export const getUserApplications = async (req: Request, res: Response): Promise<
 export const getAllApplications = async (req: Request, res: Response): Promise<any> => {
     try {
         const companyId = (req as any).userId;
-        const applications = await ApplicationForm.find({assignedCompany: companyId})
+        const applications = await ApplicationForm.find({ assignedCompany: companyId })
             .populate('userId', 'firstName lastName email phoneNumber countryCode profileImage role status country userName permanentAddress billingAddress balanceDue activationDate expirationDate staticIp macIp type fatherName area mode provider providerId isAccountVerified lastLogin deviceType deviceToken')
             .populate('planId')
             .populate('assignedCompany', 'companyName companyAddress companyPhone companyEmail companyWebsite companyLogo companyDescription contactPerson industry companySize companyCity companyState companyCountry')
