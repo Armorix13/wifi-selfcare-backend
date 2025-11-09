@@ -18,7 +18,7 @@ const signUp = async (req: Request, res: Response): Promise<any> => {
 
     try {
         const { email, password, firstName, lastName, countryCode, phoneNumber, lat, long, language, companyPreference, deviceType, deviceToken } = req.body;
-        const existingUser = await UserModel.findOne({ $or: [{ email }] });
+        const existingUser = await UserModel.findOne({ $or: [{ email }], role: { $in: [Role.USER] } });
 
         if (existingUser) {
             if (existingUser.isAccountVerified) {
@@ -87,7 +87,7 @@ const verifyOtp = async (req: Request, res: Response): Promise<any> => {
         if (!email || !otp || !purpose) {
             return sendError(res, "Email, OTP, and purpose are required", 400);
         }
-        const user = await UserModel.findOne({ email });
+        const user = await UserModel.findOne({ email, role: { $in: [Role.USER] } });
         if (!user) return sendError(res, "User not found", 404);
 
         // console.log('=== OTP Verification Debug ===');
@@ -160,7 +160,7 @@ const login = async (req: Request, res: Response): Promise<any> => {
     try {
         const { email, password, deviceType, deviceToken } = req.body;
 
-        const user = await UserModel.findOne({ email });
+        const user = await UserModel.findOne({ email, role: { $in: [Role.USER] } });
         if (!user) {
             return sendError(res, "User not found", 404);
         }
@@ -325,7 +325,7 @@ const resetPassword = async (req: Request, res: Response): Promise<any> => {
         console.log("body", req.body);
 
 
-        const user = await UserModel.findOne({ email });
+        const user = await UserModel.findOne({ email, role: { $in: [Role.USER, Role.ENGINEER] } });
         if (!user) {
             return sendError(res, "User not found", 404);
         }
@@ -361,7 +361,7 @@ const socialLogin = async (req: Request, res: Response): Promise<any> => {
         if (!['google', 'apple'].includes(provider)) {
             return sendError(res, "Unsupported provider", 400);
         }
-        let user = await UserModel.findOne({ email });
+        let user = await UserModel.findOne({ email, role: { $in: [Role.USER] } });
         if (user) {
             // If user exists, check if they have provider info
             if (user.provider && user.providerId) {
