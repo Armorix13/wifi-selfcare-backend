@@ -6,6 +6,7 @@ import { sendSuccess, sendError, sendMessage } from "../../utils/helper";
 import { AssignEngineerBody, CreateComplaintBody, UpdateStatusBody, CloseComplaintBody, AdminResolveComplaintBody } from "../../type/complaint.interface";
 import { CustomerModel } from "../models/customer.model";
 import Modem from "../models/modem.model";
+import { WifiInstallationRequest } from "../models/wifiInstallationRequest.model";
 
 
 const validatePriority = (priority: string): boolean => {
@@ -34,6 +35,12 @@ const createComplaint = async (req: Request, res: Response): Promise<any> => {
         const user = await UserModel.findById(userId);
         if (!user) {
             return sendError(res, "User not found", 404);
+        }
+
+        const isInstallationRequest = await WifiInstallationRequest.findOne({ userId });
+        
+        if (!isInstallationRequest || isInstallationRequest.status !== "approved") {
+            return sendError(res, "You are not eligible to create a complaint. Please wait for the installation request to be approved.", 400);
         }
 
         // Create complaint with user's location
