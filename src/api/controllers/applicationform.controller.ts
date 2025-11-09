@@ -18,6 +18,8 @@ export const applyApplication = async (req: Request, res: Response): Promise<any
             address
         } = req.body;
 
+        console.log("req.body",req.body);
+
         // Get userId from authenticated user (assuming it's set in auth middleware)
         const userId = (req as any).userId;
         if (!userId) {
