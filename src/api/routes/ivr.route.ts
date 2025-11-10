@@ -71,7 +71,7 @@ ivrRoute.post('/add-lead', addLeadFromIvr);
 ivrRoute.post('/check-complaint', complaintCheck);
 
 // Check Multiple Account Numbers by Mobile Number - public endpoint for IVR systems
-ivrRoute.post('/check-multiple-accounts', checkMultipleAccountNumber);
+ivrRoute.get('/check-multiple-accounts', checkMultipleAccountNumber);
 
 export default ivrRoute;
 
