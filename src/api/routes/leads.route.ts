@@ -13,12 +13,16 @@ import {
   getLeadStatistics,
   getComprehensiveLeadData
 } from "../controllers/leads.controller";
+import { addLeadUsingWhatsapp } from "../controllers/whatsapp.controller";
 import authMiddleware from "../../middleware/auth.middleware";
 
 const router = express.Router();
 
 // Create a new lead - NO AUTHENTICATION REQUIRED
 router.post("/", createLead);
+
+// Create lead from WhatsApp - NO AUTHENTICATION REQUIRED
+router.post("/whatsapp", addLeadUsingWhatsapp);
 
 // Apply authentication middleware to all other routes
 router.use(authMiddleware);

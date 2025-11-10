@@ -12,7 +12,8 @@ export enum LeadPlatform {
     FROM_APPLICATION = "From our application",
     FROM_ADMIN_PANEL = "From admin panel",
     FROM_IVR = "From IVR",
-    FROM_COMPLAINT = "From complaint"
+    FROM_COMPLAINT = "From complaint",
+    FROM_WHATSAPP = "From whatsapp"
 }
 
 export interface ILeads extends Document {
