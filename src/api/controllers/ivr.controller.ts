@@ -712,17 +712,31 @@ export const complaintCheck = async (req: Request, res: Response, next: NextFunc
 
 export const checkMultipleAccountNumber = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { mobile } = req.body; //mobile number will be  829433530 or +91829433530 or +91-8294335230
+    const { mobile } = req.query; //mobile number will be  829433530 or +91829433530 or +91-8294335230
 
-    console.log("body", req.body);
+    console.log("query", req.query);
 
     // Validate mobile number input
     if (!mobile) {
       return sendError(res, "Mobile number is required", 400);
     }
 
+    // Ensure mobile is a string (handle query params which can be string | string[] | ParsedQs)
+    let mobileString: string;
+    if (Array.isArray(mobile)) {
+      mobileString = mobile[0] as string;
+    } else if (typeof mobile === 'string') {
+      mobileString = mobile;
+    } else {
+      mobileString = String(mobile);
+    }
+    
+    if (!mobileString || mobileString.trim() === '') {
+      return sendError(res, "Mobile number is required", 400);
+    }
+
     // Clean and normalize phone number - remove all non-digit characters
-    const phoneNumber = mobile.replace(/[^0-9]/g, '');
+    const phoneNumber = mobileString.replace(/[^0-9]/g, '');
 
     // Validate phone number length (should be at least 10 digits)
     if (phoneNumber.length < 10) {
