@@ -432,7 +432,9 @@ export const toggleIVRStatus = async (req: Request, res: Response, next: NextFun
 export const checkCustomerDetails = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const { mobile } = req.body; //mobile number will be  829433530 or +91829433530 or +91-8294335230
-
+    
+    console.log("body", req.body);
+    
     // Validate mobile number input
     if (!mobile) {
       return sendError(res, "Mobile number is required", 400);
