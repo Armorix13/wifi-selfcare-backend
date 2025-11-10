@@ -765,7 +765,7 @@ export const checkMultipleAccountNumber = async (req: Request, res: Response, ne
     }));
 
     return sendSuccess(res, {
-      success: true,
+      // success: true,
       users: usersData,
       count: usersData.length
     }, `Found ${usersData.length} account(s) with this mobile number`, 200);
