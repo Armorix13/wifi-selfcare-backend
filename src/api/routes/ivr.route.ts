@@ -16,7 +16,8 @@ import {
   checkCustomerDetails,
   addComplaintByIVR,
   addLeadFromIvr,
-  complaintCheck
+  complaintCheck,
+  checkMultipleAccountNumber
 } from '../controllers/ivr.controller';
 
 const ivrRoute = Router();
@@ -68,6 +69,9 @@ ivrRoute.post('/add-lead', addLeadFromIvr);
 
 // Check Complaint Status by User ID - public endpoint for IVR systems
 ivrRoute.post('/check-complaint', complaintCheck);
+
+// Check Multiple Account Numbers by Mobile Number - public endpoint for IVR systems
+ivrRoute.post('/check-multiple-accounts', checkMultipleAccountNumber);
 
 export default ivrRoute;
 

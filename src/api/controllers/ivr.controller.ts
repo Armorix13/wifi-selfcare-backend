@@ -432,9 +432,9 @@ export const toggleIVRStatus = async (req: Request, res: Response, next: NextFun
 export const checkCustomerDetails = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const { mobile } = req.body; //mobile number will be  829433530 or +91829433530 or +91-8294335230
-    
+
     console.log("body", req.body);
-    
+
     // Validate mobile number input
     if (!mobile) {
       return sendError(res, "Mobile number is required", 400);
@@ -549,9 +549,9 @@ export const addComplaintByIVR = async (req: Request, res: Response, next: NextF
 export const addLeadFromIvr = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     const { mobile, ivrNumber } = req.body; //mobile number will be  829433530 or +91829433530 or +91-8294335230
-    
+
     console.log("body", req.body);
-    
+
     // Validate mobile number input
     if (!mobile) {
       return sendError(res, "Mobile number is required", 400);
@@ -588,7 +588,7 @@ export const addLeadFromIvr = async (req: Request, res: Response, next: NextFunc
     // First, try to find IVR document and get assigned company
     let company = null;
     const ivr = await IVRModel.findOne({ ivrNumber: cleanIvrNumber });
-    
+
     if (ivr && ivr.assignedToCompany) {
       // If IVR is assigned to a company, use that company
       company = await UserModel.findById(ivr.assignedToCompany)
@@ -686,19 +686,19 @@ export const complaintCheck = async (req: Request, res: Response, next: NextFunc
     // Check if user can add a new complaint
     if (!complaint) {
       // No complaint exists - user can add a new complaint
-      return sendSuccess(res, { 
+      return sendSuccess(res, {
         success: true,
         message: "You can add a new complaint"
       }, "You can add a new complaint", 200);
     } else if (complaint.status === ComplaintStatus.RESOLVED && complaint.resolved === true) {
       // Complaint exists and is resolved - user can add a new complaint
-      return sendSuccess(res, { 
+      return sendSuccess(res, {
         success: true,
         message: "You can add a new complaint"
       }, "You can add a new complaint", 200);
     } else {
       // Complaint exists but is not resolved - user cannot add new complaint, can only update
-      return sendSuccess(res, { 
+      return sendSuccess(res, {
         success: false,
         message: "You have an active complaint. Please update the existing complaint instead of adding a new one"
       }, "You have an active complaint. Please update the existing complaint instead of adding a new one", 200);
@@ -706,6 +706,71 @@ export const complaintCheck = async (req: Request, res: Response, next: NextFunc
 
   } catch (error) {
     console.error("Complaint check error with IVR:", error);
+    next(error);
+  }
+}
+
+export const checkMultipleAccountNumber = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const { mobile } = req.body; //mobile number will be  829433530 or +91829433530 or +91-8294335230
+
+    console.log("body", req.body);
+
+    // Validate mobile number input
+    if (!mobile) {
+      return sendError(res, "Mobile number is required", 400);
+    }
+
+    // Clean and normalize phone number - remove all non-digit characters
+    const phoneNumber = mobile.replace(/[^0-9]/g, '');
+
+    // Validate phone number length (should be at least 10 digits)
+    if (phoneNumber.length < 10) {
+      return sendError(res, "Invalid mobile number format", 400);
+    }
+
+    // Extract last 10 digits if number includes country code (e.g., +91-8294335230 -> 8294335230)
+    const cleanPhoneNumber = phoneNumber.length > 10 ? phoneNumber.slice(-10) : phoneNumber;
+
+    // Find all users by phoneNumber or mobile field (returns array)
+    const users = await UserModel.find({
+      $or: [
+        { phoneNumber: cleanPhoneNumber },
+        { mobile: cleanPhoneNumber }
+      ]
+    }).select('-password -otp -otpExpiry -otpVerified -jti -deviceToken');
+
+    // Check if users array is empty
+    if (!users || users.length === 0) {
+      return sendError(res, "No users found with this mobile number", 404);
+    }
+
+    // Map users to the required format
+    const usersData = users.map(user => ({
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      mobile: user.mobile,
+      countryCode: user.countryCode,
+      userName: user.userName,
+      permanentAddress: user.permanentAddress,
+      residentialAddress: user.residentialAddress,
+      billingAddress: user.billingAddress,
+      landlineNumber: user.landlineNumber,
+      bbUserId: user.bbUserId,
+      bbPlan: user.bbPlan,
+      status: user.status,
+    }));
+
+    return sendSuccess(res, {
+      success: true,
+      users: usersData,
+      count: usersData.length
+    }, `Found ${usersData.length} account(s) with this mobile number`, 200);
+  } catch (error) {
+    console.error("Check multiple account number error with IVR:", error);
     next(error);
   }
 }
