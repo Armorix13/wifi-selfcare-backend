@@ -25,10 +25,6 @@ const ivrRoute = Router();
 // Add IVR - requires authentication
 ivrRoute.post('/add', authenticate, addIVR);
 
-// Check Multiple Account Numbers by Mobile Number - public endpoint for IVR systems
-ivrRoute.post('/check-multiple-accounts', checkMultipleAccountNumber);
-
-
 // Get All IVRs with filters (isAssigned, area, status, companyId) - requires authentication
 ivrRoute.get('/all', authenticate, getAllIVRs);
 
@@ -64,6 +60,9 @@ ivrRoute.patch('/:ivrId/status', authenticate, toggleIVRStatus);
 
 // Check Customer Details by Mobile Number - can be public or authenticated depending on IVR system requirements
 ivrRoute.post('/check-customer', checkCustomerDetails);
+
+// Check Multiple Account Numbers by Mobile Number - public endpoint for IVR systems
+ivrRoute.post('/check-multiple-accounts', checkMultipleAccountNumber);
 
 // Add Complaint by IVR - public endpoint for IVR systems
 ivrRoute.post('/add-complaint', addComplaintByIVR);
