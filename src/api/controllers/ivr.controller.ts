@@ -712,7 +712,7 @@ export const complaintCheck = async (req: Request, res: Response, next: NextFunc
 
 export const checkMultipleAccountNumber = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { mobile } = req.query; //mobile number will be  829433530 or +91829433530 or +91-8294335230
+    const { mobile } = req.body; //mobile number will be  829433530 or +91829433530 or +91-8294335230
 
     console.log("query", req.query);
 

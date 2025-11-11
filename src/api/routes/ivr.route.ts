@@ -26,7 +26,7 @@ const ivrRoute = Router();
 ivrRoute.post('/add', authenticate, addIVR);
 
 // Check Multiple Account Numbers by Mobile Number - public endpoint for IVR systems
-ivrRoute.get('/check-multiple-accounts', checkMultipleAccountNumber);
+ivrRoute.post('/check-multiple-accounts', checkMultipleAccountNumber);
 
 
 // Get All IVRs with filters (isAssigned, area, status, companyId) - requires authentication
