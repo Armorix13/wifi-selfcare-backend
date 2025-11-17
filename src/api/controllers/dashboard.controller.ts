@@ -1086,7 +1086,8 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
       pincode,
       areaFromPincode,
       aadhaarNumber,
-      panNumber
+      panNumber,
+      salary
     } = req.body;
 
     // Validate required fields
@@ -1231,6 +1232,7 @@ export const updateEngineer = async (req: Request, res: Response, next: NextFunc
     if (areaFromPincode !== undefined) updateData.areaFromPincode = areaFromPincode;
     if (aadhaarNumber !== undefined) updateData.aadhaarNumber = aadhaarNumber;
     if (panNumber !== undefined) updateData.panNumber = panNumber;
+    if (salary !== undefined) updateData.salary = salary;
 
     // Update files if new ones were uploaded
     if (req.files && typeof req.files === 'object') {
