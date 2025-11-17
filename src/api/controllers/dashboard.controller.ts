@@ -886,7 +886,8 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       pincode,
       areaFromPincode,
       aadhaarNumber,
-      panNumber
+      panNumber,
+      salary = 0
     } = req.body;
 
     // Handle uploaded files
@@ -1010,7 +1011,8 @@ export const addEngineer = async (req: Request, res: Response, next: NextFunctio
       password: hashedPassword,
       isAccountVerified: true, // Already verified since admin is creating
       isDeactivated: false,
-      isSuspended: false
+      isSuspended: false,
+      salary
     });
 
     // Send email with credentials only (no OTP)
@@ -4178,7 +4180,8 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
         aadhaarBack: engineer.aadhaarBack,
         panCard: engineer.panCard,
         createdAt: engineer.createdAt,
-        updatedAt: engineer.updatedAt
+        updatedAt: engineer.updatedAt,
+        salary: engineer.salary || 0
       },
 
       // Analytics summary

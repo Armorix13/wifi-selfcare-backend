@@ -217,6 +217,9 @@ export interface IUser extends Document {
 
   //for admin
   adminStatus?: string; // Status of the admin
+
+  //For Engineer
+  salary?: number;
 }
 
 // Interface for static methods
@@ -438,6 +441,9 @@ const UserSchema = new Schema<IUser>({
   registrationDate: { type: Date }, // REGISTRATIONDATE
   balance: { type: Number, default: 0 }, // BALANCE
   subStatus: { type: String }, // SUB_STATUS
+
+  //For Engineer 
+  salary: { type: Number },
 
   // IVR Number - Optional field for users with company role ADMIN
   ivrNumber: [{ type: String }] // Array of IVR phone numbers (e.g., ["+1 206 555 0100","+1 206 555 0101"])
