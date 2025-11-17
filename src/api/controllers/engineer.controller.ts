@@ -410,6 +410,12 @@ const getMonthlyAttendance = async (req: Request, res: Response): Promise<any> =
             return sendError(res, "User ID is required", 400);
         }
 
+        const engineer = await UserModel.findById(userId);
+
+        if(!engineer){
+            return sendError(res, "engineer not found", 404);   
+        }
+
         // Get year and month from query params, default to current month
         const year = parseInt(req.query.year as string) || new Date().getFullYear();
         const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
@@ -597,7 +603,8 @@ const getMonthlyAttendance = async (req: Request, res: Response): Promise<any> =
                 description: leave.description,
                 totalDays: leave.totalDays,
                 status: leave.status
-            }))
+            })),
+            salary:engineer.salary || 0
         };
 
         return sendSuccess(res, response, "Monthly attendance retrieved successfully");
