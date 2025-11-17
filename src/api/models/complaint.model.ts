@@ -112,7 +112,7 @@ export interface IComplaint extends Document {
     hasEngineerAssigned(): boolean;
     getEngineerAssignmentHistory(): any[];
     closeComplaint(otp: string, resolutionAttachments: string[], notes?: string, updatedBy?: mongoose.Types.ObjectId): Promise<IComplaint>;
-    verifyOTP(otp: string): Promise<IComplaint>;
+    verifyOTP(otp: string, verifiedBy?: mongoose.Types.ObjectId): Promise<IComplaint>;
 }
 
 // Color mapping for each ComplaintStatus
@@ -323,7 +323,7 @@ ComplaintSchema.virtual('resolutionTimeInHours').get(function () {
 // Enforce min 1, max 4 attachments (photos) on save
 ComplaintSchema.pre('save', async function (next) {
     console.log(`Pre-save middleware called. isNew: ${this.isNew}, otp: ${this.otp}`);
-    
+
     // Generate custom complaint ID only for new documents
     if (this.isNew && !this.id) {
         let generatedId: string;
@@ -569,14 +569,14 @@ ComplaintSchema.virtual('latestStatusChange').get(function () {
 
 // Method to check if complaint has been assigned to engineer
 ComplaintSchema.methods.hasEngineerAssigned = function () {
-    return this.engineer && this.statusHistory && 
-           this.statusHistory.some((entry: any) => entry.metadata?.action === 'engineer_assigned');
+    return this.engineer && this.statusHistory &&
+        this.statusHistory.some((entry: any) => entry.metadata?.action === 'engineer_assigned');
 };
 
 // Method to get engineer assignment history
 ComplaintSchema.methods.getEngineerAssignmentHistory = function () {
     if (!this.statusHistory) return [];
-    
+
     return this.statusHistory
         .filter((entry: any) => entry.metadata?.action === 'engineer_assigned')
         .map((entry: any) => ({
@@ -592,7 +592,7 @@ ComplaintSchema.methods.getEngineerAssignmentHistory = function () {
 ComplaintSchema.methods.closeComplaint = function (otp: string, resolutionAttachments: string[], notes?: string, updatedBy?: mongoose.Types.ObjectId) {
     // Use existing OTP (already generated when complaint was created)
     const existingOTP = this.otp;
-    
+
     // Add resolution attachments
     if (resolutionAttachments && resolutionAttachments.length > 0) {
         if (resolutionAttachments.length < 2 || resolutionAttachments.length > 4) {
@@ -600,17 +600,17 @@ ComplaintSchema.methods.closeComplaint = function (otp: string, resolutionAttach
         }
         this.resolutionAttachments = resolutionAttachments;
     }
-    
+
     // Update status to resolved
     this.status = ComplaintStatus.RESOLVED;
     this.resolved = true;
     this.resolutionDate = new Date();
-    
+
     // Add to status history
     if (!this.statusHistory) {
         this.statusHistory = [];
     }
-    
+
     this.statusHistory.push({
         status: ComplaintStatus.RESOLVED,
         remarks: notes || 'Complaint closed with OTP verification',
@@ -630,44 +630,44 @@ ComplaintSchema.methods.closeComplaint = function (otp: string, resolutionAttach
             closureMethod: "otp_verification"
         }
     });
-    
+
     return this.save();
 };
 
 // Method to verify OTP and mark complaint as fully closed
-ComplaintSchema.methods.verifyOTP = function (otp: string) {
+ComplaintSchema.methods.verifyOTP = function (otp: string, verifiedBy?: mongoose.Types.ObjectId) {
     if (this.otp !== otp) {
         throw new Error('Invalid OTP');
     }
-    
+
     // OTP is correct, mark as verified
     this.otpVerified = true;
     this.otpVerifiedAt = new Date();
-    
+
     // Add to status history
     if (!this.statusHistory) {
         this.statusHistory = [];
     }
-    
+
     this.statusHistory.push({
-        status: ComplaintStatus.RESOLVED,
-        remarks: 'OTP verified by customer - complaint fully closed',
-        updatedBy: this.user, // Customer verified
+        status: this.status,
+        remarks: 'happy code verified by customer',
+        updatedBy: verifiedBy || this.user,
         updatedAt: new Date(),
-        previousStatus: ComplaintStatus.RESOLVED,
+        previousStatus: this.status,
         metadata: {
             action: "otp_verified",
             otp: otp,
-            verificationMethod: "customer_verification"
+            verificationMethod: "customer_verification",
+            verifiedBy: verifiedBy || this.user
         },
         additionalInfo: {
-            oldStatus: ComplaintStatus.RESOLVED,
-            newStatus: ComplaintStatus.RESOLVED,
+            statusDuringVerification: this.status,
             timestamp: new Date(),
             verificationStatus: "verified"
         }
     });
-    
+
     return this.save();
 };
 

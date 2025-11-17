@@ -625,10 +625,12 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
     }
 
     const companyId = engineer.parentCompany;
+    const engineerObjectId = new mongoose.Types.ObjectId(userId);
 
     // Build match conditions for the aggregation
     const matchConditions: any = {
-      'application.assignedCompany': new mongoose.Types.ObjectId(companyId)
+      'application.assignedCompany': new mongoose.Types.ObjectId(companyId),
+      assignedEngineer: engineerObjectId
     };
 
     // Add isInstalled filter if provided
@@ -651,107 +653,13 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
     }
     // Scenario 3: No isInstalled parameter - return all customers (no additional filter)
 
-    // Create aggregation pipeline for existing users
-    const existingUserMatchConditions: any = {
-      isExisting: true,
-      assignedCompany: new mongoose.Types.ObjectId(companyId),
-      role: 'user'
-    };
-
-    // Apply isInstalled filter for existing users if provided
-    if (isInstalled !== undefined) {
-      const isInstalledValue = isInstalled === 'true' || isInstalled === '1';
-      if (isInstalledValue) {
-        // For existing users, we need to check if they have customer records with isInstalled=true
-        existingUserMatchConditions['$expr'] = {
-          $eq: [
-            {
-              $let: {
-                vars: {
-                  customerRecord: {
-                    $arrayElemAt: [
-                      {
-                        $filter: {
-                          input: '$customerDetails',
-                          cond: { $eq: ['$$this.userId', '$_id'] }
-                        }
-                      },
-                      0
-                    ]
-                  }
-                },
-                in: '$$customerRecord.isInstalled'
-              }
-            },
-            true
-          ]
-        };
-      } else {
-        // For non-installed existing users
-        existingUserMatchConditions['$expr'] = {
-          $or: [
-            {
-              $eq: [
-                {
-                  $size: {
-                    $filter: {
-                      input: '$customerDetails',
-                      cond: { $eq: ['$$this.userId', '$_id'] }
-                    }
-                  }
-                },
-                0
-              ]
-            },
-            {
-              $ne: [
-                {
-                  $let: {
-                    vars: {
-                      customerRecord: {
-                        $arrayElemAt: [
-                          {
-                            $filter: {
-                              input: '$customerDetails',
-                              cond: { $eq: ['$$this.userId', '$_id'] }
-                            }
-                          },
-                          0
-                        ]
-                      }
-                    },
-                    in: '$$customerRecord.isInstalled'
-                  }
-                },
-                true
-              ]
-            }
-          ]
-        };
-      }
-    }
-
-    const existingUsersPipeline = [
-      {
-        $lookup: {
-          from: 'customers',
-          localField: '_id',
-          foreignField: 'userId',
-          as: 'customerDetails'
-        }
-      },
-      {
-        $match: existingUserMatchConditions
-      },
-      {
-        $addFields: {
-          userType: 'existing'
-        }
-      }
-    ];
-
     // Execute the combined aggregation
     const uniqueUsers = await WifiInstallationRequest.aggregate([
+      {
+        $match: {
+          assignedEngineer: engineerObjectId
+        }
+      },
       // WiFi Installation Pipeline
       {
         $lookup: {
@@ -790,13 +698,6 @@ export const getAllUserInstallationRequests = async (req: AuthenticatedRequest, 
       {
         $addFields: {
           userType: 'wifiInstallation'
-        }
-      },
-      // Union with existing users
-      {
-        $unionWith: {
-          coll: 'users',
-          pipeline: existingUsersPipeline
         }
       },
       {

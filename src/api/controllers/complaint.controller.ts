@@ -679,7 +679,7 @@ const getAssignedComplaints = async (req: Request, res: Response): Promise<any> 
     try {
         const userId = (req as any).userId;
         const userRole = (req as any).role;
-        const { status, page = 1, limit = 10 } = req.query;
+        const { status, page = 1, limit = 1000 } = req.query;
 
         // Check if user is engineer
         if (userRole !== Role.ENGINEER) {
@@ -1494,18 +1494,13 @@ const verifyOTP = async (req: Request, res: Response): Promise<any> => {
         //     return sendError(res, "Access denied. You can only verify OTP for your own complaints", 403);
         // }
 
-        // Check if complaint is already resolved
-        if (complaint.status !== ComplaintStatus.RESOLVED) {
-            return sendError(res, "Complaint is not resolved yet", 400);
-        }
-
         // Check if OTP is already verified
         if (complaint.otpVerified) {
             return sendError(res, "OTP is already verified", 400);
         }
 
         // Verify OTP
-        await complaint.verifyOTP(otp);
+        await complaint.verifyOTP(otp, userId);
 
         // Get updated complaint
         const updatedComplaint = await ComplaintModel.findById(id)
@@ -1518,10 +1513,14 @@ const verifyOTP = async (req: Request, res: Response): Promise<any> => {
             return sendError(res, "Failed to retrieve updated complaint", 500);
         }
 
-        return sendSuccess(res, {
-            complaint: updatedComplaint,
-            message: "OTP verified successfully. Complaint is now fully closed."
-        }, "OTP verified successfully");
+        return sendSuccess(
+            res,
+            {
+                complaint: updatedComplaint,
+                message: "OTP verified successfully."
+            },
+            "OTP verified successfully"
+        );
     } catch (error: any) {
         console.error("Verify OTP error:", error);
         if (error.message === 'Invalid OTP') {
