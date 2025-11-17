@@ -4085,6 +4085,52 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
       return false;
     }).length;
 
+    // Build current month's attendance status (P, Ab, Up)
+    const now = moment();
+    const currentYear = now.year();
+    const currentMonthIndex = now.month(); // 0-based
+    const daysInCurrentMonth = now.daysInMonth();
+    const todayDate = now.date();
+
+    const attendanceStatusMap: Record<string, 'P' | 'Ab'> = {};
+
+    allAttendance
+      .filter(attendance => {
+        if (!attendance.date) {
+          return false;
+        }
+        const attendanceDate = moment(attendance.date);
+        return (
+          attendanceDate.year() === currentYear &&
+          attendanceDate.month() === currentMonthIndex
+        );
+      })
+      .forEach(attendance => {
+        const key = moment(attendance.date).format('YYYY-MM-DD');
+        attendanceStatusMap[key] = attendance.status === 'present' ? 'P' : 'Ab';
+      });
+
+    const currentMonthAttendance = Array.from({ length: daysInCurrentMonth }, (_, index) => {
+      const day = index + 1;
+      const dateMoment = moment({ year: currentYear, month: currentMonthIndex, date: day });
+      const key = dateMoment.format('YYYY-MM-DD');
+
+      let status: 'P' | 'Ab' | 'Up';
+      if (day < todayDate) {
+        status = attendanceStatusMap[key] || 'Ab';
+      } else if (day === todayDate) {
+        status = attendanceStatusMap[key] || 'Up';
+      } else {
+        status = 'Up';
+      }
+
+      return {
+        day,
+        date: key,
+        status
+      };
+    });
+
     // Get all installations
     const allInstallations = await WifiInstallationRequest.find({ assignedEngineer: engineerId })
       .populate("userId", "firstName lastName email phoneNumber countryCode profileImage")
@@ -4163,6 +4209,12 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
           rejected: rejectedInstallations,
           approvalRate: totalInstallations > 0 ? Math.round((approvedInstallations / totalInstallations) * 100) : 0
         }
+      },
+
+      currentMonthAttendance: {
+        month: currentMonthIndex + 1,
+        year: currentYear,
+        days: currentMonthAttendance
       },
 
       // Detailed records - Complete arrays
