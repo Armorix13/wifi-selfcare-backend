@@ -747,7 +747,8 @@ export const getEngineerAnalytics = async (req: Request, res: Response, next: Ne
         // Device and session info
         deviceToken: engineer.deviceToken,
         deviceType: engineer.deviceType,
-        jti: engineer.jti
+        jti: engineer.jti,
+        salary: engineer.salary || 0
       })),
 
       // Analytics and Distributions
@@ -4043,7 +4044,7 @@ export const getFullEngineerDetailsById = async (req: Request, res: Response, ne
 
     // Get engineer details
     const engineer = await UserModel.findOne(filterConditions).select(
-      "_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode permanentAddress residenceAddress billingAddress country language companyPreference userName fatherName provider providerId state pincode areaFromPincode aadhaarNumber panNumber aadhaarFront aadhaarBack panCard createdAt updatedAt"
+      "_id firstName lastName email phoneNumber countryCode profileImage role status group zone area mode permanentAddress residenceAddress billingAddress country language companyPreference userName fatherName provider providerId state pincode areaFromPincode aadhaarNumber panNumber aadhaarFront aadhaarBack panCard createdAt updatedAt salary"
     );
 
     if (!engineer) {
