@@ -27,6 +27,7 @@ import { FDBModel, PortStatus } from '../models/fdb.model';
 import { X2Model } from '../models/x2.model';
 import orderModel from '../models/order.model';
 import { RequestBill } from '../models/requestBill.model';
+import { ExistingClientUpdateModel, ClientUpdateStatus } from '../models/existingClientUpdate.model';
 
 // Get comprehensive dashboard analytics
 export const getProductDashboardAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
@@ -7076,3 +7077,83 @@ export const checkEmail = async (req: Request, res: Response, next: NextFunction
     return sendError(res, error.message || 'Error checking email', 500);
   }
 }
+
+export const assignEngineerToUpdateExistingClient = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  try {
+    const adminId = (req as any).userId;
+    const role = (req as any).role;
+    const { userId, engineerId, remarks } = req.body;
+
+    if (!userId || !engineerId) {
+      return sendError(res, 'userId and engineerId are required', 400);
+    }
+
+    if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(engineerId)) {
+      return sendError(res, 'Invalid userId or engineerId', 400);
+    }
+
+    if (![Role.ADMIN, Role.SUPERADMIN, Role.MANAGER].includes(role)) {
+      return sendError(res, 'Not authorized to assign engineers', 403);
+    }
+
+    const [client, engineer] = await Promise.all([
+      UserModel.findOne({ _id: userId, role: Role.USER, isDeleted: false }),
+      UserModel.findOne({ _id: engineerId, role: Role.ENGINEER, isDeleted: false })
+    ]);
+
+    if (!client) {
+      return sendError(res, 'Client not found', 404);
+    }
+
+    if (!engineer) {
+      return sendError(res, 'Engineer not found', 404);
+    }
+
+    if (role === Role.ADMIN && engineer.parentCompany && engineer.parentCompany.toString() !== adminId?.toString()) {
+      return sendError(res, 'Engineer is not part of your company', 403);
+    }
+
+    let existingUpdate = await ExistingClientUpdateModel.findOne({
+      user: userId,
+      status: { $in: [ClientUpdateStatus.PENDING, ClientUpdateStatus.VISITED_SITE] }
+    });
+
+    if (existingUpdate) {
+      existingUpdate.assignedEngineer = engineerId;
+      existingUpdate.assignedBy = adminId;
+      existingUpdate.assignedAt = new Date();
+      existingUpdate.remarks = remarks || existingUpdate.remarks;
+      existingUpdate.status = ClientUpdateStatus.PENDING;
+      await existingUpdate.save();
+    } else {
+      existingUpdate = await ExistingClientUpdateModel.create({
+        user: userId,
+        assignedBy: adminId,
+        assignedEngineer: engineerId,
+        status: ClientUpdateStatus.PENDING,
+        assignedAt: new Date(),
+        remarks
+      });
+    }
+
+    const populatedUpdate = await ExistingClientUpdateModel.findById(existingUpdate._id)
+      .populate({
+        path: 'user',
+        select: 'firstName lastName email phoneNumber countryCode customerId billingAddress status'
+      })
+      .populate({
+        path: 'assignedEngineer',
+        select: 'firstName lastName email phoneNumber countryCode parentCompany profileImage'
+      })
+      .populate({
+        path: 'assignedBy',
+        select: 'firstName lastName email role'
+      })
+      .lean();
+
+    return sendSuccess(res, populatedUpdate, 'Engineer assigned to existing client update successfully');
+  } catch (error: any) {
+    console.error('Assign engineer to update existing client error:', error);
+    return sendError(res, error.message || 'Error assigning engineer to update existing client', 500);
+  }
+} 

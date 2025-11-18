@@ -35,4 +35,8 @@ router.get("/leave/pending", authenticate, engineerController.getAllPendingLeave
 // Get all customer who have installation requests
 router.get("/get-customer", authenticate,getAllUserInstallationRequests);
 
+// Existing client update assignments
+router.get("/existing-client-updates", authenticate, engineerController.getAllAssignedExistingClienttoUpdates);
+router.put("/existing-client-updates/:updateId", authenticate, engineerController.updateExistingClientUpdate);
+
 export default router;

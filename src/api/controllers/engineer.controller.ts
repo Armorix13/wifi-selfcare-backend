@@ -5,6 +5,11 @@ import { EngineerAttendanceModel, AttendanceStatus } from "../models/engineerAtt
 import { LeaveRequestModel, LeaveType, LeaveStatus, LeaveReason } from "../models/leaveRequest.model";
 import { sendSuccess, sendError, generateAccessToken, generateRefreshToken, generateRandomJti, comparePassword } from '../../utils/helper';
 import moment from 'moment-timezone';
+import { ClientUpdateStatus, ExistingClientUpdateModel } from "../models/existingClientUpdate.model";
+import Modem from "../models/modem.model";
+import { CustomerModel } from "../models/customer.model";
+import { FDBModel, PortStatus } from "../models/fdb.model";
+import { OLTModel } from "../models/olt.model";
 
 const engineerLogin = async (req: Request, res: Response): Promise<any> => {
     try {
@@ -87,14 +92,14 @@ const engineerLogin = async (req: Request, res: Response): Promise<any> => {
 const getEngineerProfile = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
-        
+
         if (!userId) {
             return sendError(res, "User ID is required", 400);
         }
 
         const engineer = await UserModel.findById(userId)
             .select('-password -otp -otpExpiry -otpPurpose -__v');
-            
+
         if (!engineer) {
             return sendError(res, "Engineer not found", 404);
         }
@@ -113,7 +118,7 @@ const getEngineerProfile = async (req: Request, res: Response): Promise<any> => 
 const updateEngineerProfile = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
-        
+
         if (!userId) {
             return sendError(res, "User ID is required", 400);
         }
@@ -121,7 +126,7 @@ const updateEngineerProfile = async (req: Request, res: Response): Promise<any> 
         // Exclude fields that should not be updated via this endpoint
         const forbiddenFields = ["email", "role", "password", "_id", "__v", "jti"];
         const updateData: any = {};
-        
+
         for (const key in req.body) {
             if (!forbiddenFields.includes(key)) {
                 updateData[key] = req.body[key];
@@ -156,7 +161,7 @@ const updateEngineerProfile = async (req: Request, res: Response): Promise<any> 
 const engineerLogout = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
-        
+
         if (!userId) {
             return sendError(res, "User ID is required", 400);
         }
@@ -187,7 +192,7 @@ const engineerLogout = async (req: Request, res: Response): Promise<any> => {
 const markAttendance = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId; // Logged in engineer ID
-        
+
         if (!userId) {
             return sendError(res, "User ID is required", 400);
         }
@@ -197,11 +202,11 @@ const markAttendance = async (req: Request, res: Response): Promise<any> => {
         const currentHour = istTime.hour();
         const currentMinute = istTime.minute();
         const todayStart = istTime.startOf('day').toDate();
-        
+
         // Debug log for time information
         console.log(`Current IST time: ${istTime.format('YYYY-MM-DD HH:mm:ss')}`);
         console.log(`Current hour: ${currentHour}, Current minute: ${currentMinute}`);
-        
+
         // Define attendance time windows in IST
         // Engineers can mark attendance from 5:00 AM to 10:00 PM
         // Between 10:00 PM to 12:00 AM (next day) - Attendance marking closed
@@ -210,7 +215,7 @@ const markAttendance = async (req: Request, res: Response): Promise<any> => {
         const eveningEnd = 22; // 10:00 PM (22:00)
         const lateNightStart = 0; // 12:00 AM (00:00)
         const lateNightEnd = 5; // 5:00 AM
-        
+
         // Check current time and provide appropriate message
         if (currentHour >= lateNightStart && currentHour < lateNightEnd) {
             // Between 12:00 AM to 5:00 AM
@@ -254,12 +259,12 @@ const markAttendance = async (req: Request, res: Response): Promise<any> => {
         return sendSuccess(res, attendance, "Attendance marked as present successfully");
     } catch (error: any) {
         console.error("Mark attendance error:", error);
-        
+
         // Handle duplicate key error (if somehow attendance was marked twice)
         if (error.code === 11000) {
             return sendError(res, "Attendance already marked for today", 400);
         }
-        
+
         return sendError(res, "Failed to mark attendance", 500, error);
     }
 };
@@ -284,11 +289,11 @@ const markAttendanceWithStatus = async (req: Request, res: Response): Promise<an
         const currentHour = istTime.hour();
         const currentMinute = istTime.minute();
         const today = istTime.startOf('day').toDate();
-        
+
         // Debug log for time information
         console.log(`Mark attendance with status - Current IST time: ${istTime.format('YYYY-MM-DD HH:mm:ss')}`);
         console.log(`Current hour: ${currentHour}, Current minute: ${currentMinute}`);
-        
+
         // Define attendance time windows in IST
         // Engineers can mark attendance from 5:00 AM to 10:00 PM
         // Between 10:00 PM to 12:00 AM (next day) - Attendance marking closed
@@ -297,7 +302,7 @@ const markAttendanceWithStatus = async (req: Request, res: Response): Promise<an
         const eveningEnd = 22; // 10:00 PM (22:00)
         const lateNightStart = 0; // 12:00 AM (00:00)
         const lateNightEnd = 5; // 5:00 AM
-        
+
         // Check current time and provide appropriate message
         if (currentHour >= lateNightStart && currentHour < lateNightEnd) {
             // Between 12:00 AM to 5:00 AM
@@ -350,11 +355,11 @@ const markAttendanceWithStatus = async (req: Request, res: Response): Promise<an
         return sendSuccess(res, attendance, `Attendance marked as ${status} successfully`);
     } catch (error: any) {
         console.error("Mark attendance with status error:", error);
-        
+
         if (error.code === 11000) {
             return sendError(res, "Attendance already marked for today", 400);
         }
-        
+
         return sendError(res, "Failed to mark attendance", 500, error);
     }
 };
@@ -363,7 +368,7 @@ const markAttendanceWithStatus = async (req: Request, res: Response): Promise<an
 const markCheckOut = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId; // Logged in engineer ID
-        
+
         if (!userId) {
             return sendError(res, "User ID is required", 400);
         }
@@ -405,15 +410,15 @@ const markCheckOut = async (req: Request, res: Response): Promise<any> => {
 const getMonthlyAttendance = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId; // Logged in engineer ID
-        
+
         if (!userId) {
             return sendError(res, "User ID is required", 400);
         }
 
         const engineer = await UserModel.findById(userId);
 
-        if(!engineer){
-            return sendError(res, "engineer not found", 404);   
+        if (!engineer) {
+            return sendError(res, "engineer not found", 404);
         }
 
         // Get year and month from query params, default to current month
@@ -451,10 +456,10 @@ const getMonthlyAttendance = async (req: Request, res: Response): Promise<any> =
 
         // Create calendar data for all days in the month (1 to 31)
         const calendarData = [];
-        
+
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDateInMonth = new Date(year, month - 1, day);
-            const attendanceRecord = attendanceRecords.find(record => 
+            const attendanceRecord = attendanceRecords.find(record =>
                 record.date.getDate() === day
             );
 
@@ -604,7 +609,7 @@ const getMonthlyAttendance = async (req: Request, res: Response): Promise<any> =
                 totalDays: leave.totalDays,
                 status: leave.status
             })),
-            salary:engineer.salary || 0
+            salary: engineer.salary || 0
         };
 
         return sendSuccess(res, response, "Monthly attendance retrieved successfully");
@@ -638,7 +643,7 @@ const applyLeave = async (req: Request, res: Response): Promise<any> => {
         // Parse and validate dates
         const fromDateObj = new Date(fromDate);
         const toDateObj = new Date(toDate);
-        
+
         if (isNaN(fromDateObj.getTime()) || isNaN(toDateObj.getTime())) {
             return sendError(res, "Invalid date format", 400);
         }
@@ -646,7 +651,7 @@ const applyLeave = async (req: Request, res: Response): Promise<any> => {
         // Check if from date is not in the past
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         if (fromDateObj < today) {
             return sendError(res, "Cannot apply leave for past dates", 400);
         }
@@ -662,19 +667,19 @@ const applyLeave = async (req: Request, res: Response): Promise<any> => {
             status: { $in: [LeaveStatus.PENDING, LeaveStatus.APPROVED] },
             $or: [
                 // Case 1: New leave starts during existing leave
-                { 
-                    fromDate: { $lte: fromDateObj }, 
-                    toDate: { $gte: fromDateObj } 
+                {
+                    fromDate: { $lte: fromDateObj },
+                    toDate: { $gte: fromDateObj }
                 },
                 // Case 2: New leave ends during existing leave
-                { 
-                    fromDate: { $lte: toDateObj }, 
-                    toDate: { $gte: toDateObj } 
+                {
+                    fromDate: { $lte: toDateObj },
+                    toDate: { $gte: toDateObj }
                 },
                 // Case 3: New leave completely encompasses existing leave
-                { 
-                    fromDate: { $gte: fromDateObj }, 
-                    toDate: { $lte: toDateObj } 
+                {
+                    fromDate: { $gte: fromDateObj },
+                    toDate: { $lte: toDateObj }
                 }
             ]
         });
@@ -756,7 +761,7 @@ const createLeaveRequestByAdmin = async (req: Request, res: Response): Promise<a
         // Parse and validate dates
         const fromDateObj = new Date(fromDate);
         const toDateObj = new Date(toDate);
-        
+
         if (isNaN(fromDateObj.getTime()) || isNaN(toDateObj.getTime())) {
             return sendError(res, "Invalid date format. Please provide valid ISO date strings", 400);
         }
@@ -820,19 +825,19 @@ const createLeaveRequestByAdmin = async (req: Request, res: Response): Promise<a
                 status: { $in: [LeaveStatus.PENDING, LeaveStatus.APPROVED] },
                 $or: [
                     // Case 1: New leave starts during existing leave
-                    { 
-                        fromDate: { $lte: fromDateObj }, 
-                        toDate: { $gte: fromDateObj } 
+                    {
+                        fromDate: { $lte: fromDateObj },
+                        toDate: { $gte: fromDateObj }
                     },
                     // Case 2: New leave ends during existing leave
-                    { 
-                        fromDate: { $lte: toDateObj }, 
-                        toDate: { $gte: toDateObj } 
+                    {
+                        fromDate: { $lte: toDateObj },
+                        toDate: { $gte: toDateObj }
                     },
                     // Case 3: New leave completely encompasses existing leave
-                    { 
-                        fromDate: { $gte: fromDateObj }, 
-                        toDate: { $lte: toDateObj } 
+                    {
+                        fromDate: { $gte: fromDateObj },
+                        toDate: { $lte: toDateObj }
                     }
                 ]
             });
@@ -887,7 +892,7 @@ const createLeaveRequestByAdmin = async (req: Request, res: Response): Promise<a
 const getAllMyLeaves = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId; // Logged in engineer ID
-        
+
         if (!userId) {
             return sendError(res, "User ID is required", 400);
         }
@@ -904,11 +909,11 @@ const getAllMyLeaves = async (req: Request, res: Response): Promise<any> => {
 
         // Build filter conditions
         const filterConditions: any = { engineer: userId };
-        
+
         if (status && Object.values(LeaveStatus).includes(status as LeaveStatus)) {
             filterConditions.status = status as LeaveStatus;
         }
-        
+
         if (leaveType && Object.values(LeaveType).includes(leaveType as LeaveType)) {
             filterConditions.leaveType = leaveType as LeaveType;
         }
@@ -986,7 +991,7 @@ const updateAttendance = async (req: Request, res: Response): Promise<any> => {
         // Parse and validate date
         const attendanceDate = new Date(date);
         attendanceDate.setHours(0, 0, 0, 0);
-        
+
         if (isNaN(attendanceDate.getTime())) {
             return sendError(res, "Invalid date format", 400);
         }
@@ -1016,7 +1021,7 @@ const updateAttendance = async (req: Request, res: Response): Promise<any> => {
 
         // Update attendance record
         const updateData: any = { status };
-        
+
         if (checkInTime !== undefined) updateData.checkInTime = checkInTime ? new Date(checkInTime) : null;
         if (checkOutTime !== undefined) updateData.checkOutTime = checkOutTime ? new Date(checkOutTime) : null;
         if (location !== undefined) updateData.location = location;
@@ -1097,15 +1102,15 @@ const approveLeaveRequest = async (req: Request, res: Response): Promise<any> =>
         if (action === 'approve') {
             const fromDate = new Date(leaveRequest.fromDate);
             const toDate = new Date(leaveRequest.toDate);
-            
+
             // Create attendance records for each leave date
             for (let currentDate = new Date(fromDate); currentDate <= toDate; currentDate.setDate(currentDate.getDate() + 1)) {
                 const dayOfWeek = currentDate.getDay();
-                
+
                 // Skip weekends for business day calculations
                 if (dayOfWeek !== 0 && dayOfWeek !== 6) {
                     const dateOnly = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
-                    
+
                     // Check if attendance record already exists
                     let attendanceRecord = await EngineerAttendanceModel.findOne({
                         engineer: leaveRequest.engineer,
@@ -1116,7 +1121,7 @@ const approveLeaveRequest = async (req: Request, res: Response): Promise<any> =>
                         // Update existing attendance record to 'leave'
                         await EngineerAttendanceModel.findByIdAndUpdate(
                             attendanceRecord._id,
-                            { 
+                            {
                                 status: 'leave',
                                 remark: `Approved leave: ${leaveRequest.description}`,
                                 updatedAt: new Date()
@@ -1157,15 +1162,15 @@ const getAllPendingLeaveRequests = async (req: Request, res: Response): Promise<
 
         // Build filter conditions
         const filterConditions: any = { status: LeaveStatus.PENDING };
-        
+
         if (engineerId) {
             filterConditions.engineer = engineerId;
         }
-        
+
         if (leaveType && Object.values(LeaveType).includes(leaveType as LeaveType)) {
             filterConditions.leaveType = leaveType as LeaveType;
         }
-        
+
         if (reason && Object.values(LeaveReason).includes(reason as LeaveReason)) {
             filterConditions.reason = reason as LeaveReason;
         }
@@ -1227,7 +1232,7 @@ const getAllPendingLeaveRequests = async (req: Request, res: Response): Promise<
 const getEngineerCompanyDetails = async (req: Request, res: Response): Promise<any> => {
     try {
         const userId = (req as any).userId;
-        
+
         // Validate user ID
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return sendError(res, "Invalid user ID", 400);
@@ -1322,13 +1327,13 @@ const getEngineerCompanyDetails = async (req: Request, res: Response): Promise<a
 
         // Get complaint statistics
         const assignedComplaints = await mongoose.model('Complaint').countDocuments({ engineer: userId });
-        const completedComplaints = await mongoose.model('Complaint').countDocuments({ 
-            engineer: userId, 
-            status: 'resolved' 
+        const completedComplaints = await mongoose.model('Complaint').countDocuments({
+            engineer: userId,
+            status: 'resolved'
         });
-        const pendingComplaints = await mongoose.model('Complaint').countDocuments({ 
-            engineer: userId, 
-            status: { $ne: 'resolved' } 
+        const pendingComplaints = await mongoose.model('Complaint').countDocuments({
+            engineer: userId,
+            status: { $ne: 'resolved' }
         });
 
         engineerStats.assignedComplaints = assignedComplaints;
@@ -1341,9 +1346,9 @@ const getEngineerCompanyDetails = async (req: Request, res: Response): Promise<a
 
         // Get leave statistics
         const totalLeaves = await LeaveRequestModel.countDocuments({ engineer: userId });
-        const pendingLeaves = await LeaveRequestModel.countDocuments({ 
-            engineer: userId, 
-            status: 'pending' 
+        const pendingLeaves = await LeaveRequestModel.countDocuments({
+            engineer: userId,
+            status: 'pending'
         });
 
         engineerStats.totalLeaves = totalLeaves;
@@ -1362,6 +1367,582 @@ const getEngineerCompanyDetails = async (req: Request, res: Response): Promise<a
     }
 }
 
+export const getAllAssignedExistingClienttoUpdates = async (req: Request, res: Response): Promise<any> => {
+    try {
+        //engineerId logined user
+        const userId = (req as any).userId;
+        const engineer = await UserModel.findById(userId).select('role parentCompany');
+        if (!engineer) {
+            return sendError(res, "Engineer not found", 404);
+        }
+        if (engineer.role !== 'engineer') {
+            return sendError(res, "User is not an engineer", 403);
+        }
+        if (!engineer.parentCompany) {
+            return sendError(res, "Engineer not associated with any company", 400);
+        }
+        const existingClientUpdates = await ExistingClientUpdateModel.find({
+            assignedEngineer: userId, status: {
+                $in: [ClientUpdateStatus.PENDING, ClientUpdateStatus.VISITED_SITE]
+            }
+        })
+            .populate({
+                path: 'user',
+                select: 'firstName lastName email phoneNumber countryCode profileImage customerId address billingAddress status'
+            })
+            .populate({
+                path: 'assignedEngineer',
+                select: 'firstName lastName email phoneNumber countryCode profileImage role parentCompany'
+            })
+            .populate({
+                path: 'assignedBy',
+                select: 'firstName lastName email phoneNumber role'
+            })
+            .sort({ updatedAt: -1 })
+            .lean();
+
+        const summary = existingClientUpdates.reduce((acc, update) => {
+            acc.total += 1;
+            if (update.status === ClientUpdateStatus.PENDING) {
+                acc.pending += 1;
+            }
+            if (update.status === ClientUpdateStatus.VISITED_SITE) {
+                acc.visitedSite += 1;
+            }
+            return acc;
+        }, {
+            total: 0,
+            pending: 0,
+            visitedSite: 0
+        });
+
+        return sendSuccess(res, {
+            summary,
+            updates: existingClientUpdates
+        }, "Existing client updates retrieved successfully");
+    } catch (error) {
+        console.error("Get all assigned existing client updates error:", error);
+        return sendError(res, "Internal server error", 500, error);
+    }
+}
+
+export const updateExistingClientUpdate = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const engineerId = (req as any).userId;
+        const role = (req as any).role;
+
+        if (!engineerId) {
+            return sendError(res, "Engineer authentication required", 401);
+        }
+
+        if (role !== Role.ENGINEER) {
+            return sendError(res, "Only engineers can update client assignments", 403);
+        }
+
+        const {
+            existingClientUpdateId: bodyUpdateId,
+            userId,
+            lat,
+            long,
+            email,
+            firstName,
+            lastName,
+            phoneNumber,
+            countryCode,
+            companyPreference,
+            permanentAddress,
+            residentialAddress,
+            billingAddress,
+            landlineNumber,
+            modemName,
+            ontType,
+            modelNumber,
+            serialNumber,
+            ontMac,
+            username,
+            password,
+            mtceFranchise,
+            bbUserId,
+            bbPassword,
+            ruralUrban,
+            acquisitionType,
+            category,
+            ftthExchangePlan,
+            llInstallDate,
+            bbPlan,
+            workingStatus,
+            isInstalled,
+            fdbId,
+            oltId,
+            portNumber,
+            internetProviderId,
+            billConnect,
+            disconnectReason,
+            disconnectDate,
+            remarks,
+            fatherName,
+            companyService,
+            lastOfflineTime,
+            onlineTime,
+            msPonNumber,
+            customerVlan,
+            portStatus,
+            ontDistance,
+            ontTxPower,
+            ontRxPower,
+            billingOutstandingAmount,
+            paymentCollectDate,
+            paymentCollectMonth,
+            modemRecover,
+            billCollect,
+            unnamedField22,
+            clientUpdateStatus,
+            updateStatus,
+            updateRemarks,
+            updateAttachments,
+            visitDate,
+            completedAt
+        } = req.body;
+
+        const updateId = req.params.updateId || bodyUpdateId;
+
+        if (!userId) {
+            return sendError(res, "userId is required", 400);
+        }
+
+        if (!updateId) {
+            return sendError(res, "existingClientUpdateId is required", 400);
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(updateId)) {
+            return sendError(res, "Invalid existing client update id", 400);
+        }
+
+        const assignment = await ExistingClientUpdateModel.findOne({
+            _id: updateId,
+            assignedEngineer: engineerId
+        });
+
+        if (!assignment) {
+            return sendError(res, "Existing client update not found or not assigned to you", 404);
+        }
+
+        if (assignment.user.toString() !== userId) {
+            return sendError(res, "Provided userId does not match the assignment", 400);
+        }
+
+        const existingUser = await UserModel.findById(userId);
+        if (!existingUser) {
+            return sendError(res, "User not found", 404);
+        }
+
+        // Email uniqueness
+        if (email && email !== existingUser.email) {
+            const emailExists = await UserModel.findOne({ email, _id: { $ne: userId } });
+            if (emailExists) {
+                return sendError(res, "Email already exists for another user", 400);
+            }
+        }
+
+        // Landline uniqueness
+        if (landlineNumber && landlineNumber !== existingUser.landlineNumber) {
+            const landlineExists = await UserModel.findOne({ landlineNumber, _id: { $ne: userId } });
+            if (landlineExists) {
+                return sendError(res, "Landline number already exists for another user", 400);
+            }
+        }
+
+        const parseBoolean = (value: any): boolean | undefined => {
+            if (value === undefined || value === null) return undefined;
+            if (typeof value === "boolean") return value;
+            if (typeof value === "string") {
+                const normalized = value.trim().toLowerCase();
+                if (["true", "1", "yes", "y", "on"].includes(normalized)) return true;
+                if (["false", "0", "no", "n", "off"].includes(normalized)) return false;
+            }
+            return undefined;
+        };
+
+        const parseNumber = (value: any): number | undefined => {
+            if (value === undefined || value === null || value === "") return undefined;
+            const num = Number(value);
+            return Number.isNaN(num) ? undefined : num;
+        };
+
+        const parseDate = (value: any): Date | undefined => {
+            if (value === undefined || value === null || value === "") return undefined;
+            const date = new Date(value);
+            return isNaN(date.getTime()) ? undefined : date;
+        };
+
+        const modemRecoverBool = parseBoolean(modemRecover);
+        const billCollectBool = parseBoolean(billCollect);
+        const billConnectBool = parseBoolean(billConnect);
+        const isInstalledBool = parseBoolean(isInstalled);
+
+        const visitDateValue = parseDate(visitDate);
+        const completedAtValue = parseDate(completedAt);
+
+        const latNumber = parseNumber(lat);
+        const longNumber = parseNumber(long);
+        const ontDistanceNumber = parseNumber(ontDistance);
+        const ontTxPowerNumber = parseNumber(ontTxPower);
+        const ontRxPowerNumber = parseNumber(ontRxPower);
+        const billingOutstandingAmountNumber = parseNumber(billingOutstandingAmount);
+
+        const llInstallDateValue = parseDate(llInstallDate);
+        const disconnectDateValue = parseDate(disconnectDate);
+        const paymentCollectDateValue = parseDate(paymentCollectDate);
+        const lastOfflineTimeValue = parseDate(lastOfflineTime);
+        const onlineTimeValue = parseDate(onlineTime);
+
+        const normalizedStatusInput = clientUpdateStatus || updateStatus;
+        let normalizedStatus: ClientUpdateStatus | undefined;
+        if (normalizedStatusInput) {
+            if (!Object.values(ClientUpdateStatus).includes(normalizedStatusInput)) {
+                return sendError(res, "Invalid status value", 400);
+            }
+            normalizedStatus = normalizedStatusInput as ClientUpdateStatus;
+        }
+
+        type ExistingClientUpdateResult = {
+            updatedUser: any;
+            updatedModem: any;
+            updatedCustomer: any;
+            fdbConnection: any;
+            assignmentId: mongoose.Types.ObjectId | string;
+        };
+
+        const session = await mongoose.startSession();
+        let transactionResult: ExistingClientUpdateResult | null = null;
+
+        try {
+            transactionResult = await session.withTransaction<ExistingClientUpdateResult>(async () => {
+                const userUpdateData: Record<string, any> = {};
+                const setField = (container: Record<string, any>, key: string, value: any) => {
+                    if (value !== undefined) {
+                        container[key] = value;
+                    }
+                };
+
+                setField(userUpdateData, "email", email);
+                setField(userUpdateData, "firstName", firstName);
+                setField(userUpdateData, "lastName", lastName);
+                setField(userUpdateData, "phoneNumber", phoneNumber);
+                setField(userUpdateData, "countryCode", countryCode);
+                setField(userUpdateData, "companyPreference", companyPreference);
+                setField(userUpdateData, "permanentAddress", permanentAddress);
+                setField(userUpdateData, "residentialAddress", residentialAddress);
+                setField(userUpdateData, "billingAddress", billingAddress);
+                setField(userUpdateData, "landlineNumber", landlineNumber);
+                setField(userUpdateData, "mtceFranchise", mtceFranchise);
+                setField(userUpdateData, "bbUserId", bbUserId);
+                setField(userUpdateData, "bbPassword", bbPassword);
+                setField(userUpdateData, "ruralUrban", ruralUrban);
+                setField(userUpdateData, "acquisitionType", acquisitionType);
+                setField(userUpdateData, "category", category);
+                setField(userUpdateData, "ftthExchangePlan", ftthExchangePlan);
+                setField(userUpdateData, "bbPlan", bbPlan);
+                setField(userUpdateData, "workingStatus", workingStatus);
+                setField(userUpdateData, "internetProviderId", internetProviderId);
+                setField(userUpdateData, "disconnectReason", disconnectReason);
+                setField(userUpdateData, "remarks", remarks);
+                setField(userUpdateData, "fatherName", fatherName);
+                setField(userUpdateData, "companyService", companyService);
+                setField(userUpdateData, "msPonNumber", msPonNumber);
+                setField(userUpdateData, "customerVlan", customerVlan);
+                setField(userUpdateData, "portStatus", portStatus);
+                setField(userUpdateData, "paymentCollectMonth", paymentCollectMonth);
+                setField(userUpdateData, "unnamedField22", unnamedField22);
+
+                if (latNumber !== undefined) setField(userUpdateData, "lat", latNumber);
+                if (longNumber !== undefined) setField(userUpdateData, "long", longNumber);
+                if (llInstallDateValue) setField(userUpdateData, "llInstallDate", llInstallDateValue);
+                if (disconnectDateValue) setField(userUpdateData, "disconnectDate", disconnectDateValue);
+                if (lastOfflineTimeValue) setField(userUpdateData, "lastOfflineTime", lastOfflineTimeValue);
+                if (onlineTimeValue) setField(userUpdateData, "onlineTime", onlineTimeValue);
+                if (paymentCollectDateValue) setField(userUpdateData, "paymentCollectDate", paymentCollectDateValue);
+                if (ontDistanceNumber !== undefined) setField(userUpdateData, "ontDistance", ontDistanceNumber);
+                if (ontTxPowerNumber !== undefined) setField(userUpdateData, "ontTxPower", ontTxPowerNumber);
+                if (ontRxPowerNumber !== undefined) setField(userUpdateData, "ontRxPower", ontRxPowerNumber);
+                if (billingOutstandingAmountNumber !== undefined) setField(userUpdateData, "billingOutstandingAmount", billingOutstandingAmountNumber);
+                if (billConnectBool !== undefined) setField(userUpdateData, "billConnect", billConnectBool);
+                if (modemRecoverBool !== undefined) setField(userUpdateData, "modemRecover", modemRecoverBool);
+                if (billCollectBool !== undefined) setField(userUpdateData, "billCollect", billCollectBool);
+
+                if (latNumber !== undefined && longNumber !== undefined) {
+                    setField(userUpdateData, "location", {
+                        type: "Point",
+                        coordinates: [longNumber, latNumber]
+                    });
+                }
+
+                let updatedUser = existingUser;
+                if (Object.keys(userUpdateData).length > 0) {
+                    updatedUser = await UserModel.findByIdAndUpdate(
+                        userId,
+                        { $set: userUpdateData },
+                        { new: true, session, runValidators: true }
+                    ) as any;
+                } else {
+                    updatedUser = await UserModel.findById(userId).session(session) as any;
+                }
+
+                // Modem updates
+                const modemFields = [modemName, ontType, modelNumber, serialNumber, ontMac, username, password];
+                let updatedModem = null;
+                if (modemFields.some(field => field !== undefined && field !== null && field !== "")) {
+                    const modemUpdateData: Record<string, any> = {};
+                    setField(modemUpdateData, "modemName", modemName);
+                    setField(modemUpdateData, "ontType", ontType);
+                    setField(modemUpdateData, "modelNumber", modelNumber);
+                    setField(modemUpdateData, "serialNumber", serialNumber);
+                    setField(modemUpdateData, "ontMac", ontMac);
+                    setField(modemUpdateData, "username", username);
+                    setField(modemUpdateData, "password", password);
+
+                    updatedModem = await Modem.findOneAndUpdate(
+                        { userId },
+                        { $set: modemUpdateData },
+                        { new: true, upsert: true, session }
+                    );
+                }
+
+                const currentCustomer = await CustomerModel.findOne({ userId }, null, { session });
+
+                let fdbConnectionResult: any = null;
+                let fdbDoc: any = null;
+                let oltDoc: any = null;
+
+                if (fdbId && oltId && portNumber) {
+                    const normalizedPortNumber = String(portNumber).toUpperCase();
+
+                    fdbDoc = await FDBModel.findOne({ fdbId }).session(session);
+                    if (!fdbDoc) {
+                        throw new Error(`FDB with ID ${fdbId} not found`);
+                    }
+
+                    oltDoc = await OLTModel.findOne({ oltId }).session(session);
+                    if (!oltDoc) {
+                        throw new Error(`OLT with ID ${oltId} not found`);
+                    }
+
+                    if (!fdbDoc.ports || fdbDoc.ports.length === 0) {
+                        fdbDoc.generatePorts();
+                        fdbDoc.markModified("ports");
+                        await fdbDoc.save({ session });
+                    }
+
+                    if (fdbDoc.outputs) {
+                        const existingUserOutputs = fdbDoc.outputs.filter((output: any) => output.type === "user" && output.id === userId);
+                        for (const output of existingUserOutputs) {
+                            if (output.portNumber && fdbDoc.ports) {
+                                const port = fdbDoc.ports.find((p: any) => p.portNumber === output.portNumber);
+                                if (port) {
+                                    port.status = PortStatus.AVAILABLE;
+                                    port.connectedDevice = undefined;
+                                    port.connectionDate = undefined;
+                                }
+                            }
+                        }
+                        fdbDoc.outputs = fdbDoc.outputs.filter((output: any) => !(output.type === "user" && output.id === userId));
+                        fdbDoc.markModified("ports");
+                        fdbDoc.markModified("outputs");
+                    }
+
+                    if (currentCustomer && currentCustomer.fdbId) {
+                        const previousFdbId = currentCustomer.fdbId.toString();
+                        const currentFdbId = fdbDoc._id.toString();
+                        if (previousFdbId !== currentFdbId) {
+                            const previousFdb = await FDBModel.findById(currentCustomer.fdbId, null, { session });
+                            if (previousFdb && previousFdb.outputs) {
+                                const userOutputIndex = previousFdb.outputs.findIndex((output: any) =>
+                                    output.type === "user" && output.id === userId
+                                );
+                                if (userOutputIndex !== -1) {
+                                    const previousPortNumber = previousFdb.outputs[userOutputIndex].portNumber;
+                                    if (previousPortNumber && previousFdb.ports) {
+                                        const previousPort = previousFdb.ports.find((p: any) => p.portNumber === previousPortNumber);
+                                        if (previousPort) {
+                                            previousPort.status = PortStatus.AVAILABLE;
+                                            previousPort.connectedDevice = undefined;
+                                            previousPort.connectionDate = undefined;
+                                        }
+                                        previousFdb.markModified("ports");
+                                    }
+                                    previousFdb.outputs.splice(userOutputIndex, 1);
+                                    previousFdb.markModified("outputs");
+                                    await previousFdb.save({ session });
+                                }
+                            }
+                        }
+                    }
+
+                    if (!/^P\d+$/i.test(normalizedPortNumber)) {
+                        throw new Error("Invalid port number format. Expected values like P1, P2, ...");
+                    }
+
+                    const portExists = fdbDoc.ports?.some((port: any) => port.portNumber === normalizedPortNumber);
+                    if (!portExists) {
+                        throw new Error(`Port ${portNumber} does not exist for FDB ${fdbDoc.fdbName}`);
+                    }
+
+                    const selectedPort = fdbDoc.getPort(normalizedPortNumber);
+                    if (!selectedPort || selectedPort.status !== PortStatus.AVAILABLE) {
+                        throw new Error(`Port ${normalizedPortNumber} is not available`);
+                    }
+
+                    const customerLabel = `${updatedUser?.firstName || existingUser.firstName || ""} ${updatedUser?.lastName || existingUser.lastName || ""}`.trim();
+
+                    selectedPort.status = PortStatus.OCCUPIED;
+                    selectedPort.connectedDevice = {
+                        type: "user",
+                        id: userId,
+                        description: `User ${customerLabel}`
+                    };
+                    selectedPort.connectionDate = new Date();
+
+                    const maxOutputs = fdbDoc.fdbPower || 2;
+                    if (!fdbDoc.outputs) {
+                        fdbDoc.outputs = [];
+                    }
+                    if (fdbDoc.outputs.length >= maxOutputs) {
+                        throw new Error(`FDB ${fdbDoc.fdbName} already reached its maximum outputs (${maxOutputs})`);
+                    }
+
+                    fdbDoc.outputs.push({
+                        type: "user",
+                        id: userId,
+                        portNumber: normalizedPortNumber,
+                        description: `User ${customerLabel}`
+                    });
+
+                    fdbDoc.markModified("ports");
+                    fdbDoc.markModified("outputs");
+                    await fdbDoc.save({ session });
+
+                    fdbConnectionResult = {
+                        fdbId: fdbDoc.fdbId,
+                        fdbName: fdbDoc.fdbName,
+                        portNumber: normalizedPortNumber,
+                        connected: true
+                    };
+                }
+
+                let updatedCustomer = currentCustomer;
+                const customerUpdateData: Record<string, any> = {};
+
+                if (fdbDoc) customerUpdateData.fdbId = fdbDoc._id;
+                if (oltDoc) customerUpdateData.oltId = oltDoc._id;
+                if (isInstalledBool !== undefined) customerUpdateData.isInstalled = isInstalledBool;
+                if (fdbId && oltId && portNumber) {
+                    customerUpdateData.installationDate = new Date();
+                    customerUpdateData.isInstalled = true;
+                }
+
+                if (Object.keys(customerUpdateData).length > 0) {
+                    if (updatedCustomer) {
+                        updatedCustomer = await CustomerModel.findOneAndUpdate(
+                            { userId },
+                            { $set: customerUpdateData },
+                            { new: true, session }
+                        );
+                    } else {
+                        const created = await CustomerModel.create([{
+                            userId,
+                            ...customerUpdateData
+                        }], { session });
+                        updatedCustomer = created[0];
+                    }
+                }
+
+                const assignmentDoc = await ExistingClientUpdateModel.findById(assignment._id).session(session);
+                if (assignmentDoc) {
+                    if (normalizedStatus) {
+                        assignmentDoc.status = normalizedStatus;
+                        if (normalizedStatus === ClientUpdateStatus.VISITED_SITE && !assignmentDoc.visitDate) {
+                            assignmentDoc.visitDate = visitDateValue || new Date();
+                        }
+                        if (normalizedStatus === ClientUpdateStatus.DONE && !assignmentDoc.completedAt) {
+                            assignmentDoc.completedAt = completedAtValue || new Date();
+                        }
+                    }
+
+                    if (visitDateValue) {
+                        assignmentDoc.visitDate = visitDateValue;
+                    }
+                    if (completedAtValue) {
+                        assignmentDoc.completedAt = completedAtValue;
+                    }
+
+                    const assignmentRemarks = updateRemarks ?? req.body.assignmentRemarks;
+                    if (assignmentRemarks) {
+                        assignmentDoc.remarks = assignmentRemarks;
+                    }
+
+                    const attachmentsToAdd = Array.isArray(updateAttachments)
+                        ? updateAttachments.filter(Boolean)
+                        : (updateAttachments ? [updateAttachments] : []);
+                    if (attachmentsToAdd.length > 0) {
+                        assignmentDoc.attachments = [
+                            ...(assignmentDoc.attachments || []),
+                            ...attachmentsToAdd
+                        ];
+                    }
+
+                    await assignmentDoc.save({ session });
+                }
+
+                const transactionPayload: ExistingClientUpdateResult = {
+                    updatedUser,
+                    updatedModem,
+                    updatedCustomer,
+                    fdbConnection: fdbConnectionResult,
+                    assignmentId: assignment._id as mongoose.Types.ObjectId
+                };
+                return transactionPayload;
+            });
+
+            if (!transactionResult) {
+                return sendError(res, "Unable to update client data", 500);
+            }
+
+            const populatedAssignment = await ExistingClientUpdateModel.findById(transactionResult.assignmentId)
+                .populate({
+                    path: "user",
+                    select: "firstName lastName email phoneNumber countryCode customerId billingAddress status"
+                })
+                .populate({
+                    path: "assignedEngineer",
+                    select: "firstName lastName email phoneNumber countryCode parentCompany profileImage"
+                })
+                .populate({
+                    path: "assignedBy",
+                    select: "firstName lastName email role"
+                })
+                .lean();
+
+            return sendSuccess(res, {
+                user: transactionResult.updatedUser,
+                modem: transactionResult.updatedModem,
+                customer: transactionResult.updatedCustomer,
+                fdbConnection: transactionResult.fdbConnection,
+                existingClientUpdate: populatedAssignment
+            }, "Existing client data updated successfully");
+        } catch (transactionError: any) {
+            console.error("Update existing client transaction failed:", transactionError);
+            return sendError(res, transactionError.message || "Unable to update existing client", 500);
+        } finally {
+            await session.endSession();
+        }
+    } catch (error: any) {
+        console.error("Update existing client update error:", error);
+        return sendError(res, error.message || "Internal server error", 500);
+    }
+};
+
+
+
 export const engineerController = {
     engineerLogin,
     getEngineerProfile,
@@ -1377,5 +1958,7 @@ export const engineerController = {
     updateAttendance,
     approveLeaveRequest,
     getAllPendingLeaveRequests,
-    getEngineerCompanyDetails
+    getEngineerCompanyDetails,
+    getAllAssignedExistingClienttoUpdates,
+    updateExistingClientUpdate
 };

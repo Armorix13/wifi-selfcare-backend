@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticate from '../../middleware/auth.middleware';
 import { upload, excelUpload } from '../services/upload.service';
-import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign, getAllUserForConnect, connectUserToDevice, mainDashboardData, fdbAvailablePort, connectDeviceToPort, disconnectDeviceFromPort, addBsnlUserFromExcel, addRailWireUserFromExcel, addMyInternetUserFromExcel, addConnectUserFromExcel, checkEmail } from '../controllers/dashboard.controller';
+import { getProductDashboardAnalytics, getAllServicePlans, getEngineerAnalytics, getEngineerById, addEngineer, updateEngineer, deleteEngineer, getAllComplaintForEnginer, getEngineerDashboardAnalytics, addUserFromExcel, getAllLeaveRequests, getLeaveRequestAnalytics, approveRejectLeaveRequest, addUser, getUserManagementData, getUserDetailForUpdate, updateUser, getFullClientDetailsById, getExcelUsersWithoutCompleteData, getFullEngineerDetailsById, getAllUserForComplaintAssign, getAllUserForConnect, connectUserToDevice, mainDashboardData, fdbAvailablePort, connectDeviceToPort, disconnectDeviceFromPort, addBsnlUserFromExcel, addRailWireUserFromExcel, addMyInternetUserFromExcel, addConnectUserFromExcel, checkEmail, assignEngineerToUpdateExistingClient } from '../controllers/dashboard.controller';
 import { getAllOltTOAdminPanel } from '../controllers/olt.controller';
 
 const dashboardRoute = Router();
@@ -40,6 +40,7 @@ dashboardRoute.get('/client/:id/full-details', authenticate, getFullClientDetail
 dashboardRoute.get('/users-for-complaint-assign', authenticate, getAllUserForComplaintAssign);
 dashboardRoute.get('/users-for-connect', authenticate, getAllUserForConnect);
 dashboardRoute.post('/connect-user-to-device', authenticate, connectUserToDevice);
+dashboardRoute.post('/existing-clients/assign-engineer', authenticate, assignEngineerToUpdateExistingClient);
 dashboardRoute.post('/check-email', authenticate, checkEmail);
 
 // Engineer Complaint Routes
