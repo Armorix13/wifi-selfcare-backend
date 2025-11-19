@@ -2101,7 +2101,7 @@ const giveUserCompanyDetails = async (req: Request, res: Response): Promise<any>
 
         // Get user details with populated company information
         const user = await UserModel.findById(userId)
-            .populate('assignedCompany', 'companyName companyAddress companyPhone companyEmail companyWebsite companyLogo companyDescription companyCity companyState companyCountry companySize contactPerson industry')
+            .populate('assignedCompany', 'companyName companyAddress companyPhone companyEmail companyWebsite companyLogo companyDescription companyCity companyState companyCountry companySize contactPerson industry ivrNumber')
             .select('-password -otp -otpExpiry -otpVerified -jti -deviceToken');
 
         if (!user) {
@@ -2178,7 +2178,8 @@ const giveUserCompanyDetails = async (req: Request, res: Response): Promise<any>
                 companyCountry: company.companyCountry,
                 companySize: company.companySize,
                 contactPerson: company.contactPerson,
-                industry: company.industry
+                industry: company.industry,
+                ivrNumber: company.ivrNumber
             };
         }
 
