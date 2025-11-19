@@ -3281,6 +3281,7 @@ export const addUser = async (
 
         // Handle FDB port connection if fdbId, oltId, and portNumber are provided
         let fdbConnectionResult = null;
+        let freshFdb: any = null;
 
         if (fdbId && oltId && portNumber) {
           // Validate port number format (P1, P2, etc.)
@@ -3288,55 +3289,63 @@ export const addUser = async (
             throw new Error("Invalid port number format. Must be P1, P2, P3, etc.");
           }
 
+          // Reload FDB within transaction to get latest state
+          freshFdb = await FDBModel.findOne({ fdbId: fdbId }).session(session);
+          if (!freshFdb) {
+            throw new Error(`FDB with ID ${fdbId} not found`);
+          }
+
           // Generate ports if they don't exist
-          if (!fdb.ports || fdb.ports.length === 0) {
-            fdb.generatePorts();
-            await fdb.save({ session });
+          if (!freshFdb.ports || freshFdb.ports.length === 0) {
+            freshFdb.generatePorts();
+            freshFdb.markModified('ports');
+            await freshFdb.save({ session });
           }
 
           // Check if port exists for this FDB power
-          const portExists = fdb.ports?.some(port => port.portNumber === portNumber);
+          const portExists = freshFdb.ports?.some((port: any) => port.portNumber === portNumber);
           if (!portExists) {
-            throw new Error(`Port ${portNumber} does not exist for FDB with power ${fdb.fdbPower}`);
+            throw new Error(`Port ${portNumber} does not exist for FDB with power ${freshFdb.fdbPower}`);
           }
 
-          // Check if port is available
-          const port = fdb.getPort(portNumber);
-          if (!port || port.status !== 'available') {
+          // Check if port is available using PortStatus enum
+          const port = freshFdb.getPort(portNumber);
+          if (!port || port.status !== PortStatus.AVAILABLE) {
             throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
           }
 
           // Connect user to port
-          await fdb.connectToPort(portNumber, {
+          await freshFdb.connectToPort(portNumber, {
             type: "user",
             id: (newUser._id as mongoose.Types.ObjectId).toString(),
             description: `User ${firstName} ${lastName}`
           });
 
           // Add to FDB outputs with validation
-          const maxOutputs = fdb.fdbPower || 2; // Default to 2 if power not set
-          if (!fdb.outputs) {
-            fdb.outputs = [];
+          const maxOutputs = freshFdb.fdbPower || 2; // Default to 2 if power not set
+          if (!freshFdb.outputs) {
+            freshFdb.outputs = [];
           }
 
           // Check output limit
-          if (fdb.outputs.length >= maxOutputs) {
-            throw new Error(`FDB with power ${fdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
+          if (freshFdb.outputs.length >= maxOutputs) {
+            throw new Error(`FDB with power ${freshFdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
           }
 
           // Add new output
-          fdb.outputs.push({
+          freshFdb.outputs.push({
             type: "user",
             id: (newUser._id as mongoose.Types.ObjectId).toString(),
             portNumber: portNumber,
             description: `User ${firstName} ${lastName}`
           });
 
-          await fdb.save({ session });
+          freshFdb.markModified('outputs');
+          await freshFdb.save({ session });
 
           fdbConnectionResult = {
-            fdbId: fdb.fdbId,
-            fdbName: fdb.fdbName,
+            fdbId: freshFdb.fdbId,
+            fdbName: freshFdb.fdbName,
             portNumber: portNumber,
             connected: true
           };
@@ -3356,7 +3365,7 @@ export const addUser = async (
           }], { session }),
           CustomerModel.create([{
             userId: newUser._id,
-            fdbId: fdb._id,
+            fdbId: fdbId && freshFdb ? freshFdb._id : null,
             oltId: olt._id,
             isInstalled: isInstalled
           }], { session })
@@ -3398,15 +3407,44 @@ export const addUser = async (
         }
       });
 
-    } catch (transactionError) {
+    } catch (transactionError: any) {
       console.error("Transaction failed:", transactionError);
+      
+      // Check if it's a validation error (port availability, format, etc.)
+      const errorMessage = transactionError?.message || String(transactionError);
+      if (
+        errorMessage.includes('not available') ||
+        errorMessage.includes('does not exist for FDB') ||
+        errorMessage.includes('Invalid port number format') ||
+        errorMessage.includes('can only have') ||
+        errorMessage.includes('not found')
+      ) {
+        await session.endSession();
+        return sendError(res, errorMessage, 400);
+      }
+      
+      // For other errors, throw to be caught by outer catch
       throw transactionError;
     } finally {
       await session.endSession();
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in addUser:", error);
+    
+    // Check if it's a validation error
+    const errorMessage = error?.message || String(error);
+    if (
+      errorMessage.includes('not available') ||
+      errorMessage.includes('does not exist for FDB') ||
+      errorMessage.includes('Invalid port number format') ||
+      errorMessage.includes('can only have') ||
+      errorMessage.includes('not found') ||
+      errorMessage.includes('already exists')
+    ) {
+      return sendError(res, errorMessage, 400);
+    }
+    
     next(error);
   }
 };
@@ -3737,6 +3775,8 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
             // Mark ports and outputs as modified so Mongoose saves them
             fdb.markModified('ports');
             fdb.markModified('outputs');
+            // Save after disconnecting to ensure latest state
+            await fdb.save({ session });
           }
 
           // Also disconnect from previous FDB if different from current FDB
@@ -3780,14 +3820,20 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
             throw new Error("Invalid port number format. Must be P1, P2, P3, etc.");
           }
 
+          // Reload FDB after disconnecting to get absolute latest state
+          const latestFdb = await FDBModel.findOne({ fdbId: fdbId }).session(session);
+          if (!latestFdb) {
+            throw new Error(`FDB with ID ${fdbId} not found`);
+          }
+
           // Check if port exists for this FDB power
-          const portExists = fdb.ports?.some((port: any) => port.portNumber === portNumber);
+          const portExists = latestFdb.ports?.some((port: any) => port.portNumber === portNumber);
           if (!portExists) {
-            throw new Error(`Port ${portNumber} does not exist for FDB with power ${fdb.fdbPower}`);
+            throw new Error(`Port ${portNumber} does not exist for FDB with power ${latestFdb.fdbPower}`);
           }
 
           // Check if port is available (after disconnecting from old ports)
-          const port = fdb.getPort(portNumber);
+          const port = latestFdb.getPort(portNumber);
           if (!port || port.status !== PortStatus.AVAILABLE) {
             throw new Error(`Port ${portNumber} is not available (Status: ${port?.status || 'not found'})`);
           }
@@ -3804,18 +3850,18 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           }
 
           // Add to FDB outputs with validation
-          const maxOutputs = fdb.fdbPower || 2; // Default to 2 if power not set
-          if (!fdb.outputs) {
-            fdb.outputs = [];
+          const maxOutputs = latestFdb.fdbPower || 2; // Default to 2 if power not set
+          if (!latestFdb.outputs) {
+            latestFdb.outputs = [];
           }
 
           // Check output limit before adding (we already removed old outputs above)
-          if (fdb.outputs.length >= maxOutputs) {
-            throw new Error(`FDB with power ${fdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
+          if (latestFdb.outputs.length >= maxOutputs) {
+            throw new Error(`FDB with power ${latestFdb.fdbPower} can only have ${maxOutputs} outputs maximum`);
           }
 
           // Add new output (we already removed old ones above)
-          fdb.outputs.push({
+          latestFdb.outputs.push({
             type: "user",
             id: userId,
             portNumber: portNumber,
@@ -3823,18 +3869,21 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
           });
 
           // Mark ports and outputs as modified
-          fdb.markModified('ports');
-          fdb.markModified('outputs');
+          latestFdb.markModified('ports');
+          latestFdb.markModified('outputs');
 
           // Save all changes to FDB at once (only one save call)
-          await fdb.save({ session });
+          await latestFdb.save({ session });
 
           fdbConnectionResult = {
-            fdbId: fdb.fdbId,
-            fdbName: fdb.fdbName,
+            fdbId: latestFdb.fdbId,
+            fdbName: latestFdb.fdbName,
             portNumber: portNumber,
             connected: true
           };
+          
+          // Update fdb reference for customer update
+          fdb = latestFdb;
         }
 
         // Always update customer record
@@ -3893,15 +3942,44 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
         fdbConnection: result.fdbConnection
       }, "User updated successfully");
 
-    } catch (transactionError) {
+    } catch (transactionError: any) {
       console.error("Transaction failed:", transactionError);
+      
+      // Check if it's a validation error (port availability, format, etc.)
+      const errorMessage = transactionError?.message || String(transactionError);
+      if (
+        errorMessage.includes('not available') ||
+        errorMessage.includes('does not exist for FDB') ||
+        errorMessage.includes('Invalid port number format') ||
+        errorMessage.includes('can only have') ||
+        errorMessage.includes('not found')
+      ) {
+        await session.endSession();
+        return sendError(res, errorMessage, 400);
+      }
+      
+      // For other errors, throw to be caught by outer catch
       throw transactionError;
     } finally {
       await session.endSession();
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in updateUser:", error);
+    
+    // Check if it's a validation error
+    const errorMessage = error?.message || String(error);
+    if (
+      errorMessage.includes('not available') ||
+      errorMessage.includes('does not exist for FDB') ||
+      errorMessage.includes('Invalid port number format') ||
+      errorMessage.includes('can only have') ||
+      errorMessage.includes('not found') ||
+      errorMessage.includes('already exists')
+    ) {
+      return sendError(res, errorMessage, 400);
+    }
+    
     next(error);
   }
 };
